@@ -1,0 +1,501 @@
+/* Milestone Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 1rem;
+  /* Prevent body scroll when modal is open */
+  overflow: hidden;
+}
+
+.milestone-modal {
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  max-width: 1200px;
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  position: relative;
+  z-index: 10000;
+  animation: modalFadeIn 0.3s ease forwards;
+  /* Ensure modal stays in viewport */
+  max-height: calc(100vh - 2rem);
+  /* Prevent modal from jumping around */
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.milestone-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.milestone-modal .modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.milestone-modal .close-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.milestone-modal .close-button:hover {
+  background-color: var(--hover-bg);
+}
+
+/* Make the form take up the full height of the modal */
+.milestone-modal form {
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 70px); /* Account for header height */
+  overflow: hidden;
+}
+
+.milestone-modal .modal-content {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+  max-width: 100%;
+  /* Improve scrolling behavior */
+  scroll-behavior: smooth;
+  /* Prevent content jumping */
+  contain: layout style;
+}
+
+/* Two-column layout for milestone modal */
+.milestone-modal .form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.milestone-modal .form-grid .full-width {
+  grid-column: 1 / -1;
+  margin-bottom: 1rem;
+}
+
+/* Style the title field to be more prominent */
+.milestone-modal .form-grid .full-width input[type="text"] {
+  font-size: 1.1rem;
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+}
+
+/* Make description textarea span full width */
+.milestone-modal .form-grid .description-field {
+  grid-column: 1 / -1;
+  margin-top: 0.5rem;
+}
+
+/* Adjust form groups inside the grid */
+.milestone-modal .form-grid .form-group {
+  margin-bottom: 0;
+}
+
+/* Preserve spacing between form groups outside the grid */
+.milestone-modal .form-group:not(.form-grid .form-group) {
+  margin-bottom: 1.25rem;
+}
+
+/* Ensure textarea spans full width and has proper height */
+.milestone-modal textarea {
+  min-height: 220px;
+  padding: 0.75rem 1rem;
+  line-height: 1.6;
+  font-size: 1rem;
+  width: 100%;
+  resize: vertical;
+  border-radius: 8px;
+  transition: border 0.2s, box-shadow 0.2s;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.milestone-modal textarea:focus {
+  box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.3), inset 0 1px 3px rgba(0, 0, 0, 0.05);
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+.milestone-modal input,
+.milestone-modal textarea,
+.milestone-modal select {
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--input-border);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  width: 100%;
+  transition: all 0.2s ease;
+}
+
+/* Specific styling for date inputs to prevent jumping */
+.milestone-modal input[type="date"] {
+  /* Ensure consistent height and prevent layout shifts */
+  min-height: 2.75rem;
+  /* Prevent the calendar icon from causing layout shifts */
+  position: relative;
+  /* Improve calendar popover positioning */
+  z-index: 1;
+}
+
+/* Prevent date input from causing scroll jumps */
+.milestone-modal input[type="date"]:focus {
+  /* Maintain position when focused */
+  scroll-margin: 2rem;
+}
+
+.milestone-modal label {
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.milestone-modal .poam-info {
+  background-color: var(--background-color-light);
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--border-color);
+}
+
+.milestone-modal .poam-info p {
+  margin: 0.5rem 0;
+  color: var(--text-color);
+}
+
+/* Modal footer and button styles */
+.milestone-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  z-index: 10;
+}
+
+/* Button styles for modal */
+.milestone-modal .cancel-button,
+.milestone-modal .save-button {
+  padding: 0.625rem 1.25rem;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1rem;
+  display: inline-block; /* Ensure buttons are visible */
+  min-width: 120px; /* Ensure buttons have adequate width */
+}
+
+.milestone-modal .cancel-button {
+  background-color: var(--background-color-light);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.milestone-modal .cancel-button:hover {
+  background-color: var(--hover-bg);
+}
+
+.milestone-modal .save-button {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.milestone-modal .save-button:hover {
+  filter: brightness(1.1);
+}
+
+/* Add visible focus styles for accessibility */
+.milestone-modal input:focus,
+.milestone-modal textarea:focus,
+.milestone-modal select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* Add section dividers for visual organization */
+.milestone-modal .form-section {
+  margin-bottom: 1.5rem;
+}
+
+.milestone-modal .form-section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+/* Milestone item styles */
+.milestone-item {
+  background-color: var(--card-bg);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border-color);
+}
+
+.milestone-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.milestone-header h4 {
+  margin: 0;
+  color: var(--text-color);
+}
+
+.remove-milestone-button {
+  background: none;
+  border: none;
+  color: var(--danger-color);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-milestone-button:hover {
+  color: var(--danger-color-dark);
+}
+
+.add-milestone-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  margin-bottom: 1.25rem;
+}
+
+.add-milestone-button:hover {
+  background-color: var(--primary-hover);
+}
+
+/* Milestone milestone-tracker styles */
+.milestone-tracker h2 {
+  margin-bottom: 1.5rem;
+}
+
+/* Toggle switch styles for Hide Completed */
+.toggle-group {
+  display: flex;
+  align-items: center;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+  color: var(--text-secondary);
+  gap: 0.5rem;
+}
+
+.toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  background-color: var(--input-bg);
+  border: 2px solid var(--input-border);
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  margin-right: 0.5rem;
+}
+
+.toggle-input:checked + .toggle-switch {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.toggle-input:checked + .toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  background-color: white;
+  border-radius: 50%;
+}
+
+.toggle-input:focus + .toggle-switch {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* Enhance filter group styles */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.filter-group {
+  min-width: 180px;
+  max-width: 250px;
+}
+
+.filter-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.filter-group select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.filter-group select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* Responsive adjustments for filters */
+@media (max-width: 768px) {
+  .filters {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .filter-group {
+    min-width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .milestone-modal {
+    max-width: 95%;
+    max-height: 85vh;
+    min-width: auto;
+    width: 95vw;
+  }
+  
+  .milestone-modal .form-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .milestone-modal .form-grid .full-width,
+  .milestone-modal .form-grid .description-field {
+    grid-column: 1;
+  }
+  
+  .milestone-modal textarea {
+    min-height: 180px;
+  }
+  
+  .milestone-modal .modal-header,
+  .milestone-modal .modal-content,
+  .milestone-modal .modal-footer {
+    padding: 1rem;
+  }
+}
+
+/* Medium-sized screens optimization */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .milestone-modal {
+    max-width: 90%;
+  }
+  
+  .milestone-modal .form-grid {
+    gap: 1rem;
+  }
+}
+
+/* Animation for modal entrance */
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Highlighted milestone from calendar navigation */
+.highlighted-milestone {
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.08), hsl(var(--primary) / 0.12)) !important;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.highlighted-milestone:hover {
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.12), hsl(var(--primary) / 0.16)) !important;
+}
+
+/* Dark mode adjustments for highlighted milestone */
+:root.dark .highlighted-milestone {
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.12), hsl(var(--primary) / 0.18)) !important;
+}
+
+:root.dark .highlighted-milestone:hover {
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.16), hsl(var(--primary) / 0.22)) !important;
+}

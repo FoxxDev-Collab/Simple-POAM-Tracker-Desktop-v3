@@ -1,0 +1,177 @@
+/* Responsive design styles */
+
+/* Small screens - below 576px (default mobile first) */
+/* Default styles are typically designed for this range */
+
+/* Medium/tablet screens */
+@media (min-width: 576px) and (max-width: 767px) {
+  /* Add any specific styles for small tablets */
+}
+
+/* Large/small desktop screens */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .app-content {
+    padding: 1.25rem 1.5rem;
+  }
+  
+  /* Adjust component grids for this screen size */
+  .metrics-grid,
+  .dashboard-content,
+  .notes-card-view {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+/* XL/desktop screens */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  /* Styles for standard desktop/laptop screens */
+  .container-responsive {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  /* Prevent cards from becoming too wide */
+  .card-grid-responsive {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+}
+
+/* XXL/large desktop screens */
+@media (min-width: 1280px) {
+  .app-content,
+  .header-content {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  /* Optimal card sizing for very large screens */
+  .card-grid-responsive {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+}
+
+/* Responsive adjustments based on specific needs */
+
+/* Mobile adjustments */
+@media (max-width: 767px) {
+  .app-header {
+    padding: 0.5rem 1rem;
+  }
+  
+  .app-content {
+    padding: 1rem;
+  }
+  
+  .app-footer {
+    padding: 0.75rem 1rem;
+  }
+  
+  h1 {
+    font-size: 1.5rem;
+  }
+  
+  h2 {
+    font-size: 1.25rem;
+  }
+  
+  .tab-button {
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  /* Stack flex elements that should be full width on mobile */
+  .notes-toolbar,
+  .view-toggles {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  
+  /* Make search container full width on mobile */
+  .search-container {
+    max-width: none;
+  }
+  
+  /* Adjust grid layouts for mobile */
+  .metrics-grid,
+  .dashboard-content,
+  .notes-card-view {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  /* Global header improvements */
+  .header-content {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+  
+  /* Button groups stack vertically */
+  .button-group,
+  .action-bar .button-group {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .button-group > *,
+  .action-bar .button-group > * {
+    width: 100%;
+  }
+}
+
+/* Additional mobile breakpoint for very small screens */
+@media (max-width: 640px) {
+  .app-content {
+    padding: 0.75rem;
+  }
+  
+  h1 {
+    font-size: 1.25rem;
+  }
+  
+  /* Force full width on small screens */
+  .mobile-full-width {
+    width: 100% !important;
+  }
+  
+  /* Compact spacing for small screens */
+  .compact-mobile {
+    padding: 0.5rem !important;
+    gap: 0.5rem !important;
+  }
+}
+
+/* Tablet specific adjustments */
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Tablet-specific improvements */
+  .tablet-stack {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .tablet-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Adjust tables for smaller screens */
+@media (max-width: 1023px) {
+  .poam-progress-table,
+  .notes-table-view {
+    overflow-x: auto;
+  }
+  
+  .milestone-modal {
+    max-width: 90%;
+  }
+  
+  .milestone-modal .form-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+}

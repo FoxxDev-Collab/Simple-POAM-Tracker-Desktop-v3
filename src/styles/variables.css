@@ -1,0 +1,84 @@
+/* Theme variables */
+
+/* Base styles */
+:root {
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Light theme (default) */
+:root.light-theme, :root:not(.dark-theme) {
+  --primary-color: #3b82f6;
+  --primary-hover: #2563eb;
+  --text-color: #111827;
+  --text-secondary: #4b5563;
+  --background-color: #f9fafb;
+  --surface-color: #f3f4f6;
+  --card-bg: white;
+  --border-color: #e5e7eb;
+  --header-bg: #1e40af;
+  --header-text: white;
+  --danger-color: #ef4444;
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --info-color: #3b82f6;
+  --gray-color: #6b7280;
+  --hover-bg: rgba(0, 0, 0, 0.05);
+  --input-bg: white;
+  --input-border: #d1d5db;
+  --tooltip-bg: #1f2937;
+  --tooltip-color: white;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --scrollbar-track: #f1f1f1;
+  --scrollbar-thumb: #c1c1c1;
+  /* Add :root var for primary-color-rgb for box-shadow */
+  --primary-color-rgb: 59, 130, 246;
+  /* Add missing vars */
+  --input-background: var(--input-bg);
+  --background-color-light: var(--surface-color);
+  --primary-dark: #1d4ed8; /* Darker blue for light theme hover */
+  --secondary-color: #6b7280; /* Gray */
+  --secondary-color-dark: #4b5563; /* Darker Gray */
+}
+
+/* Dark theme */
+:root.dark-theme {
+  --primary-color: #3b82f6;
+  --primary-hover: #60a5fa;
+  --text-color: #f9fafb;
+  --text-secondary: #d1d5db;
+  --background-color: #111827;
+  --surface-color: #1f2937;
+  --card-bg: #1f2937;
+  --border-color: #374151;
+  --header-bg: #0f172a;
+  --header-text: #f9fafb;
+  --danger-color: #ef4444;
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --info-color: #3b82f6;
+  --gray-color: #9ca3af;
+  --hover-bg: rgba(255, 255, 255, 0.05);
+  --input-bg: #374151;
+  --input-border: #4b5563;
+  --tooltip-bg: #d1d5db;
+  --tooltip-color: #111827;
+  --shadow-color: rgba(0, 0, 0, 0.5);
+  --scrollbar-track: #1f2937;
+  --scrollbar-thumb: #4b5563;
+  /* Add :root var for primary-color-rgb for box-shadow */
+  --primary-color-rgb: 59, 130, 246; /* Same RGB for dark, adjust if needed */
+  /* Add missing vars */
+  --input-background: var(--input-bg);
+  --background-color-light: var(--surface-color);
+  --primary-dark: #2563eb; /* Darker blue for dark theme hover */
+  --secondary-color: #9ca3af; /* Lighter Gray */
+  --secondary-color-dark: #6b7280; /* Gray */
+}

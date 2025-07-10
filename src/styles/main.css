@@ -1,0 +1,28 @@
+/* Main CSS file that imports all other stylesheets */
+
+/* Import modern theme globals (must be first for CSS variables) */
+@import './globals.css';
+
+/* Import theme variables */
+@import './variables.css';
+
+/* Import base styles */
+@import './base.css';
+
+/* Import layout styles */
+@import './layout.css';
+
+/* Import common component styles */
+@import './components.css';
+
+/* Import common modal styles */
+@import './modal.css';
+
+/* Import utility classes */
+@import './utilities.css';
+
+/* Import animations */
+@import './animations.css';
+
+/* Import responsive styles - keep this last to override other styles as needed */
+@import './responsive.css';

@@ -1,0 +1,532 @@
+/* Dashboard Styles */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+/* Dashboard Grid Layout */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Calendar Section */
+.calendar-section {
+  grid-column: 1;
+}
+
+.calendar-container {
+  background-color: var(--card-bg);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.calendar-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+
+.calendar-stats {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.calendar-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+/* Calendar Component Customization */
+.dashboard-calendar {
+  width: 100%;
+  border: none !important;
+  background: transparent !important;
+  font-family: inherit !important;
+}
+
+.dashboard-calendar .react-calendar__navigation {
+  margin-bottom: 0.75rem;
+}
+
+.dashboard-calendar .react-calendar__navigation button {
+  min-width: 36px;
+  background: none;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.dashboard-calendar .react-calendar__navigation button:enabled:hover,
+.dashboard-calendar .react-calendar__navigation button:enabled:focus {
+  background-color: var(--hover-bg);
+}
+
+.dashboard-calendar .react-calendar__month-view__weekdays {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  text-decoration: none !important;
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-calendar .react-calendar__month-view__weekdays__weekday abbr {
+  text-decoration: none;
+  cursor: default;
+}
+
+.dashboard-calendar .react-calendar__tile {
+  padding: 0.75rem 0.25rem 1.25rem;
+  font-size: 0.85rem;
+  border-radius: 4px;
+  position: relative;
+  height: 48px; /* Increased height */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dashboard-calendar .react-calendar__tile abbr {
+  position: absolute;
+  top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.dashboard-calendar .react-calendar__tile:enabled:hover,
+.dashboard-calendar .react-calendar__tile:enabled:focus {
+  background-color: var(--hover-bg);
+}
+
+.dashboard-calendar .react-calendar__tile--now {
+  background-color: var(--primary-light) !important;
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.dashboard-calendar .react-calendar__tile--active {
+  background-color: var(--primary-color) !important;
+  color: white;
+}
+
+/* Calendar Markers */
+.calendar-tile-content {
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+  position: absolute;
+  bottom: 4px; /* Increased distance from bottom */
+  left: 0;
+  right: 0;
+}
+
+.calendar-marker {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  margin-top: 2px; /* Added margin for better spacing */
+}
+
+.calendar-marker.overdue {
+  background-color: var(--danger-color);
+}
+
+.calendar-marker.due-soon {
+  background-color: var(--warning-color);
+}
+
+.calendar-marker.upcoming {
+  background-color: var(--success-color);
+}
+
+.calendar-legend {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.legend-marker {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.legend-marker.overdue {
+  background-color: var(--danger-color);
+}
+
+.legend-marker.due-soon {
+  background-color: var(--warning-color);
+}
+
+.legend-marker.upcoming {
+  background-color: var(--success-color);
+}
+
+/* Chart Section */
+.chart-section {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.chart-card {
+  background: var(--card-bg);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border-color);
+  flex: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.chart-card h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+
+/* Donut Chart Styles */
+.donut-chart-container {
+  height: 300px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+/* Make sure chart legends are visible in dark mode */
+:root.dark-theme .chart-card canvas {
+  filter: brightness(1.1);
+}
+
+:root.dark-theme .chart-card .chartjs-legend li span {
+  color: white !important;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+/* Milestone Section Styles */
+.milestones-section {
+  background-color: var(--card-bg);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border-color);
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.milestones-section h3 {
+  margin: 0 0 1.25rem 0;
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.75rem;
+}
+
+.milestone-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.milestone-category h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.milestone-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.milestone-card {
+  background-color: var(--card-bg);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.milestone-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px var(--shadow-color);
+}
+
+.milestone-card.overdue {
+  border-left: 4px solid var(--danger-color);
+}
+
+.milestone-card.due-soon {
+  border-left: 4px solid var(--warning-color);
+}
+
+.milestone-card.upcoming {
+  border-left: 4px solid var(--success-color);
+}
+
+.milestone-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.milestone-poam {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.milestone-status {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 1rem;
+  font-weight: 500;
+}
+
+.milestone-status.not-started {
+  background-color: var(--neutral-bg);
+  color: var(--text-secondary);
+}
+
+.milestone-status.in-progress {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+}
+
+.milestone-status.completed {
+  background-color: var(--success-light);
+  color: var(--success-color);
+}
+
+.milestone-status.delayed {
+  background-color: var(--warning-light);
+  color: var(--warning-color);
+}
+
+.milestone-title {
+  font-size: 1rem;
+  margin: 0 0 0.75rem 0;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.milestone-due-date {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.due-label {
+  color: var(--text-secondary);
+}
+
+.due-date {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.days-overdue {
+  color: var(--danger-color);
+  font-weight: 500;
+}
+
+.days-until {
+  color: var(--text-secondary);
+}
+
+.no-milestones {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.loading {
+  text-align: center;
+  padding: 1rem;
+  color: var(--text-secondary);
+}
+
+.toast-examples,
+.icon-examples {
+  display: none;
+}
+
+/* Dark theme specific adjustments */
+:root.dark-theme .stats-card,
+:root.dark-theme .chart-card,
+:root.dark-theme .milestones-section,
+:root.dark-theme .calendar-container {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+:root.dark-theme .stat-value {
+  color: var(--primary-hover); /* Use a slightly brighter primary color in dark mode */
+}
+
+/* Dark theme calendar improvements */
+:root.dark-theme .dashboard-calendar .react-calendar__tile--now {
+  background-color: rgba(var(--primary-rgb), 0.3) !important;
+  color: white !important;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+:root.dark-theme .dashboard-calendar .react-calendar__navigation button,
+:root.dark-theme .dashboard-calendar .react-calendar__tile {
+  color: white;
+}
+
+:root.dark-theme .dashboard-calendar .react-calendar__month-view__weekdays {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+:root.dark-theme .dashboard-calendar .react-calendar__navigation button:enabled:hover,
+:root.dark-theme .dashboard-calendar .react-calendar__navigation button:enabled:focus,
+:root.dark-theme .dashboard-calendar .react-calendar__tile:enabled:hover,
+:root.dark-theme .dashboard-calendar .react-calendar__tile:enabled:focus {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+:root.dark-theme .dashboard-calendar .react-calendar__tile--active {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+  font-weight: 600;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+}
+
+:root.dark-theme .dashboard-calendar .react-calendar__month-view__days__day--neighboringMonth {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+:root.dark-theme .calendar-legend {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+:root.dark-theme .legend-item {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+:root.dark-theme .calendar-header h3 {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:root.dark-theme .stat-label {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+:root.dark-theme .calendar-marker {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 992px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .calendar-section,
+  .chart-section {
+    grid-column: 1;
+  }
+  
+  .chart-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .chart-section {
+    grid-template-columns: 1fr;
+  }
+  
+  .calendar-stats {
+    margin-top: 0.5rem;
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .milestone-cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .icon-examples-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .toast-buttons {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .calendar-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}

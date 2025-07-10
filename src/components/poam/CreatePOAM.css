@@ -1,0 +1,220 @@
+:root {
+  --background-primary: #ffffff;
+  --background-secondary: #f8fafc;
+  --text-primary: #2c3e50;
+  --text-secondary: #7f8c8d;
+  --text-label: #34495e;
+  --border-color: #dce0e3;
+  --input-border: #dce0e3;
+  --input-focus-border: #3498db;
+  --input-focus-shadow: rgba(52, 152, 219, 0.2);
+  --button-background: #2ecc71;
+  --button-hover: #27ae60;
+  --button-disabled: #95a5a6;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --error-color: #e74c3c;
+}
+
+[data-theme="dark"] {
+  --background-primary: #1a1c1e;
+  --background-secondary: #2c3e50;
+  --text-primary: #ecf0f1;
+  --text-secondary: #bdc3c7;
+  --text-label: #ecf0f1;
+  --border-color: #34495e;
+  --input-border: #34495e;
+  --input-focus-border: #3498db;
+  --input-focus-shadow: rgba(52, 152, 219, 0.4);
+  --button-background: #27ae60;
+  --button-hover: #2ecc71;
+  --button-disabled: #576574;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --error-color: #e74c3c;
+}
+
+.create-poam-container {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: var(--card-bg);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px var(--shadow-color);
+  color: var(--text-color);
+}
+
+.create-poam-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.create-poam-header h2 {
+  color: var(--text-color);
+  margin-bottom: 0.5rem;
+  font-size: 2rem;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.poam-form {
+  width: 100%;
+}
+
+.form-columns {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 2rem;
+}
+
+.form-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: 0.9rem;
+}
+
+.required {
+  color: var(--danger-color);
+  margin-left: 2px;
+}
+
+.form-input {
+  padding: 0.75rem;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: var(--input-bg);
+  color: var(--text-color);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.2);
+}
+
+.form-input::placeholder {
+  color: var(--text-secondary);
+}
+
+textarea.form-input {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.dates-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.date-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.status-section {
+  background: var(--surface-color);
+  padding: 1.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.status-section h3 {
+  margin: 0 0 1.5rem 0;
+  color: var(--text-color);
+  font-size: 1.1rem;
+}
+
+select.form-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 1em;
+  padding-right: 2.5rem;
+}
+
+.form-actions {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.submit-button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 0.75rem 2rem;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.submit-button:hover {
+  background-color: var(--primary-hover);
+}
+
+.submit-button:active {
+  transform: translateY(1px);
+}
+
+.submit-button:disabled {
+  background-color: var(--gray-color);
+  cursor: not-allowed;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Dark mode overrides for date input type */
+:root.dark-theme input[type="date"] {
+  color-scheme: dark;
+}
+
+@media (max-width: 768px) {
+  .create-poam-container {
+    margin: 1rem;
+    padding: 1rem;
+  }
+
+  .form-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .dates-container {
+    grid-template-columns: 1fr;
+  }
+}

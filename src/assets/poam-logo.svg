@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Shield -->
+  <path d="M128 20L40 60V140C40 185.287 76.9133 223.967 128 236C179.087 223.967 216 185.287 216 140V60L128 20Z" fill="#1E40AF" stroke="#0F172A" stroke-width="8"/>
+  
+  <!-- Checkmarks and Tasks -->
+  <rect x="76" y="100" width="104" height="14" rx="7" fill="white" opacity="0.9"/>
+  <rect x="76" y="130" width="104" height="14" rx="7" fill="white" opacity="0.7"/>
+  <rect x="76" y="160" width="104" height="14" rx="7" fill="white" opacity="0.5"/>
+  
+  <!-- Checkmark in Circle -->
+  <circle cx="76" cy="107" r="16" fill="#10B981"/>
+  <path d="M68 107L74 113L84 101" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- In Progress Circle -->
+  <circle cx="76" cy="137" r="16" fill="#3B82F6"/>
+  <path d="M76 129V137H84" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Not Started Circle -->
+  <circle cx="76" cy="167" r="16" fill="#6B7280"/>
+  <path d="M70 167H82" stroke="white" stroke-width="4" stroke-linecap="round"/>
+</svg> 

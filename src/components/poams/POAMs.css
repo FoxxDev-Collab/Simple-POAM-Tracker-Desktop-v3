@@ -1,0 +1,450 @@
+/* POAM List Styles */
+.poam-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.poam-list th, .poam-list td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.poam-list th {
+  font-weight: 500;
+  background-color: var(--surface-color);
+}
+
+.poam-list tr:hover {
+  background-color: var(--hover-bg);
+}
+
+/* POAM Tracker styles */
+.poam-tracker h2 { /* Remove? Milestone uses this too */
+  margin-bottom: 1.5rem;
+}
+
+.filters {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Create POAM styles */
+.create-poam {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.poam-form {
+  background-color: var(--card-bg);
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-top: 1rem;
+}
+
+.create-button {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.25rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 1rem;
+}
+
+.create-button:hover {
+  background-color: var(--primary-hover);
+}
+
+/* EditPOAM Component Styles */
+.edit-poam-container {
+  display: flex;
+  flex-direction: column;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background: var(--background-color);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.edit-tabs {
+  display: flex;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.edit-tab {
+  padding: 12px 24px;
+  margin-right: 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text-color);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-tab:hover {
+  background-color: var(--hover-color); /* Note: --hover-color not defined */
+}
+
+.edit-tab.active {
+  border-bottom: 3px solid var(--primary-color);
+  color: var(--primary-color);
+}
+
+.edit-poam-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.edit-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px 0;
+}
+
+/* POAM Progress Tracking Styles */
+.poam-progress-section {
+  margin-top: 2rem;
+}
+
+.poam-progress-section h2 {
+  margin-bottom: 1rem;
+  font-size: 1.4rem;
+  color: var(--text-color);
+}
+
+.poam-progress-table {
+  background-color: var(--card-bg);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.poam-progress-table table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0;
+}
+
+.poam-progress-table th {
+  background-color: var(--surface-color);
+  padding: 0.85rem 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-color);
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.poam-progress-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  color: var(--text-color);
+}
+
+.poam-progress-table tr:last-child td {
+  border-bottom: none;
+}
+
+.poam-progress-table tr:hover {
+  background-color: var(--hover-bg);
+}
+
+.poam-title-cell {
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.progress-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+/* Revisit progress bar placement */
+/* 
+.progress-cell .progress-bar-container {
+  flex: 1;
+  height: 8px;
+  background-color: var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0;
+  position: relative;
+  min-width: 80px;
+}
+
+.progress-cell .progress-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progress-cell .progress-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  position: static;
+  color: var(--text-color);
+}
+*/
+
+@media (max-width: 1024px) {
+  .poam-progress-table {
+    overflow-x: auto;
+  }
+  
+  .poam-progress-table table {
+    min-width: 900px;
+  }
+}
+
+/* POAM Selector Dropdown */
+.poam-dropdown {
+  position: absolute;
+  z-index: 10;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-height: 300px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.poam-dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.poam-dropdown-header h4 {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.poam-search {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.poam-search-input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.poam-item {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s;
+}
+
+.poam-item:hover {
+  background-color: var(--hover-bg);
+}
+
+.no-poams {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.poam-list { /* Duplicated from above? Need to rename? */
+  flex: 1;
+  overflow-y: auto;
+  max-height: 200px;
+}
+
+/* Remove old POAM selection styles */
+.selected-poams-container,
+.selected-poams-tags,
+.poam-tag,
+.poam-tag-remove,
+.add-poam-tag-btn,
+.select-poam-btn,
+.poam-dropdown,
+.poam-dropdown-header,
+.poam-search,
+.poam-search-input,
+.poam-list,
+.poam-item {
+  display: none !important; /* Hide old elements */
+}
+
+/* POAM selection - checkbox list styles */
+.poam-selector-container {
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  overflow: hidden;
+  background-color: var(--input-bg);
+}
+
+.poam-list-search {
+  width: 100%;
+  padding: 0.75rem;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  background-color: transparent;
+  color: var(--text-color);
+  font-size: 0.875rem;
+}
+
+.poam-list-search:focus {
+  outline: none;
+  border-bottom-color: var(--primary-color);
+}
+
+.poam-checkbox-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+.poam-checkbox-item {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+.poam-checkbox-item:hover {
+  background-color: var(--hover-bg);
+}
+
+.poam-checkbox {
+  margin-right: 0.75rem;
+  cursor: pointer;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--primary-color);
+}
+
+.poam-checkbox-label {
+  font-size: 0.875rem;
+  color: var(--text-color);
+  flex: 1;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.loading-poams, .no-poams {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Displaying selected POAMs in view mode */
+.selected-poams-view {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  min-height: 2.5rem;
+}
+
+.poam-view-tag {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 0.2rem 0.6rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* POAM dropdown for Note Editor */
+.poam-dropdown-container {
+  position: relative;
+  width: 100%;
+  z-index: 100; /* Ensure dropdown appears above other elements */
+}
+
+.poam-dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--input-bg);
+  cursor: pointer;
+  user-select: none;
+}
+
+.poam-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  max-height: 240px;
+  overflow-y: auto;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 101; /* Higher than container */
+  margin-top: 4px;
+}
+
+.poam-dropdown-search {
+  width: calc(100% - 16px);
+  margin: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.poam-dropdown-items {
+  padding: 0 8px 8px;
+}
+
+.poam-dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.poam-dropdown-item:hover {
+  background-color: var(--hover-bg);
+} 
