@@ -6,8 +6,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { 
   Settings as SettingsIcon, 
   Palette, 
+  Bell, 
+  Globe, 
   Trash2, 
   AlertTriangle, 
+  X, 
+  Check, 
   Sun, 
   Moon, 
   Shield,
@@ -25,8 +29,6 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import TabNavigation from '../tabNavigation/TabNavigation';
-import { clearNessusData, clearStigData } from '../../utils/tauriApi';
 import { useAppLock } from '../../context/AppLockContext';
 
 interface SettingsState {
@@ -122,7 +124,17 @@ export default function Settings() {
     }
   };
 
-  // Keep for future settings expansion (theme uses direct setters)
+  const handleChange = (key: keyof SettingsState, value: any) => {
+    setSettings({
+      ...settings,
+      [key]: value
+    });
+    
+    // If color scheme is changed, update the theme immediately
+    if (key === 'colorScheme') {
+      setTheme(value === 'dark' ? 'dark' : 'light');
+    }
+  };
 
   const handleSaveSettings = async () => {
     try {
@@ -251,46 +263,6 @@ export default function Settings() {
     }
   };
 
-  const handleClearScans = async () => {
-    try {
-      if (!currentSystem?.id) {
-        showToast('error', 'No active system selected');
-        return;
-      }
-      setIsClearing(true);
-      addToLog(`Clearing Nessus scans for system ${currentSystem.id}...`);
-      const msg = await clearNessusData(currentSystem.id);
-      addToLog(msg);
-      showToast('success', 'Nessus scan data cleared');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      addToLog(`Failed to clear scans: ${errorMessage}`);
-      showToast('error', 'Failed to clear scan data');
-    } finally {
-      setIsClearing(false);
-    }
-  };
-
-  const handleClearStig = async () => {
-    try {
-      if (!currentSystem?.id) {
-        showToast('error', 'No active system selected');
-        return;
-      }
-      setIsClearing(true);
-      addToLog(`Clearing STIG mappings for system ${currentSystem.id}...`);
-      const msg = await clearStigData(currentSystem.id);
-      addToLog(msg);
-      showToast('success', 'STIG mapping data cleared');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      addToLog(`Failed to clear STIG data: ${errorMessage}`);
-      showToast('error', 'Failed to clear STIG data');
-    } finally {
-      setIsClearing(false);
-    }
-  };
-
   const clearDatabase = async () => {
     setClearingLog([]);
     
@@ -350,11 +322,16 @@ export default function Settings() {
     }
   };
 
-  // Timezone options will be added when the UI exposes timezone selection
-
-  const handleClearAllData = async () => {
-    await clearDatabase();
-  };
+  const timezoneOptions = [
+    { value: 'America/Boise', label: 'America/Boise (Mountain Time)' },
+    { value: 'America/New_York', label: 'America/New_York (Eastern Time)' },
+    { value: 'America/Chicago', label: 'America/Chicago (Central Time)' },
+    { value: 'America/Denver', label: 'America/Denver (Mountain Time)' },
+    { value: 'America/Los_Angeles', label: 'America/Los_Angeles (Pacific Time)' },
+    { value: 'America/Anchorage', label: 'America/Anchorage (Alaska Time)' },
+    { value: 'America/Honolulu', label: 'America/Honolulu (Hawaii Time)' },
+    { value: 'UTC', label: 'UTC (Coordinated Universal Time)' }
+  ];
 
   // Tab render functions
   const renderGeneralSettings = () => (
@@ -469,23 +446,6 @@ export default function Settings() {
               )}
             </div>
           </div>
-          <div className="flex items-center justify-between mt-4 pt-4 border-t">
-            <div>
-              <div className="font-medium">Clear STIG Mappings</div>
-              <div className="text-sm text-muted-foreground">
-                Remove all imported STIG-to-NIST mappings for the active system
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearStig}
-              disabled={isClearing}
-              className="gap-2"
-            >
-              {isClearing ? 'Clearing...' : 'Clear STIG'}
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
@@ -521,23 +481,6 @@ export default function Settings() {
             >
               <Trash2 className="h-4 w-4" />
               {isClearing ? 'Clearing...' : 'Clear All Data'}
-            </Button>
-          </div>
-          <div className="flex items-center justify-between mt-4 pt-4 border-t">
-            <div>
-              <div className="font-medium">Clear Nessus Scan Data</div>
-              <div className="text-sm text-muted-foreground">
-                Remove imported Nessus scans and findings for the active system
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearScans}
-              disabled={isClearing}
-              className="gap-2"
-            >
-              {isClearing ? 'Clearing...' : 'Clear Scans'}
             </Button>
           </div>
         </CardContent>
@@ -721,40 +664,55 @@ export default function Settings() {
           )}
         </div>
 
-        {/* Tabs - Unified reusable component */}
-        <TabNavigation
-          tabs={[
-            {
-              id: 'general',
-              label: 'General',
-              content: (
-                <div className="container-responsive p-6 space-y-8">
-                  {renderGeneralSettings()}
-                </div>
-              )
-            },
-            {
-              id: 'system',
-              label: 'System Info',
-              content: (
-                <div className="container-responsive p-6 space-y-8">
-                  {renderSystemInfo()}
-                </div>
-              )
-            },
-            {
-              id: 'about',
-              label: 'About',
-              content: (
-                <div className="container-responsive p-6 space-y-8">
-                  {renderAbout()}
-                </div>
-              )
-            }
-          ]}
-          activeTabId={activeTab}
-          onTabChange={setActiveTab}
-        />
+        {/* Tabs */}
+        <div className="border-b border-border">
+          <div className="flex space-x-8">
+            <button
+              onClick={() => setActiveTab('general')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'general'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <SettingsIcon className="w-4 h-4" />
+                General
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('system')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'system'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Building className="w-4 h-4" />
+                System Info
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('about')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'about'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Info className="w-4 h-4" />
+                About
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'general' && renderGeneralSettings()}
+        {activeTab === 'system' && renderSystemInfo()}
+        {activeTab === 'about' && renderAbout()}
       </div>
 
       {/* App Lock Setup Dialog */}
@@ -925,4 +883,3 @@ export default function Settings() {
     </>
   );
 }
-                

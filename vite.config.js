@@ -47,6 +47,10 @@ export default defineConfig(function () { return __awaiter(void 0, void 0, void 
                 //
                 // 1. prevent vite from obscuring rust errors
                 clearScreen: false,
+                // Configure sourcemaps to prevent line wrapping issues
+                css: {
+                    devSourcemap: false,
+                },
                 // 2. tauri expects a fixed port, fail if that port is not available
                 server: {
                     port: 1420,

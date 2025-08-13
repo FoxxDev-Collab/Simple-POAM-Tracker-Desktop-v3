@@ -9,6 +9,7 @@ mod models;
 mod security;
 mod stig;
 mod date_utils;
+// Nessus DB helpers live under database::nessus; no top-level mod needed here
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -29,6 +30,8 @@ enum Error {
 
     #[error(transparent)]
     Zip(#[from] zip::result::ZipError),
+    #[error("Nessus parsing error: {0}")]
+    Nessus(String),
 }
 
 impl serde::Serialize for Error {
@@ -41,9 +44,172 @@ impl serde::Serialize for Error {
 }
 
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+async fn import_nessus_files(app_handle: AppHandle, file_paths: Vec<String>, system_id: String) -> Result<String, Error> {
+    use quick_xml::Reader;
+    use quick_xml::events::Event;
+    use serde_json::json;
+    use uuid::Uuid;
+    use chrono::Utc;
+    println!("Importing {} Nessus files for system {}", file_paths.len(), system_id);
+
+    let mut db = database::get_database(&app_handle)?;
+
+    for file_path in file_paths {
+        let content = fs::read_to_string(&file_path)?;
+        let mut reader = Reader::from_str(&content);
+        reader.config_mut().trim_text(true);
+
+        // Basic counters and metadata
+        let mut hosts = 0usize;
+        let mut findings_count = 0usize;
+        let mut current_host: Option<String> = None;
+        let mut findings: Vec<database::nessus::NessusFinding> = Vec::new();
+
+        // Simple, robust extraction of key fields
+        let mut buf: Vec<u8> = Vec::new();
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Start(e)) => {
+                    let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                    match name.as_str() {
+                        "ReportHost" => {
+                            hosts += 1;
+                            current_host = e
+                                .attributes()
+                                .filter_map(|a| a.ok())
+                                .find(|a| a.key.as_ref() == b"name")
+                                .and_then(|a| String::from_utf8(a.value.to_vec()).ok());
+                        }
+                        "ReportItem" => {
+                            findings_count += 1;
+                            // Capture a few attributes
+                            let mut plugin_id: Option<i64> = None;
+                            let mut port: Option<i64> = None;
+                            let mut protocol: Option<String> = None;
+                            let mut severity: Option<String> = None;
+                            let mut plugin_name: Option<String> = None;
+                            for attr in e.attributes().flatten() {
+                                let key = attr.key.as_ref();
+                                let val = String::from_utf8_lossy(&attr.value).to_string();
+                                match key {
+                                    b"pluginID" => plugin_id = val.parse::<i64>().ok(),
+                                    b"port" => port = val.parse::<i64>().ok(),
+                                    b"protocol" => protocol = Some(val),
+                                    b"severity" => severity = Some(val),
+                                    b"pluginName" => plugin_name = Some(val),
+                                    _ => {}
+                                }
+                            }
+
+                            // We will not parse inner text deeply now; store raw for future enrichment
+                            let finding = database::nessus::NessusFinding {
+                                id: Uuid::new_v4().to_string(),
+                                scan_id: String::new(), // set after scan id is known
+                                plugin_id,
+                                plugin_name,
+                                severity,
+                                risk_factor: None,
+                                cve: None,
+                                cvss_base_score: None,
+                                host: current_host.clone(),
+                                port,
+                                protocol,
+                                synopsis: None,
+                                description: None,
+                                solution: None,
+                                raw_json: json!({}),
+                            };
+                            findings.push(finding);
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(Event::Eof) => break,
+                Err(e) => return Err(Error::Nessus(format!("Error parsing Nessus XML: {}", e))),
+                _ => {}
+            }
+            buf.clear();
+        }
+
+        // Build scan meta and save
+        let scan_id = Uuid::new_v4().to_string();
+        for f in &mut findings { f.scan_id = scan_id.clone(); }
+
+        // Determine version: increment by name within system
+        let existing_scans = {
+            let queries = database::nessus::NessusQueries::new(&db.conn);
+            queries.get_scans(&system_id)?
+        };
+        let scan_file_name = std::path::Path::new(&file_path).file_name().unwrap_or_default().to_string_lossy().to_string();
+        let next_version = existing_scans.iter().filter(|s| s.name == scan_file_name).map(|s| s.version).max().unwrap_or(0) + 1;
+
+        let scan_meta = database::nessus::NessusScanMeta {
+            id: scan_id.clone(),
+            name: scan_file_name,
+            description: Some("Imported Nessus scan".to_string()),
+            imported_date: Utc::now().to_rfc3339(),
+            version: next_version as i32,
+            source_file: Some(file_path.clone()),
+            scan_info: json!({ "hosts": hosts, "findings": findings_count }),
+        };
+
+        db.save_nessus_scan_and_findings(&scan_meta, &findings, &system_id)?;
+    }
+
+    Ok("Nessus files imported".to_string())
 }
+
+#[tauri::command]
+async fn get_nessus_scans(app_handle: AppHandle, system_id: String) -> Result<Vec<database::nessus::NessusScanMeta>, Error> {
+    let mut db = database::get_database(&app_handle)?;
+    let scans = db.get_nessus_scans(&system_id)?;
+    Ok(scans)
+}
+
+#[tauri::command]
+async fn get_nessus_findings_by_scan(app_handle: AppHandle, scan_id: String, system_id: String) -> Result<Vec<database::nessus::NessusFinding>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let findings = db.get_nessus_findings_by_scan(&scan_id, &system_id)?;
+    Ok(findings)
+}
+
+#[tauri::command]
+async fn clear_nessus_data(app_handle: AppHandle, system_id: String) -> Result<String, Error> {
+    println!("Clearing Nessus scans and findings for system: {}", system_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.clear_all_nessus_data_for_system(&system_id)?;
+    Ok("Nessus data cleared".to_string())
+}
+
+#[tauri::command]
+async fn clear_stig_data(app_handle: AppHandle, system_id: String) -> Result<String, Error> {
+    println!("Clearing STIG mappings for system: {}", system_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.clear_stig_mappings_for_system(&system_id)?;
+    Ok("STIG data cleared".to_string())
+}
+
+#[tauri::command]
+async fn save_nessus_prep_list(app_handle: AppHandle, prep: database::nessus::NessusPrepList, system_id: String) -> Result<(), Error> {
+    let mut db = database::get_database(&app_handle)?;
+    db.save_nessus_prep_list(&prep, &system_id)?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_all_nessus_prep_lists(app_handle: AppHandle, system_id: String) -> Result<Vec<database::nessus::NessusPrepList>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let lists = db.get_all_nessus_prep_lists(&system_id)?;
+    Ok(lists)
+}
+
+#[tauri::command]
+async fn delete_nessus_prep_list(app_handle: AppHandle, id: String, system_id: String) -> Result<(), Error> {
+    let mut db = database::get_database(&app_handle)?;
+    db.delete_nessus_prep_list(&id, &system_id)?;
+    Ok(())
+}
+// removed deprecated greet
 
 #[tauri::command]
 async fn import_json_file(app_handle: AppHandle, file_path: String, system_id: String) -> Result<String, Error> {
@@ -1778,13 +1944,99 @@ async fn export_stig_mappings(app_handle: AppHandle, export_path: String, system
     Ok("STIG mappings exported successfully".to_string())
 }
 
+// Group Management Commands
+
+#[tauri::command]
+async fn create_group(app_handle: AppHandle, group: models::SystemGroup) -> Result<(), Error> {
+    println!("Creating group: {}", group.name);
+    let mut db = database::get_database(&app_handle)?;
+    db.create_group(&group)?;
+    println!("Successfully created group: {}", group.name);
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_all_groups(app_handle: AppHandle) -> Result<Vec<models::GroupSummary>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let groups = db.get_all_groups()?;
+    println!("Retrieved {} groups", groups.len());
+    Ok(groups)
+}
+
+#[tauri::command]
+async fn get_group_by_id(app_handle: AppHandle, id: String) -> Result<Option<models::SystemGroup>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let group = db.get_group_by_id(&id)?;
+    Ok(group)
+}
+
+#[tauri::command]
+async fn update_group(app_handle: AppHandle, group: models::SystemGroup) -> Result<(), Error> {
+    println!("Updating group: {}", group.name);
+    let mut db = database::get_database(&app_handle)?;
+    db.update_group(&group)?;
+    println!("Successfully updated group: {}", group.name);
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_group(app_handle: AppHandle, id: String) -> Result<(), Error> {
+    println!("Deleting group: {}", id);
+    let mut db = database::get_database(&app_handle)?;
+    db.delete_group(&id)?;
+    println!("Successfully deleted group: {}", id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn add_system_to_group(app_handle: AppHandle, group_id: String, system_id: String, added_by: Option<String>) -> Result<(), Error> {
+    println!("Adding system {} to group {}", system_id, group_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.add_system_to_group(&group_id, &system_id, added_by.as_deref())?;
+    println!("Successfully added system to group");
+    Ok(())
+}
+
+#[tauri::command]
+async fn remove_system_from_group(app_handle: AppHandle, system_id: String) -> Result<(), Error> {
+    println!("Removing system {} from group", system_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.remove_system_from_group(&system_id)?;
+    println!("Successfully removed system from group");
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_systems_in_group(app_handle: AppHandle, group_id: String) -> Result<Vec<models::SystemSummary>, Error> {
+    let mut db = database::get_database(&app_handle)?;
+    let systems = db.get_systems_in_group(&group_id)?;
+    println!("Retrieved {} systems in group {}", systems.len(), group_id);
+    Ok(systems)
+}
+
+#[tauri::command]
+async fn get_ungrouped_systems(app_handle: AppHandle) -> Result<Vec<models::SystemSummary>, Error> {
+    let mut db = database::get_database(&app_handle)?;
+    let systems = db.get_ungrouped_systems()?;
+    println!("Retrieved {} ungrouped systems", systems.len());
+    Ok(systems)
+}
+
+#[tauri::command]
+async fn reorder_systems_in_group(app_handle: AppHandle, group_id: String, system_orders: Vec<(String, i32)>) -> Result<(), Error> {
+    println!("Reordering systems in group {}", group_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.reorder_systems_in_group(&group_id, &system_orders)?;
+    println!("Successfully reordered systems in group");
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
-            greet,
             import_json_file,
             get_all_poams,
             get_poams,
@@ -1852,11 +2104,78 @@ pub fn run() {
             remove_poam_control_association,
             get_poam_associations_by_control,
             get_control_associations_by_poam,
+            import_nessus_files,
+            get_nessus_scans,
+            get_nessus_findings_by_scan,
+            clear_nessus_data,
+            clear_stig_data,
+            save_nessus_prep_list,
+            get_all_nessus_prep_lists,
+            delete_nessus_prep_list,
             get_baseline_controls,
             add_baseline_control,
             update_baseline_control,
-            remove_baseline_control
+            remove_baseline_control,
+            create_milestone,
+            update_milestone_status,
+            delete_poam,
+            create_group,
+            get_all_groups,
+            get_group_by_id,
+            update_group,
+            delete_group,
+            add_system_to_group,
+            remove_system_from_group,
+            get_systems_in_group,
+            get_ungrouped_systems,
+            reorder_systems_in_group
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+async fn create_milestone(app_handle: AppHandle, milestone: models::Milestone, poam_id: i64, system_id: String) -> Result<(), Error> {
+    println!("Creating milestone for POAM {}: {}", poam_id, milestone.title);
+    let mut db = database::get_database(&app_handle)?;
+    
+    // Get the POAM to add the milestone to
+    let mut poam = db.get_poam_by_id(poam_id, &system_id)?
+        .ok_or_else(|| Error::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("POAM with id {} not found", poam_id)
+        )))?;
+    
+    // Add the milestone to the POAM
+    poam.milestones.push(milestone);
+    
+    // Update the POAM with the new milestone
+    db.update_poam(&poam, &system_id)?;
+    
+    println!("Successfully created milestone");
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_milestone_status(
+    app_handle: AppHandle, 
+    milestone_id: String, 
+    poam_id: i64, 
+    status: String, 
+    system_id: String
+) -> Result<(), Error> {
+    println!("Updating milestone status: {} to {}", milestone_id, status);
+    let mut db = database::get_database(&app_handle)?;
+    db.update_milestone_status(&milestone_id, poam_id, &status, &system_id)?;
+    println!("Successfully updated milestone status");
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_poam(app_handle: AppHandle, poam_id: i64, system_id: String) -> Result<(), Error> {
+    println!("Deleting POAM: {}", poam_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.delete_poam(poam_id, &system_id)?;
+    println!("Successfully deleted POAM");
+    Ok(())
 }

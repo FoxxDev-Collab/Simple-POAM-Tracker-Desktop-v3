@@ -125,6 +125,8 @@ export default function POAMTracker() {
     openEditPOAM(poam.id);
   };
 
+
+
   // Handle sorting
   const handleSort = (key: string) => {
     setSortConfig(prevConfig => ({
@@ -425,6 +427,7 @@ export default function POAMTracker() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

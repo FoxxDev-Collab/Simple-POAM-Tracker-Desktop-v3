@@ -44,6 +44,11 @@ pub struct POAM {
     pub mitigations: Option<String>,
     #[serde(rename = "devicesAffected", skip_serializing_if = "Option::is_none")]
     pub devices_affected: Option<String>,
+    // STIG and vulnerability tracking fields
+    #[serde(rename = "sourceStigMappingId", skip_serializing_if = "Option::is_none")]
+    pub source_stig_mapping_id: Option<String>,
+    #[serde(rename = "selectedVulnerabilities", skip_serializing_if = "Option::is_none")]
+    pub selected_vulnerabilities: Option<Vec<String>>, // Array of vuln_num values
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -263,6 +268,7 @@ pub struct System {
     pub is_active: bool,
     pub poam_count: Option<i32>,
     pub last_accessed: Option<String>,
+    pub group_id: Option<String>, // Reference to system group
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -279,6 +285,7 @@ pub struct SystemSummary {
     pub test_plans_count: i32,
     pub last_accessed: Option<String>,
     pub created_date: String,
+    pub group_id: Option<String>, // Reference to system group
 }
 
 // Update POAMData to include system information
@@ -294,4 +301,96 @@ pub struct SystemExportData {
     pub poam_control_associations: Option<Vec<ControlPOAMAssociation>>,
     pub export_date: String,
     pub export_version: String,
+}
+
+// System Group Data Structures
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SystemGroup {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub color: Option<String>, // For UI theming
+    pub created_date: String,
+    pub updated_date: String,
+    pub created_by: Option<String>,
+    pub is_active: bool,
+    pub system_count: Option<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupSystemAssociation {
+    pub id: String,
+    pub group_id: String,
+    pub system_id: String,
+    pub added_date: String,
+    pub added_by: Option<String>,
+    pub display_order: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupSummary {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub color: Option<String>,
+    pub system_count: i32,
+    pub total_poam_count: i32,
+    pub total_notes_count: i32,
+    pub total_stig_mappings_count: i32,
+    pub total_test_plans_count: i32,
+    pub created_date: String,
+    pub last_accessed: Option<String>,
+    pub systems: Option<Vec<SystemSummary>>, // For detailed group views
+}
+
+// Enhanced export data to include group information
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GroupExportData {
+    pub group: SystemGroup,
+    pub systems: Vec<SystemExportData>,
+    pub export_date: String,
+    pub export_version: String,
+}
+
+// Group-level POAM structure for cross-system POAMs
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupPOAM {
+    pub id: i64,
+    pub title: String,
+    pub description: String,
+    pub start_date: String,
+    pub end_date: String,
+    pub status: String,
+    pub priority: String,
+    pub risk_level: String,
+    pub group_id: String,
+    pub affected_systems: Vec<String>, // System IDs that this POAM affects
+    pub milestones: Vec<Milestone>,
+    // All the enhanced fields from regular POAMs
+    pub resources: Option<String>,
+    pub source_identifying_vulnerability: Option<String>,
+    pub raw_severity: Option<String>,
+    pub severity: Option<String>,
+    pub relevance_of_threat: Option<String>,
+    pub likelihood: Option<String>,
+    pub impact: Option<String>,
+    pub residual_risk: Option<String>,
+    pub mitigations: Option<String>,
+    pub devices_affected: Option<String>,
+}
+
+// Group-level Security Test Plan
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupSecurityTestPlan {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub created_date: String,
+    pub updated_date: String,
+    pub status: String,
+    pub group_id: String,
+    pub included_systems: Vec<String>, // System IDs included in this test plan
+    pub group_poam_id: Option<i64>,
+    pub test_cases: Vec<TestCase>,
+    pub overall_score: Option<f64>,
 }

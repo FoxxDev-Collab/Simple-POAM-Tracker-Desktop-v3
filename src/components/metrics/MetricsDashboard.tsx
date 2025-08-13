@@ -9,6 +9,8 @@ import CompletionTimeline from './CompletionTimeline';
 import MilestoneStatusDistribution from './MilestoneStatusDistribution';
 import STIGComplianceChart from './STIGComplianceChart';
 import SecurityTestingChart from './SecurityTestingChart';
+import NessusVulnerabilityChart from './NessusVulnerabilityChart';
+import { NistAssociationSummary } from '.';
 import './Metrics.css';
 import { BarChart3 } from 'lucide-react';
 
@@ -54,10 +56,28 @@ interface SecurityTestPlan {
   }>;
 }
 
+interface NessusScan {
+  id: string;
+  name: string;
+  imported_date: string;
+  version: number;
+  system_id: string;
+}
+
+interface NessusFinding {
+  id: string;
+  scan_id: string;
+  severity?: string;
+  risk_factor?: string;
+  host?: string;
+}
+
 const MetricsDashboard: React.FC = () => {
   const [poams, setPOAMs] = useState<POAM[]>([]);
   const [stigMappings, setSTIGMappings] = useState<STIGMapping[]>([]);
   const [testPlans, setTestPlans] = useState<SecurityTestPlan[]>([]);
+  const [nessusScans, setNessusScans] = useState<NessusScan[]>([]);
+  const [nessusFindings, setNessusFindings] = useState<NessusFinding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { currentSystem } = useSystem();
@@ -101,20 +121,38 @@ const MetricsDashboard: React.FC = () => {
       console.log('MetricsDashboard: Loading data from backend for system:', currentSystem.id);
       
       // Load all data in parallel
-      const [poamData, stigData, testPlanData] = await Promise.all([
+      const [poamData, stigData, testPlanData, nessusScansData] = await Promise.all([
         invoke<POAM[]>('get_all_poams', { systemId: currentSystem.id }).catch(() => []),
         invoke<STIGMapping[]>('get_all_stig_mappings', { systemId: currentSystem.id }).catch(() => []),
-        invoke<SecurityTestPlan[]>('get_all_security_test_plans', { systemId: currentSystem.id }).catch(() => [])
+        invoke<SecurityTestPlan[]>('get_all_security_test_plans', { systemId: currentSystem.id }).catch(() => []),
+        invoke<NessusScan[]>('get_nessus_scans', { systemId: currentSystem.id }).catch(() => [])
       ]);
+      
+      // Load all findings from all scans
+      let allFindings: NessusFinding[] = [];
+      if (nessusScansData && nessusScansData.length > 0) {
+        const findingPromises = nessusScansData.map(scan => 
+          invoke<NessusFinding[]>('get_nessus_findings_by_scan', { 
+            scanId: scan.id, 
+            systemId: currentSystem.id 
+          }).catch(() => [])
+        );
+        const findingResults = await Promise.all(findingPromises);
+        allFindings = findingResults.flat();
+      }
       
       console.log('MetricsDashboard: Received data from backend:');
       console.log('- POAMs:', poamData);
       console.log('- STIG Mappings:', stigData);
       console.log('- Test Plans:', testPlanData);
+      console.log('- Nessus Scans:', nessusScansData);
+      console.log('- Nessus Findings:', allFindings);
       
       setPOAMs(poamData || []);
       setSTIGMappings(stigData || []);
       setTestPlans(testPlanData || []);
+      setNessusScans(nessusScansData || []);
+      setNessusFindings(allFindings || []);
     } catch (err) {
       console.error('MetricsDashboard: Error loading data:', err);
       const errorMessage = `Failed to load metrics data: ${err}`;
@@ -170,8 +208,67 @@ const MetricsDashboard: React.FC = () => {
     return { totalTestCases, passedTests, failedTests, evidenceCollected, totalEvidenceFiles };
   };
 
+  // Calculate Nessus scan statistics
+  const calculateNessusStats = () => {
+    const totalScans = nessusScans.length;
+    const totalFindings = nessusFindings.length;
+    const totalHosts = new Set(nessusFindings.map(f => f.host).filter(Boolean)).size;
+    
+    const criticalFindings = nessusFindings.filter(f => 
+      f.risk_factor?.toLowerCase() === 'critical' || f.severity === '4'
+    ).length;
+    
+    const highFindings = nessusFindings.filter(f => 
+      f.risk_factor?.toLowerCase() === 'high' || f.severity === '3'
+    ).length;
+    
+    const mediumFindings = nessusFindings.filter(f => 
+      f.risk_factor?.toLowerCase() === 'medium' || f.severity === '2'
+    ).length;
+    
+    const lowFindings = nessusFindings.filter(f => 
+      f.risk_factor?.toLowerCase() === 'low' || f.severity === '1'
+    ).length;
+    
+    // Calculate most recent scan date
+    const mostRecentScan = nessusScans.length > 0 
+      ? new Date(Math.max(...nessusScans.map(scan => new Date(scan.imported_date).getTime())))
+      : null;
+    
+    // Calculate monthly compliance
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+    const scansInLastMonth = nessusScans.filter(scan => 
+      new Date(scan.imported_date) >= thirtyDaysAgo
+    ).length;
+    
+    // Monthly scan compliance (1+ scans per month is compliant)
+    const monthlyCompliance = scansInLastMonth >= 1;
+    
+    // Calculate days since last scan
+    const daysSinceLastScan = mostRecentScan 
+      ? Math.floor((now.getTime() - mostRecentScan.getTime()) / (24 * 60 * 60 * 1000))
+      : null;
+    
+    return {
+      totalScans,
+      totalFindings,
+      totalHosts,
+      criticalFindings,
+      highFindings,
+      mediumFindings,
+      lowFindings,
+      mostRecentScan,
+      highRiskFindings: criticalFindings + highFindings,
+      scansInLastMonth,
+      monthlyCompliance,
+      daysSinceLastScan
+    };
+  };
+
   const stigStats = calculateSTIGStats();
   const testPlanStats = calculateTestPlanStats();
+  const nessusStats = calculateNessusStats();
 
   if (loading) {
     return (
@@ -283,6 +380,54 @@ const MetricsDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Nessus Vulnerability Scans Summary */}
+      <div className="metrics-summary">
+        <div className="summary-section">
+          <h3>Nessus Vulnerability Scans</h3>
+          <div className="summary-grid">
+            <div className="summary-item">
+              <h4>Total Scans</h4>
+              <div className="summary-value">{nessusStats.totalScans}</div>
+            </div>
+            <div className="summary-item">
+              <h4>Total Findings</h4>
+              <div className="summary-value">{nessusStats.totalFindings}</div>
+            </div>
+            <div className="summary-item">
+              <h4>Hosts Scanned</h4>
+              <div className="summary-value">{nessusStats.totalHosts}</div>
+            </div>
+            <div className="summary-item danger">
+              <h4>Critical</h4>
+              <div className="summary-value">{nessusStats.criticalFindings}</div>
+            </div>
+            <div className="summary-item warning">
+              <h4>High</h4>
+              <div className="summary-value">{nessusStats.highFindings}</div>
+            </div>
+            <div className="summary-item">
+              <h4>Last Scan</h4>
+              <div className="summary-value text-sm">
+                {nessusStats.mostRecentScan 
+                  ? `${nessusStats.daysSinceLastScan} days ago`
+                  : 'No scans'
+                }
+              </div>
+            </div>
+            <div className={`summary-item ${nessusStats.monthlyCompliance ? 'success' : 'danger'}`}>
+              <h4>Monthly Compliance</h4>
+              <div className="summary-value text-sm">
+                {nessusStats.monthlyCompliance ? '✓ Compliant' : '✗ Overdue'}
+              </div>
+            </div>
+            <div className="summary-item">
+              <h4>Scans (30 days)</h4>
+              <div className="summary-value">{nessusStats.scansInLastMonth}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Security Test Plans Summary */}
       <div className="metrics-summary">
         <div className="summary-section">
@@ -322,6 +467,9 @@ const MetricsDashboard: React.FC = () => {
       </div>
 
       <div className="metrics-grid">
+        <div className="grid-item">
+          <NistAssociationSummary />
+        </div>
         <div className="grid-item grid-item-full">
           <MilestoneProgressBars poams={poams} />
         </div>
@@ -343,6 +491,9 @@ const MetricsDashboard: React.FC = () => {
         </div>
         <div className="grid-item">
           <PriorityDistribution poams={poams} />
+        </div>
+        <div className="grid-item grid-item-full">
+          <NessusVulnerabilityChart scans={nessusScans} findings={nessusFindings} />
         </div>
         <div className="grid-item grid-item-full">
           <CompletionTimeline poams={poams} />

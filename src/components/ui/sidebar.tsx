@@ -14,6 +14,7 @@ import {
   Bell,
   Calendar,
   Shield,
+  FileDown,
   ClipboardCheck,
   Building,
   ChevronDown,
@@ -94,6 +95,11 @@ const navigation: NavItem[] = [
     id: 'security-test-plan',
     label: 'Test Plans',
     icon: ClipboardCheck,
+  },
+  {
+    id: 'nessus-center',
+    label: 'Nessus Center',
+    icon: FileDown,
   },
   {
     id: 'import-export',

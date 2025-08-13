@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { useSystem } from '../../context/SystemContext';
 import { useNotificationGenerator } from '../../hooks/useNotificationGenerator';
 import { SimpleDateInput } from '../common';
+import catalogData from '../nistControls/catalog.json';
 import TabNavigation from '../tabNavigation/TabNavigation';
 
 interface POAM {
@@ -54,9 +55,36 @@ export default function CreatePOAM() {
   const [devicesAffected, setDevicesAffected] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('basic-details');
+  // Associations
+  const [selectedControlIds, setSelectedControlIds] = useState<string[]>([]);
+  const [availableControls] = useState<{ id: string; title: string }[]>(
+    Object.entries(catalogData as Record<string, any>).map(([id, c]: any) => ({ id, title: c?.name || id }))
+  );
+  const [stps, setStps] = useState<Array<{ id: string; name: string; poam_id?: number | null }>>([]);
+  const [selectedStpIds, setSelectedStpIds] = useState<string[]>([]);
   const { showToast } = useToast();
   const { currentSystem } = useSystem();
   const { notifyPOAMCreated, notifySystemEvent } = useNotificationGenerator();
+  // Load STPs for optional association
+  // This list enables linking STPs to the new POAM
+  if (currentSystem && stps.length === 0) {
+    invoke<Array<{ id: string; name: string; poam_id?: number | null }>>('get_all_security_test_plans', { systemId: currentSystem.id })
+      .then((plans) => setStps(plans || []))
+      .catch(() => setStps([]));
+  }
+
+  const toggleSelectedControl = (controlId: string) => {
+    setSelectedControlIds((prev) =>
+      prev.includes(controlId) ? prev.filter((id) => id !== controlId) : [...prev, controlId]
+    );
+  };
+
+  const toggleSelectedStp = (stpId: string) => {
+    setSelectedStpIds((prev) =>
+      prev.includes(stpId) ? prev.filter((id) => id !== stpId) : [...prev, stpId]
+    );
+  };
+
 
   // Check if system is selected
   if (!currentSystem) {
@@ -109,6 +137,37 @@ export default function CreatePOAM() {
         poam: newPOAM,
         systemId: currentSystem.id 
       });
+      
+      // Optionally associate selected NIST controls to the created POAM
+      if (selectedControlIds.length > 0) {
+        await Promise.all(
+          selectedControlIds.map((controlId) =>
+            invoke<string>('associate_poam_with_control', {
+              controlId,
+              poamId: newPOAM.id,
+              systemId: currentSystem.id,
+              createdBy: null,
+              notes: null,
+            })
+          )
+        );
+      }
+
+      // Optionally associate selected STPs to the created POAM (by setting stp.poam_id)
+      if (selectedStpIds.length > 0) {
+        for (const stpId of selectedStpIds) {
+          try {
+            const plan = await invoke<any>('get_security_test_plan_by_id', { id: stpId, systemId: currentSystem.id });
+            if (plan) {
+              plan.poam_id = newPOAM.id;
+              await invoke('save_security_test_plan', { plan, systemId: currentSystem.id });
+            }
+          } catch (_) {}
+        }
+      }
+      // Reset associations
+      setSelectedControlIds([]);
+      setSelectedStpIds([]);
       
       showToast('success', `POAM created successfully for ${currentSystem.name}`);
       
@@ -611,6 +670,57 @@ export default function CreatePOAM() {
                       <p className="text-xs text-muted-foreground mt-1">
                         List specific devices, systems, or components affected by this vulnerability
                       </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Optional Associations Section */}
+                <div className="bg-muted/30 rounded-lg p-6 space-y-6">
+                  <div className="border-b border-border pb-3">
+                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                      <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                      Optional Associations
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">Optionally associate this POAM with NIST controls and Security Test Plans</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* NIST Controls Multi-select */}
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">NIST Controls (optional)</label>
+                      <div className="max-h-48 overflow-y-auto border rounded-md p-2 custom-scrollbar">
+                        {availableControls.map((c) => (
+                          <label key={c.id} className="flex items-center gap-2 py-1">
+                            <input
+                              type="checkbox"
+                              checked={selectedControlIds.includes(c.id)}
+                              onChange={() => toggleSelectedControl(c.id)}
+                            />
+                            <span className="text-sm"><span className="font-medium">{c.id}</span> — {c.title}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* STPs Multi-select */}
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">Security Test Plans (optional)</label>
+                      <div className="max-h-48 overflow-y-auto border rounded-md p-2 custom-scrollbar">
+                        {stps.length === 0 ? (
+                          <div className="text-sm text-muted-foreground p-2">No Security Test Plans found</div>
+                        ) : (
+                          stps.map((plan) => (
+                            <label key={plan.id} className="flex items-center gap-2 py-1">
+                              <input
+                                type="checkbox"
+                                checked={selectedStpIds.includes(plan.id)}
+                                onChange={() => toggleSelectedStp(plan.id)}
+                              />
+                              <span className="text-sm"><span className="font-medium">{plan.name}</span></span>
+                            </label>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

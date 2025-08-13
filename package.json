@@ -1,6 +1,6 @@
 {
   "name": "simple-poam-tracker-desktop-v3",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "description": "Professional security compliance management through intuitive Plan of Action & Milestones tracking. Built with Tauri, React, and TypeScript for enterprise-grade performance.",
   "type": "module",
   "scripts": {

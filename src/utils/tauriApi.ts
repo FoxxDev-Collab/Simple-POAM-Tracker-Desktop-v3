@@ -120,3 +120,86 @@ export async function exportData(exportPath: string, systemId: string): Promise<
 export async function exportDataWithStig(exportPath: string, systemId: string): Promise<string> {
   return await invoke('export_data_with_stig', { exportPath, systemId });
 } 
+
+// Nessus Center API
+export async function importNessusFiles(filePaths: string[], systemId: string): Promise<string> {
+  return await invoke('import_nessus_files', { filePaths, systemId });
+}
+
+export async function getNessusScans(systemId: string): Promise<any[]> {
+  return await invoke('get_nessus_scans', { systemId });
+}
+
+export async function getNessusFindingsByScan(scanId: string, systemId: string): Promise<any[]> {
+  return await invoke('get_nessus_findings_by_scan', { scanId, systemId });
+}
+
+export async function saveNessusPrepList(prep: any, systemId: string): Promise<void> {
+  return await invoke('save_nessus_prep_list', { prep, systemId });
+}
+
+export async function getAllNessusPrepLists(systemId: string): Promise<any[]> {
+  return await invoke('get_all_nessus_prep_lists', { systemId });
+}
+
+export async function deleteNessusPrepList(id: string, systemId: string): Promise<void> {
+  return await invoke('delete_nessus_prep_list', { id, systemId });
+}
+
+// Clear Nessus scans and findings for a system
+export async function clearNessusData(systemId: string): Promise<string> {
+  return await invoke('clear_nessus_data', { systemId });
+}
+
+// Clear STIG mappings for a system
+export async function clearStigData(systemId: string): Promise<string> {
+  return await invoke('clear_stig_data', { systemId });
+}
+
+/**
+ * Group Management Functions
+ */
+export async function createGroup(group: any): Promise<void> {
+  return await invoke('create_group', { group });
+}
+
+export async function getAllGroups(): Promise<any[]> {
+  return await invoke('get_all_groups');
+}
+
+export async function getGroupById(id: string): Promise<any | null> {
+  return await invoke('get_group_by_id', { id });
+}
+
+export async function updateGroup(group: any): Promise<void> {
+  return await invoke('update_group', { group });
+}
+
+export async function deleteGroup(id: string): Promise<void> {
+  return await invoke('delete_group', { id });
+}
+
+export async function addSystemToGroup(groupId: string, systemId: string, addedBy?: string): Promise<void> {
+  return await invoke('add_system_to_group', { groupId, systemId, addedBy });
+}
+
+export async function removeSystemFromGroup(systemId: string): Promise<void> {
+  return await invoke('remove_system_from_group', { systemId });
+}
+
+export async function getSystemsInGroup(groupId: string): Promise<any[]> {
+  return await invoke('get_systems_in_group', { groupId });
+}
+
+export async function getUngroupedSystems(): Promise<any[]> {
+  return await invoke('get_ungrouped_systems');
+}
+
+// Group details (alias retained for clarity in callers)
+export async function getGroupDetails(groupId: string): Promise<any | null> {
+  return await getGroupById(groupId);
+}
+
+export async function reorderSystemsInGroup(groupId: string, systemOrders: Array<[string, number]>): Promise<void> {
+  return await invoke('reorder_systems_in_group', { groupId, systemOrders });
+}

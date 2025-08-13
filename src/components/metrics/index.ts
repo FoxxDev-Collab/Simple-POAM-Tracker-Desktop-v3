@@ -9,6 +9,8 @@ export { default as MilestoneStatusDistribution } from './MilestoneStatusDistrib
 export { default as MilestoneProgress } from './MilestoneProgress';
 export { default as STIGComplianceChart } from './STIGComplianceChart';
 export { default as SecurityTestingChart } from './SecurityTestingChart';
+export { default as NessusVulnerabilityChart } from './NessusVulnerabilityChart';
+export { default as NistAssociationSummary } from './NistAssociationSummary';
 
 // Add default export for the main Metrics component
 import MetricsDashboard from './MetricsDashboard';

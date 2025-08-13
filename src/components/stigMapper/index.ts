@@ -1,1 +1,1 @@
-export { default as STIGMapper } from './STIGMapper'; 
+export { default as STIGMapper } from './STIGMapper';

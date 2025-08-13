@@ -7,6 +7,8 @@ import { useNotificationGenerator } from '../../hooks/useNotificationGenerator';
 import { Button } from '../../components/ui/button';
 import { SimpleDateInput } from '../common';
 import TabNavigation from '../tabNavigation/TabNavigation';
+import catalogData from '../nistControls/catalog.json';
+import { X } from 'lucide-react';
 
 interface Milestone {
   id: string;
@@ -39,6 +41,9 @@ interface POAM {
   // Additional optional fields
   mitigations?: string;
   devicesAffected?: string;
+  // New fields for STP creation
+  selectedVulnerabilities?: string[];
+  sourceStigMappingId?: string;
 }
 
 interface EditPOAMProps {
@@ -51,6 +56,16 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
   const [originalPOAM, setOriginalPOAM] = useState<POAM | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('details');
+  const [isCreatingSTP, setIsCreatingSTP] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  // Associations state
+  const [availableControls] = useState<{ id: string; title: string }[]>(
+    Object.entries(catalogData as Record<string, any>).map(([id, c]: any) => ({ id, title: c?.name || id }))
+  );
+  const [selectedControlIds, setSelectedControlIds] = useState<string[]>([]);
+  const [stps, setStps] = useState<Array<{ id: string; name: string; poam_id?: number | null }>>([]);
+  const [selectedStpIds, setSelectedStpIds] = useState<string[]>([]);
   const { showToast } = useToast();
   const { currentSystem } = useSystem();
   const { notifyPOAMUpdated, notifyMilestoneCompleted, notifySystemEvent } = useNotificationGenerator();
@@ -112,11 +127,28 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
           residualRisk: data.residual_risk || data.residualRisk || '',
           // Additional optional fields
           mitigations: data.mitigations || '',
-          devicesAffected: data.devices_affected || data.devicesAffected || ''
+          devicesAffected: data.devices_affected || data.devicesAffected || '',
+          // New fields for STP creation
+          selectedVulnerabilities: data.selected_vulnerabilities || [],
+          sourceStigMappingId: data.source_stig_mapping_id || ''
         };
         
         setEditedPOAM(mappedPOAM);
         setOriginalPOAM(JSON.parse(JSON.stringify(mappedPOAM)));
+        // Load associations for this POAM
+        try {
+          const associations = await invoke<Array<{ id: string; control_id: string }>>('get_control_associations_by_poam', {
+            poamId: id,
+            systemId: currentSystem.id,
+          });
+          setSelectedControlIds(associations.map((a) => a.control_id));
+        } catch (_) {}
+        // Load STPs and preselect linked ones
+        try {
+          const plans = await invoke<Array<{ id: string; name: string; poam_id?: number | null }>>('get_all_security_test_plans', { systemId: currentSystem.id });
+          setStps(plans || []);
+          setSelectedStpIds((plans || []).filter((p) => p.poam_id === id).map((p) => p.id));
+        } catch (_) {}
       } else {
         showToast('error', 'Failed to load POAM: Not found');
       }
@@ -169,7 +201,10 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
         residualRisk: editedPOAM.residualRisk || '',
         // Additional optional fields
         mitigations: editedPOAM.mitigations || '',
-        devicesAffected: editedPOAM.devicesAffected || ''
+        devicesAffected: editedPOAM.devicesAffected || '',
+        // New fields for STP creation
+        selectedVulnerabilities: editedPOAM.selectedVulnerabilities || [],
+        sourceStigMappingId: editedPOAM.sourceStigMappingId || ''
       };
       
       // Save the updated POAM to the backend with systemId
@@ -177,6 +212,54 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
         poam: mappedPOAM,
         systemId: currentSystem.id 
       });
+
+      // Sync NIST control associations
+      try {
+        const existing = await invoke<Array<{ id: string; control_id: string }>>('get_control_associations_by_poam', {
+          poamId: editedPOAM.id,
+          systemId: currentSystem.id,
+        });
+        const existingSet = new Set(existing.map((a) => a.control_id));
+        const selectedSet = new Set(selectedControlIds);
+        // Add new
+        for (const controlId of selectedSet) {
+          if (!existingSet.has(controlId)) {
+            await invoke('associate_poam_with_control', {
+              controlId,
+              poamId: editedPOAM.id,
+              systemId: currentSystem.id,
+              createdBy: null,
+              notes: null,
+            });
+          }
+        }
+        // Remove deselected
+        for (const assoc of existing) {
+          if (!selectedSet.has(assoc.control_id)) {
+            await invoke('remove_poam_control_association', { associationId: assoc.id, systemId: currentSystem.id });
+          }
+        }
+      } catch (err) {
+        console.warn('Control association sync failed:', err);
+      }
+
+      // Sync STP associations (set/unset poam_id)
+      try {
+        const plans = await invoke<Array<{ id: string; name: string; poam_id?: number | null }>>('get_all_security_test_plans', { systemId: currentSystem.id });
+        for (const plan of plans || []) {
+          const shouldBeLinked = selectedStpIds.includes(plan.id);
+          const isLinked = plan.poam_id === editedPOAM.id;
+          if (shouldBeLinked && !isLinked) {
+            plan.poam_id = editedPOAM.id;
+            await invoke('save_security_test_plan', { plan, systemId: currentSystem.id });
+          } else if (!shouldBeLinked && isLinked) {
+            plan.poam_id = null;
+            await invoke('save_security_test_plan', { plan, systemId: currentSystem.id });
+          }
+        }
+      } catch (err) {
+        console.warn('STP association sync failed:', err);
+      }
       
       showToast('success', `POAM updated successfully for ${currentSystem.name}`);
       
@@ -321,7 +404,7 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
 
   // Helper function to validate milestone date
   const validateMilestoneDate = (date: string): { isValid: boolean; message?: string } => {
-    if (!editedPOAM || !date) return { isValid: true };
+    if (!editedPOAM) return { isValid: true };
 
     const milestoneDate = new Date(date);
     const startDate = new Date(editedPOAM.startDate);
@@ -463,6 +546,195 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
     }
   };
 
+  // Handle creating Security Test Plan from this POAM
+  const handleCreateSTP = async () => {
+    if (!editedPOAM || !currentSystem?.id) {
+      showToast('error', 'POAM or system not available');
+      return;
+    }
+
+    setIsCreatingSTP(true);
+    try {
+      // Verify POAM exists in database before creating STP
+      try {
+        const poamExists = await invoke<any>('get_poam_by_id', {
+          id: editedPOAM.id,
+          systemId: currentSystem.id
+        });
+        
+        if (!poamExists) {
+          throw new Error(`POAM ${editedPOAM.id} not found in database`);
+        }
+        
+        console.log('POAM verification successful:', poamExists.id);
+      } catch (verificationError) {
+        console.error('POAM verification failed:', verificationError);
+        showToast('error', 'Unable to verify POAM exists in database. Please save the POAM first.');
+        return;
+      }
+
+      const testCases = [];
+      
+      // First, try to create test cases from vulnerabilities if they exist
+      if (editedPOAM.selectedVulnerabilities && editedPOAM.selectedVulnerabilities.length > 0 && editedPOAM.sourceStigMappingId) {
+        try {
+          // Verify STIG mapping exists before referencing it
+          const stigMapping = await invoke<any>('get_stig_mapping_by_id', { 
+            id: editedPOAM.sourceStigMappingId, 
+            systemId: currentSystem.id 
+          });
+          
+          if (stigMapping?.mapping_result?.mapped_controls) {
+            console.log('STIG mapping found, creating vulnerability-based test cases');
+            // Find vulnerabilities that match the selected ones
+            editedPOAM.selectedVulnerabilities.forEach(vulnNum => {
+              // Search through mapped controls for this vulnerability
+              stigMapping.mapping_result.mapped_controls.forEach((control: any) => {
+                const matchingVuln = control.stigs?.find((stig: any) => stig.vuln_num === vulnNum);
+                if (matchingVuln) {
+                  const testCase = {
+                    id: crypto.randomUUID(),
+                    nist_control: control.nist_control || 'TBD',
+                    cci_ref: control.ccis?.[0] || 'TBD',
+                    stig_vuln_id: matchingVuln.stig_id || matchingVuln.vuln_num,
+                    test_description: `Security Test for ${vulnNum}: ${matchingVuln.rule_title}`,
+                    test_procedure: `Verify remediation of vulnerability ${vulnNum}:\n\nCheck: ${matchingVuln.check_content}\n\nFix: ${matchingVuln.fix_text}`,
+                    expected_result: `Vulnerability ${vulnNum} is properly remediated and the system complies with the security requirement`,
+                    status: 'Not Started',
+                    risk_rating: matchingVuln.severity === 'high' ? 'High' : 
+                               matchingVuln.severity === 'medium' ? 'Medium' : 'Low',
+                    // Link to corresponding milestone if it exists
+                    milestone_id: editedPOAM.milestones.find(m => m.title.includes(vulnNum))?.id
+                  };
+                  testCases.push(testCase);
+                }
+              });
+            });
+          }
+        } catch (stigError) {
+          console.warn('Could not load STIG mapping details, will not reference it:', stigError);
+                     // Set sourceStigMappingId to undefined if the mapping doesn't exist
+           editedPOAM.sourceStigMappingId = undefined;
+        }
+      }
+      
+      // Fallback: Create test cases from milestones if no vulnerabilities were found
+      if (testCases.length === 0 && editedPOAM.milestones.length > 0) {
+        console.log('Creating milestone-based test cases');
+        editedPOAM.milestones.forEach((milestone, index) => {
+          const testCase = {
+            id: crypto.randomUUID(),
+            nist_control: 'TBD',
+            cci_ref: 'TBD',
+            stig_vuln_id: `POAM-${editedPOAM.id}-M${index + 1}`,
+            test_description: `Milestone Test: ${milestone.title}`,
+            test_procedure: `Execute and verify completion of milestone: ${milestone.description}`,
+            expected_result: 'Milestone objectives are successfully completed and documented',
+            status: 'Not Started',
+            risk_rating: editedPOAM.riskLevel === 'High' ? 'High' : editedPOAM.riskLevel === 'Medium' ? 'Medium' : 'Low',
+            milestone_id: milestone.id
+          };
+          testCases.push(testCase);
+        });
+      }
+
+      // Final fallback: Create a basic test case for the POAM
+      if (testCases.length === 0) {
+        console.log('Creating basic POAM test case');
+        const testCase = {
+          id: crypto.randomUUID(),
+          nist_control: 'TBD',
+          cci_ref: 'TBD',
+          stig_vuln_id: `POAM-${editedPOAM.id}`,
+          test_description: `Security Test for POAM: ${editedPOAM.title}`,
+          test_procedure: `Verify remediation of vulnerabilities addressed in POAM: ${editedPOAM.title}`,
+          expected_result: 'All vulnerabilities identified in the POAM are properly remediated',
+          status: 'Not Started',
+          risk_rating: editedPOAM.riskLevel === 'High' ? 'High' : editedPOAM.riskLevel === 'Medium' ? 'Medium' : 'Low'
+        };
+        testCases.push(testCase);
+      }
+
+      const newSTP = {
+        id: crypto.randomUUID(),
+        name: `STP for ${editedPOAM.title}`,
+        description: `Security Test Plan automatically generated for POAM: ${editedPOAM.title}` +
+          (editedPOAM.selectedVulnerabilities?.length 
+            ? `\n\nGenerated from ${editedPOAM.selectedVulnerabilities.length} STIG vulnerabilities: ${editedPOAM.selectedVulnerabilities.join(', ')}`
+            : ''
+          ),
+        created_date: new Date().toISOString(),
+        updated_date: new Date().toISOString(),
+        status: 'Draft',
+        poam_id: editedPOAM.id,
+        stig_mapping_id: editedPOAM.sourceStigMappingId || null,
+        test_cases: testCases,
+      };
+
+      console.log('Creating STP with data:', {
+        poam_id: newSTP.poam_id,
+        stig_mapping_id: newSTP.stig_mapping_id,
+        test_cases_count: newSTP.test_cases.length
+      });
+
+      await invoke('save_security_test_plan', { plan: newSTP, systemId: currentSystem.id });
+      
+      showToast('success', `Security Test Plan created with ${testCases.length} test cases for "${editedPOAM.title}"`);
+      
+      // Notify about STP creation
+      notifySystemEvent({
+        type: 'sync',
+        message: `Security Test Plan created for POAM "${editedPOAM.title}" with ${testCases.length} test cases`,
+        success: true
+      });
+      
+    } catch (error) {
+      console.error('Error creating Security Test Plan:', error);
+      showToast('error', `Failed to create Security Test Plan: ${error}`);
+    } finally {
+      setIsCreatingSTP(false);
+    }
+  };
+
+  // Handle deleting the POAM
+  const handleDeletePOAM = async () => {
+    if (!editedPOAM || !currentSystem?.id) {
+      showToast('error', 'POAM or system not available');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await invoke('delete_poam', { 
+        poamId: editedPOAM.id,
+        systemId: currentSystem.id 
+      });
+      
+      showToast('success', `POAM "${editedPOAM.title}" deleted successfully`);
+      
+      // Notify about POAM deletion
+      notifySystemEvent({
+        type: 'sync',
+        message: `POAM "${editedPOAM.title}" deleted successfully`,
+        success: true
+      });
+      
+      // Navigate back or close the edit view
+      if (onSave) {
+        onSave();
+      } else {
+        window.history.back();
+      }
+      
+    } catch (error) {
+      console.error('Error deleting POAM:', error);
+      showToast('error', `Failed to delete POAM: ${error}`);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirmation(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -476,6 +748,22 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
         
         {editedPOAM && (
           <div className="button-group">
+            <Button
+              variant="outline"
+              onClick={handleCreateSTP}
+              disabled={isCreatingSTP}
+              className="btn-responsive"
+            >
+              {isCreatingSTP ? 'Creating STP...' : 'Create Security Test Plan'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteConfirmation(true)}
+              disabled={isDeleting}
+              className="btn-responsive"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete POAM'}
+            </Button>
             <button
               type="submit"
               form="edit-poam-form"
@@ -936,6 +1224,66 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
                         </div>
                       </div>
                     </div>
+                    {/* Optional Associations Section */}
+                    <div className="bg-muted/30 rounded-lg p-6 space-y-6">
+                      <div className="border-b border-border pb-3">
+                        <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                          <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                          Optional Associations
+                        </h3>
+                        <p className="text-sm text-muted-foreground mt-1">Optionally associate this POAM with NIST controls and Security Test Plans</p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* NIST Controls */}
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-2">NIST Controls (optional)</label>
+                          <div className="max-h-48 overflow-y-auto border rounded-md p-2 custom-scrollbar">
+                            {availableControls.map((c) => (
+                              <label key={c.id} className="flex items-center gap-2 py-1">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedControlIds.includes(c.id)}
+                                  onChange={() =>
+                                    setSelectedControlIds((prev) =>
+                                      prev.includes(c.id)
+                                        ? prev.filter((id) => id !== c.id)
+                                        : [...prev, c.id]
+                                    )
+                                  }
+                                />
+                                <span className="text-sm"><span className="font-medium">{c.id}</span> — {c.title}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        {/* STPs */}
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-2">Security Test Plans (optional)</label>
+                          <div className="max-h-48 overflow-y-auto border rounded-md p-2 custom-scrollbar">
+                            {stps.length === 0 ? (
+                              <div className="text-sm text-muted-foreground p-2">No Security Test Plans found</div>
+                            ) : (
+                              stps.map((plan) => (
+                                <label key={plan.id} className="flex items-center gap-2 py-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedStpIds.includes(plan.id)}
+                                    onChange={() =>
+                                      setSelectedStpIds((prev) =>
+                                        prev.includes(plan.id)
+                                          ? prev.filter((id) => id !== plan.id)
+                                          : [...prev, plan.id]
+                                      )
+                                    }
+                                  />
+                                  <span className="text-sm"><span className="font-medium">{plan.name}</span></span>
+                                </label>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )
               },
@@ -1252,6 +1600,60 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
       ) : (
         <div className="text-center py-8">
           <p className="text-muted-foreground">No POAM selected for editing.</p>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirmation && editedPOAM && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-background border border-border rounded-lg shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="text-xl font-semibold">Confirm Deletion</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDeleteConfirmation(false)}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <p className="text-muted-foreground">
+                Are you sure you want to delete POAM "{editedPOAM.title}"?
+              </p>
+              <p className="text-sm text-muted-foreground">
+                This will permanently delete:
+              </p>
+              <ul className="text-sm text-muted-foreground ml-4 space-y-1">
+                <li>• The POAM and all its data</li>
+                <li>• All {editedPOAM.milestones.length} milestone(s)</li>
+                <li>• Any associated notes and references</li>
+                <li>• Links to security test plans (plans will remain but unlinked)</li>
+              </ul>
+              <p className="text-sm font-medium text-destructive">
+                This action cannot be undone.
+              </p>
+            </div>
+            
+            <div className="flex justify-end gap-2 p-6 border-t border-border">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirmation(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeletePOAM}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete POAM'}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

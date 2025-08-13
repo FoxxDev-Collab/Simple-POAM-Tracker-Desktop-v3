@@ -10,6 +10,7 @@ import { STIGMapper } from "./components/stigMapper";
 import { SecurityTestPlan } from "./components/securityTestPlan";
 import NistControls from "./components/nistControls";
 import ImportExport from "./components/importExport";
+import { NessusCenter } from "./components/nessus";
 import Settings from "./components/settings";
 import EditPOAM from "./components/poam/EditPOAM";
 import { ToastProvider } from "./context/ToastContext";
@@ -20,8 +21,9 @@ import { AppLockProvider, useAppLock } from "./context/AppLockContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { SystemProvider, useSystem } from "./context/SystemContext";
 import LockScreen from "./components/security/LockScreen";
-import { SystemSelector } from "./components/system";
+import SystemSelector from "./components/system/SystemSelector";
 import { BrandedLoader } from "./components/ui/BrandedLoader";
+import GroupPackage from "./components/group/GroupPackage";
 
 // Create a context to manage the EditPOAM tab
 import { createContext, useContext } from 'react';
@@ -47,6 +49,7 @@ function AppContent() {
   const [editingPOAM, setEditingPOAM] = useState<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showSystemSelector, setShowSystemSelector] = useState(false);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
   const handleUnlock = async (password: string): Promise<boolean> => {
     setIsUnlocking(true);
@@ -117,6 +120,8 @@ function AppContent() {
         return <NistControls />;
       case "security-test-plan":
         return <SecurityTestPlan />;
+      case "nessus-center":
+        return <NessusCenter />;
       case "import-export":
         return <ImportExport />;
       case "settings":
@@ -152,14 +157,40 @@ function AppContent() {
   }
 
   // Show system selector if no current system is selected OR if explicitly requested
-  if (!currentSystem || showSystemSelector) {
+  if ((!currentSystem || showSystemSelector) && !activeGroupId) {
     return (
       <SystemSelector
         onSystemSelected={() => {
           setShowSystemSelector(false);
           console.log('System selected, proceeding to main application');
         }}
+        onGroupSelected={(groupId: string) => {
+          setActiveGroupId(groupId);
+          setShowSystemSelector(false);
+        }}
       />
+    );
+  }
+
+  // Group Package interface
+  if (activeGroupId) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="flex h-screen">
+          <div className="flex-1 overflow-hidden relative">
+            <main className="h-full overflow-auto p-0 bg-background">
+              <GroupPackage
+                groupId={activeGroupId}
+                onExit={() => {
+                  setActiveGroupId(null);
+                  setShowSystemSelector(true);
+                }}
+              />
+            </main>
+            <ToastContainer />
+          </div>
+        </div>
+      </div>
     );
   }
 

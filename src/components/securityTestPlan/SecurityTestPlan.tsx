@@ -111,10 +111,42 @@ interface StpPrepList {
   control_count: number;
 }
 
+interface NessusPrepList {
+  id: string;
+  name: string;
+  description?: string;
+  created_date: string;
+  updated_date: string;
+  source_scan_id?: string;
+  asset_info: any;
+  selected_findings: string[];
+  finding_count: number;
+  scan_info?: any;
+  summary?: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+}
+
+interface CombinedPrepList {
+  id: string;
+  name: string;
+  description?: string;
+  created_date: string;
+  updated_date: string;
+  type: 'stig' | 'nessus';
+  count: number;
+  source: string;
+}
+
 export default function SecurityTestPlan() {
   const [testPlans, setTestPlans] = useState<SecurityTestPlan[]>([]);
   const [stigMappings, setStigMappings] = useState<STIGMapping[]>([]);
   const [stpPrepLists, setStpPrepLists] = useState<StpPrepList[]>([]);
+  const [nessusPrepLists, setNessusPrepLists] = useState<NessusPrepList[]>([]);
+  const [combinedPrepLists, setCombinedPrepLists] = useState<CombinedPrepList[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<SecurityTestPlan | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTestCaseModal, setShowTestCaseModal] = useState(false);
@@ -143,6 +175,44 @@ export default function SecurityTestPlan() {
   const { addToast } = useToast();
   const { currentSystem } = useSystem();
 
+  // Combine STIG and Nessus prep lists for display
+  const combinePrepLists = useCallback(() => {
+    const combined: CombinedPrepList[] = [];
+    
+    // Add STIG prep lists
+    stpPrepLists.forEach(list => {
+      combined.push({
+        id: `stig_${list.id}`,
+        name: list.name,
+        description: list.description,
+        created_date: list.created_date,
+        updated_date: list.updated_date,
+        type: 'stig',
+        count: list.control_count,
+        source: `STIG Mapping: ${list.stig_info?.title || 'Unknown'}`
+      });
+    });
+    
+    // Add Nessus prep lists
+    nessusPrepLists.forEach(list => {
+      combined.push({
+        id: `nessus_${list.id}`,
+        name: list.name,
+        description: list.description,
+        created_date: list.created_date,
+        updated_date: list.updated_date,
+        type: 'nessus',
+        count: list.finding_count,
+        source: `Nessus Scan: ${list.scan_info?.name || 'Unknown'}`
+      });
+    });
+    
+    // Sort by updated date, most recent first
+    combined.sort((a, b) => new Date(b.updated_date).getTime() - new Date(a.updated_date).getTime());
+    
+    setCombinedPrepLists(combined);
+  }, [stpPrepLists, nessusPrepLists]);
+
   // Load data on component mount
   useEffect(() => {
     if (currentSystem?.id) {
@@ -150,10 +220,15 @@ export default function SecurityTestPlan() {
     }
   }, [currentSystem]);
 
+  // Combine prep lists when STIG or Nessus prep lists change
+  useEffect(() => {
+    combinePrepLists();
+  }, [combinePrepLists]);
+
   const loadInitialData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadTestPlans(), loadSTIGMappings(), loadStpPrepLists()]);
+      await Promise.all([loadTestPlans(), loadSTIGMappings(), loadStpPrepLists(), loadNessusPrepLists()]);
     } catch (error) {
       console.error('Error loading initial data:', error);
       addToast('Failed to load data', 'error');
@@ -171,6 +246,18 @@ export default function SecurityTestPlan() {
     } catch (error) {
       console.error('Error loading STP prep lists:', error);
       addToast('Failed to load STP prep lists', 'error');
+    }
+  }, [addToast, currentSystem]);
+
+  const loadNessusPrepLists = useCallback(async () => {
+    if (!currentSystem?.id) return;
+    
+    try {
+      const prepLists = await invoke<NessusPrepList[]>('get_all_nessus_prep_lists', { systemId: currentSystem.id });
+      setNessusPrepLists(prepLists);
+    } catch (error) {
+      console.error('Error loading Nessus prep lists:', error);
+      addToast('Failed to load Nessus prep lists', 'error');
     }
   }, [addToast, currentSystem]);
 
@@ -210,48 +297,95 @@ export default function SecurityTestPlan() {
     }
 
     if (!createForm.selectedPrepList) {
-      addToast('Please select an STP prep list', 'warning');
+      addToast('Please select a prep list', 'warning');
       return;
     }
 
-    const prepList = stpPrepLists.find(p => p.id === createForm.selectedPrepList);
-    if (!prepList) {
-      addToast('Selected prep list not found', 'error');
-      return;
+    // Determine if it's a STIG or Nessus prep list
+    const isNessus = createForm.selectedPrepList.startsWith('nessus_');
+    const actualId = createForm.selectedPrepList.replace(/^(stig_|nessus_)/, '');
+    
+    let prepListData: any = null;
+    let testCases: TestCase[] = [];
+
+    if (isNessus) {
+      // Handle Nessus prep list
+      const nessusPrepList = nessusPrepLists.find(p => p.id === actualId);
+      if (!nessusPrepList) {
+        addToast('Selected Nessus prep list not found', 'error');
+        return;
+      }
+      
+      // Create test cases from Nessus findings
+      // For now, we'll create basic test cases for vulnerability validation
+      testCases = [
+        {
+          id: crypto.randomUUID(),
+          nist_control: 'Nessus-Validation',
+          cci_ref: 'N/A',
+          stig_vuln_id: 'NESSUS-001',
+          test_description: `Validate ${nessusPrepList.finding_count} Nessus vulnerability findings`,
+          test_procedure: 'Review and validate the identified vulnerabilities from Nessus scan',
+          expected_result: 'All vulnerabilities are properly documented and remediation plans are in place',
+          status: 'Not Started',
+          risk_rating: 'High',
+          notes: `Nessus scan findings from: ${nessusPrepList.scan_info?.name || 'Unknown scan'}`
+        }
+      ];
+      
+      prepListData = {
+        source_type: 'nessus',
+        source_id: nessusPrepList.id,
+        name: nessusPrepList.name,
+        finding_count: nessusPrepList.finding_count
+      };
+    } else {
+      // Handle STIG prep list (existing logic)
+      const prepList = stpPrepLists.find(p => p.id === actualId);
+      if (!prepList) {
+        addToast('Selected STIG prep list not found', 'error');
+        return;
+      }
+
+      // Create test cases from STIG controls
+      testCases = prepList.selected_controls
+        .filter(control => control.selected_for_stp)
+        .flatMap(control => 
+          control.stigs.map(stig => ({
+            id: crypto.randomUUID(),
+            nist_control: control.nist_control,
+            cci_ref: control.ccis.join(', '),
+            stig_vuln_id: stig.vuln_num || stig.rule_id || 'Unknown',
+            test_description: `Test NIST Control ${control.nist_control} - ${stig.rule_title || 'STIG Requirement'}`,
+            test_procedure: stig.check_content || `Verify implementation of NIST Control ${control.nist_control}`,
+            expected_result: stig.fix_text || 'Control is properly implemented and compliant',
+            status: 'Not Started' as const,
+            stig_compliance_status: stig.status || 'Not_Reviewed' as const,
+            risk_rating: (stig.severity?.toLowerCase() === 'high' ? 'High' : 
+                         stig.severity?.toLowerCase() === 'medium' ? 'Medium' : 'Low') as 'Low' | 'Medium' | 'High' | 'Critical',
+            notes: control.notes
+          }))
+        );
+      
+      prepListData = {
+        source_type: 'stig',
+        source_id: prepList.id,
+        name: prepList.name,
+        control_count: prepList.control_count
+      };
     }
 
     setIsCreating(true);
     try {
-      const testCases: TestCase[] = [];
-      
-      // Generate test cases for each selected control in the prep list
-      prepList.selected_controls.forEach(control => {
-        control.ccis.forEach(cci => {
-          control.stigs.forEach(stig => {
-            const testCase: TestCase = {
-              id: crypto.randomUUID(),
-              nist_control: control.nist_control,
-              cci_ref: cci,
-              stig_vuln_id: stig.stig_id && stig.stig_id.trim() ? stig.stig_id : stig.vuln_num,
-              test_description: `Test ${control.nist_control} compliance via ${cci} (${stig.stig_id && stig.stig_id.trim() ? stig.stig_id : stig.vuln_num})`,
-              test_procedure: `Verify implementation of ${control.nist_control} control through ${stig.rule_title}`,
-              expected_result: 'Control is properly implemented and configured according to security requirements',
-              status: 'Not Started',
-              risk_rating: stig.severity === 'high' ? 'High' : stig.severity === 'medium' ? 'Medium' : 'Low'
-            };
-            testCases.push(testCase);
-          });
-        });
-      });
 
       const newPlan: SecurityTestPlan = {
         id: crypto.randomUUID(),
         name: createForm.name,
-        description: createForm.description || `Test plan generated from STP prep list: ${prepList.name}`,
+        description: createForm.description || `Test plan generated from prep list: ${prepListData.name}`,
         created_date: new Date().toISOString(),
         updated_date: new Date().toISOString(),
         status: 'Draft',
-        stig_mapping_id: prepList.source_mapping_id,
+        stig_mapping_id: prepListData.source_type === 'stig' ? prepListData.source_id : null,
         test_cases: testCases,
       };
 
@@ -269,7 +403,7 @@ export default function SecurityTestPlan() {
     } finally {
       setIsCreating(false);
     }
-  }, [createForm.name, createForm.description, createForm.selectedPrepList, stpPrepLists, addToast, currentSystem]);
+  }, [createForm.name, createForm.description, createForm.selectedPrepList, stpPrepLists, nessusPrepLists, addToast, currentSystem]);
 
   const updateTestCase = useCallback(async (plan_id: string, testCase: TestCase) => {
     if (!currentSystem?.id) return;
@@ -873,16 +1007,16 @@ export default function SecurityTestPlan() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-2">STP Prep List *</label>
+                <label className="block text-sm font-medium mb-2">Prep List *</label>
                 <select
                   value={createForm.selectedPrepList}
                   onChange={(e) => setCreateForm(prev => ({ ...prev, selectedPrepList: e.target.value }))}
                   className="w-full px-3 py-2 border border-input rounded-lg"
                 >
                   <option value="">Select a prep list</option>
-                  {stpPrepLists.map((prepList) => (
+                  {combinedPrepLists.map((prepList) => (
                     <option key={prepList.id} value={prepList.id}>
-                      {prepList.name} ({prepList.control_count} controls)
+                      {prepList.name} ({prepList.count} {prepList.type === 'nessus' ? 'findings' : 'controls'}) - {prepList.type.toUpperCase()}
                     </option>
                   ))}
                 </select>
