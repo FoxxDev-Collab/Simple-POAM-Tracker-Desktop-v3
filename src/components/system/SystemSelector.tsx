@@ -4,18 +4,11 @@ import { useToast } from '../../context/ToastContext';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { 
-  Plus, 
-  Database, 
+  Plus,
   Edit3,
   Trash2,
-  ArrowRight,
   Building,
-  Unlock,
-  Clock,
   Upload,
-  User,
-  Shield,
-  Tag,
   MoreVertical,
   FolderPlus,
   Folder,
@@ -24,15 +17,16 @@ import {
   Move,
   X
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { BrandedLoader } from '../ui/BrandedLoader';
+import { Icon } from '../ui/icon';
 import CreateSystemModal from './CreateSystemModal';
 import EditSystemModal from './EditSystemModal';
 import CreateGroupModal from './CreateGroupModal';
 import EditGroupModal from './EditGroupModal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu';
 import * as api from '../../utils/tauriApi';
+
 
 interface SystemSelectorProps {
   onSystemSelected: () => void;
@@ -339,11 +333,11 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
 
         <div className="flex flex-wrap items-center justify-center gap-4 mt-8">
           <Button onClick={() => setShowCreateModal(true)} size="lg" className="shadow-lg">
-            <Plus className="mr-2 h-5 w-5" />
+            <Icon icon={Plus} size="md" className="mr-2" />
             Create New System
           </Button>
           <Button onClick={() => setShowCreateGroupModal(true)} variant="outline" size="lg" className="shadow-lg">
-            <FolderPlus className="mr-2 h-5 w-5" />
+            <Icon icon={FolderPlus} size="md" className="mr-2" />
             Create New Group
           </Button>
           <Button onClick={handleImportSystem} variant="outline" size="lg" className="shadow-lg" disabled={isImporting}>
@@ -354,7 +348,7 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
               </div>
             ) : (
               <>
-                <Upload className="mr-2 h-5 w-5" />
+                <Icon icon={Upload} size="md" className="mr-2" />
                 Import System
               </>
             )}
@@ -379,9 +373,9 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
                     className="p-2"
                   >
                     {expandedGroups.has(group.id) ? (
-                      <ChevronDown className="w-5 h-5" />
+                      <Icon icon={ChevronDown} size="md" />
                     ) : (
-                      <ChevronRight className="w-5 h-5" />
+                      <Icon icon={ChevronRight} size="md" />
                     )}
                   </Button>
                   <div 
@@ -411,12 +405,12 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-9 w-9">
-                        <MoreVertical className="h-5 w-5" />
+                        <Icon icon={MoreVertical} size="sm" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => setEditingGroup(group)}>
-                        <Edit3 className="mr-2 h-5 w-5" />
+                        <Icon icon={Edit3} size="sm" className="mr-2" />
                         <span>Edit Group</span>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
@@ -424,7 +418,7 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
                         onClick={() => handleDeleteGroup(group.id)}
                         className="text-destructive"
                       >
-                        <Trash2 className="mr-2 h-5 w-5" />
+                        <Icon icon={Trash2} size="sm" className="mr-2" tone="destructive" />
                         <span>Delete Group</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -434,23 +428,20 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
 
               {/* Group Systems */}
               {expandedGroups.has(group.id) && (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-6 ml-8">
-                  {group.systems?.map((system: any) => (
-                    <SystemCard
-                      key={system.id}
-                      system={system}
-                      selectedSystemId={selectedSystemId}
-                      onSystemSelect={handleSystemSelect}
-                      onEditSystem={setEditingSystem}
-                      onDeleteSystem={handleDeleteSystem}
-                      onRemoveFromGroup={handleRemoveSystemFromGroup}
-                      deletingSystemId={deletingSystemId}
-                      getSystemStats={getSystemStats}
-                      getClassificationClasses={getClassificationClasses}
-                      formatLastAccessed={formatLastAccessed}
-                      showGroupActions={true}
-                    />
-                  ))}
+                <div className="ml-8">
+                  <SystemsTable
+                    systems={group.systems || []}
+                    selectedSystemId={selectedSystemId}
+                    onSystemSelect={handleSystemSelect}
+                    onEditSystem={setEditingSystem}
+                    onDeleteSystem={handleDeleteSystem}
+                    onRemoveFromGroup={handleRemoveSystemFromGroup}
+                    deletingSystemId={deletingSystemId}
+                    getSystemStats={getSystemStats}
+                    getClassificationClasses={getClassificationClasses}
+                    formatLastAccessed={formatLastAccessed}
+                    showGroupActions={true}
+                  />
                 </div>
               )}
             </div>
@@ -468,12 +459,12 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
                     className="p-2"
                   >
                     {expandedGroups.has('ungrouped') ? (
-                      <ChevronDown className="w-5 h-5" />
+                      <Icon icon={ChevronDown} size="md" />
                     ) : (
-                      <ChevronRight className="w-5 h-5" />
+                      <Icon icon={ChevronRight} size="md" />
                     )}
                   </Button>
-                  <Folder className="w-5 h-5 text-muted-foreground" />
+                  <Icon icon={Folder} size="md" className="text-muted-foreground" />
                   <div>
                     <h3 className="text-lg font-semibold">Ungrouped Systems</h3>
                     <p className="text-sm text-muted-foreground">Systems not assigned to any group</p>
@@ -485,24 +476,21 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
               </div>
 
               {expandedGroups.has('ungrouped') && (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-6 ml-8">
-                  {ungroupedSystems.map((system) => (
-                    <SystemCard
-                      key={system.id}
-                      system={system}
-                      selectedSystemId={selectedSystemId}
-                      onSystemSelect={handleSystemSelect}
-                      onEditSystem={setEditingSystem}
-                      onDeleteSystem={handleDeleteSystem}
-                      onAddToGroup={handleAddSystemToGroup}
-                      deletingSystemId={deletingSystemId}
-                      getSystemStats={getSystemStats}
-                      getClassificationClasses={getClassificationClasses}
-                      formatLastAccessed={formatLastAccessed}
-                      groups={groups}
-                      showGroupActions={false}
-                    />
-                  ))}
+                <div className="ml-8">
+                  <SystemsTable
+                    systems={ungroupedSystems}
+                    selectedSystemId={selectedSystemId}
+                    onSystemSelect={handleSystemSelect}
+                    onEditSystem={setEditingSystem}
+                    onDeleteSystem={handleDeleteSystem}
+                    onAddToGroup={handleAddSystemToGroup}
+                    deletingSystemId={deletingSystemId}
+                    getSystemStats={getSystemStats}
+                    getClassificationClasses={getClassificationClasses}
+                    formatLastAccessed={formatLastAccessed}
+                    groups={groups}
+                    showGroupActions={false}
+                  />
                 </div>
               )}
             </div>
@@ -512,7 +500,7 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
           {groups.length === 0 && ungroupedSystems.length === 0 && (
             <div className="text-center py-12">
               <div className="p-8 bg-card border border-border rounded-xl shadow-sm">
-                <Building className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <Icon icon={Building} size="xl" className="text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No Systems Found</h3>
                 <p className="text-muted-foreground mb-4">
                   Create your first system or import an existing one to get started.
@@ -557,9 +545,9 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
   );
 }
 
-// SystemCard component for reusable system cards
-interface SystemCardProps {
-  system: any;
+// SystemsTable component for list view
+interface SystemsTableProps {
+  systems: any[];
   selectedSystemId: string | null;
   onSystemSelect: (system: any) => void;
   onEditSystem: (system: any) => void;
@@ -574,8 +562,8 @@ interface SystemCardProps {
   showGroupActions: boolean;
 }
 
-function SystemCard({
-  system,
+function SystemsTable({
+  systems,
   selectedSystemId,
   onSystemSelect,
   onEditSystem,
@@ -588,140 +576,163 @@ function SystemCard({
   formatLastAccessed,
   groups,
   showGroupActions
-}: SystemCardProps) {
-  return (
-    <Card 
-      className={`
-        transition-all duration-300 ease-in-out transform hover:-translate-y-1
-        flex flex-col rounded-2xl shadow-lg bg-card
-        ${selectedSystemId === system.id ? 'border-primary ring-2 ring-primary shadow-2xl' : 'border-border'}
-      `}
-    >
-      <CardHeader className="flex flex-row items-start justify-between gap-4 p-6">
-        <div className="flex items-center gap-4 flex-grow min-w-0">
-          <div className="p-4 bg-primary/10 rounded-xl flex-shrink-0">
-            <Building className="w-6 h-6 text-primary" />
-          </div>
-          <div className="flex-grow min-w-0">
-            <CardTitle className="text-xl font-bold">
-              {system.name || 'Unnamed System'}
-            </CardTitle>
-            <CardDescription className="text-sm">
-              {system.description || 'No description'}
-            </CardDescription>
-          </div>
+}: SystemsTableProps) {
+  if (systems.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <div className="p-6 bg-card border border-border rounded-lg">
+          <Icon icon={Building} size="xl" className="text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">No systems found in this group.</p>
         </div>
-        <div className="flex-shrink-0 flex items-center justify-center">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative h-10 w-10">
-                <MoreVertical className="h-6 w-6" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onEditSystem(system)}>
-                <Edit3 className="mr-2 h-5 w-5" />
-                <span>Edit</span>
-              </DropdownMenuItem>
-              {showGroupActions && onRemoveFromGroup && (
-                <DropdownMenuItem onClick={() => onRemoveFromGroup(system.id)}>
-                  <X className="mr-2 h-5 w-5" />
-                  <span>Remove from Group</span>
-                </DropdownMenuItem>
-              )}
-              {!showGroupActions && onAddToGroup && groups && groups.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  {groups.map((group) => (
-                    <DropdownMenuItem 
-                      key={group.id}
-                      onClick={() => onAddToGroup(group.id, system.id)}
-                    >
-                      <Move className="mr-2 h-5 w-5" />
-                      <span>Add to {group.name}</span>
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => onDeleteSystem(system.id)} 
-                disabled={system.id === 'default' || deletingSystemId === system.id}
-                className="text-destructive"
-              >
-                <Trash2 className="mr-2 h-5 w-5" />
-                <span>Delete</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </CardHeader>
-
-      <CardContent className="flex-grow px-6 pb-6 space-y-4">
-        <div className="space-y-3 text-sm text-muted-foreground">
-          {system.owner && (
-            <div className="flex items-center gap-3">
-              <User className="w-5 h-5 flex-shrink-0" />
-              <span className="truncate">
-                Owner: <span className="font-medium text-foreground">{system.owner}</span>
-              </span>
-            </div>
-          )}
-          {system.classification && (
-            <div className="flex items-center gap-3">
-              <Shield className="w-5 h-5 flex-shrink-0" />
-              <div className="flex items-center gap-2">
-                Classification: 
-                <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getClassificationClasses(system.classification)}`}>
-                  {system.classification}
-                </span>
-              </div>
-            </div>
-          )}
-          {system.tags && system.tags.length > 0 && (
-            <div className="flex items-start gap-3">
-              <Tag className="w-5 h-5 flex-shrink-0 mt-0.5" />
-              <div className="flex flex-wrap gap-1">
-                {system.tags.map((tag: string) => (
-                  <span key={tag} className="px-2 py-0.5 text-xs font-medium bg-secondary text-secondary-foreground rounded-full">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="flex items-center gap-3 pt-2">
-            <Database className="w-5 h-5 flex-shrink-0" />
-            <span className="text-xs">{getSystemStats(system)}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <Clock className="w-5 h-5 flex-shrink-0" />
-            <span className="text-xs">
-              Last accessed: {formatLastAccessed(system.last_accessed)}
-            </span>
-          </div>
-        </div>
-      </CardContent>
-
-      <div className="px-6 pb-6 mt-auto">
-        <Button 
-          onClick={() => onSystemSelect(system)}
-          className="w-full font-bold text-lg py-6 shadow-md"
-          variant={selectedSystemId === system.id ? 'default' : 'outline'}
-        >
-          {selectedSystemId === system.id ? (
-            <>
-              <Unlock className="mr-2 h-6 w-6" />
-              Connect
-            </>
-          ) : (
-            <>
-              <ArrowRight className="mr-2 h-6 w-6" />
-              Select
-            </>
-          )}
-        </Button>
       </div>
-    </Card>
+    );
+  }
+
+  return (
+    <div className="bg-card rounded-lg overflow-hidden border border-border">
+      <div className="table-responsive">
+        <table className="w-full">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="text-left p-4 font-medium text-muted-foreground">System</th>
+              <th className="text-left p-4 font-medium text-muted-foreground">Description</th>
+              <th className="text-left p-4 font-medium text-muted-foreground">Owner</th>
+              <th className="text-left p-4 font-medium text-muted-foreground">Classification</th>
+              <th className="text-left p-4 font-medium text-muted-foreground">Tags</th>
+              <th className="text-left p-4 font-medium text-muted-foreground">Statistics</th>
+              <th className="text-left p-4 font-medium text-muted-foreground">Last Access</th>
+              <th className="text-left p-4 font-medium text-muted-foreground">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {systems.map((system) => (
+              <tr 
+                key={system.id} 
+                className={`border-t border-border hover:bg-muted/30 transition-colors ${
+                  selectedSystemId === system.id ? 'bg-primary/5 border-primary/20' : ''
+                }`}
+              >
+                <td className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg flex-shrink-0">
+                      <Building className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-foreground">{system.name || 'Unnamed System'}</div>
+                      <div className="text-sm text-muted-foreground">ID: {system.id}</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="p-4">
+                  <div className="text-sm text-muted-foreground max-w-xs truncate">
+                    {system.description || 'No description provided'}
+                  </div>
+                </td>
+                <td className="p-4">
+                  <div className="text-sm">
+                    {system.owner ? (
+                      <span className="text-foreground">{system.owner}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Not assigned</span>
+                    )}
+                  </div>
+                </td>
+                <td className="p-4">
+                  {system.classification ? (
+                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getClassificationClasses(system.classification)}`}>
+                      {system.classification}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">—</span>
+                  )}
+                </td>
+                <td className="p-4">
+                  {system.tags && system.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 max-w-48">
+                      {system.tags.slice(0, 3).map((tag: string) => (
+                        <span key={tag} className="px-2 py-1 text-xs font-medium bg-secondary text-secondary-foreground rounded-full">
+                          {tag}
+                        </span>
+                      ))}
+                      {system.tags.length > 3 && (
+                        <span className="px-2 py-1 text-xs text-muted-foreground">
+                          +{system.tags.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">No tags</span>
+                  )}
+                </td>
+                <td className="p-4">
+                  <div className="text-sm text-muted-foreground">
+                    {getSystemStats(system)}
+                  </div>
+                </td>
+                <td className="p-4">
+                  <div className="text-sm text-muted-foreground">
+                    {formatLastAccessed(system.last_accessed)}
+                  </div>
+                </td>
+                <td className="p-4">
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      size="sm" 
+                      onClick={() => onSystemSelect(system)} 
+                      variant={selectedSystemId === system.id ? 'default' : 'outline'}
+                      className="text-xs"
+                    >
+                      {selectedSystemId === system.id ? 'Connect' : 'Select'}
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onEditSystem(system)}>
+                          <Edit3 className="mr-2 h-4 w-4" />
+                          <span>Edit</span>
+                        </DropdownMenuItem>
+                        {showGroupActions && onRemoveFromGroup && (
+                          <DropdownMenuItem onClick={() => onRemoveFromGroup(system.id)}>
+                            <X className="mr-2 h-4 w-4" />
+                            <span>Remove from Group</span>
+                          </DropdownMenuItem>
+                        )}
+                        {!showGroupActions && onAddToGroup && groups && groups.length > 0 && (
+                          <>
+                            <DropdownMenuSeparator />
+                            {groups.map((group) => (
+                              <DropdownMenuItem 
+                                key={group.id}
+                                onClick={() => onAddToGroup(group.id, system.id)}
+                              >
+                                <Move className="mr-2 h-4 w-4" />
+                                <span>Add to {group.name}</span>
+                              </DropdownMenuItem>
+                            ))}
+                          </>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={() => onDeleteSystem(system.id)} 
+                          disabled={system.id === 'default' || deletingSystemId === system.id}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          <span>Delete</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
-} 
+}

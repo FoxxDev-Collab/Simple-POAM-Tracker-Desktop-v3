@@ -203,3 +203,32 @@ export async function getGroupDetails(groupId: string): Promise<any | null> {
 export async function reorderSystemsInGroup(groupId: string, systemOrders: Array<[string, number]>): Promise<void> {
   return await invoke('reorder_systems_in_group', { groupId, systemOrders });
 }
+
+// Group-level POAMs
+export async function getGroupPOAMs(groupId: string): Promise<any[]> {
+  return await invoke('get_group_poams', { groupId });
+}
+
+export async function getGroupPOAMById(id: number): Promise<any | null> {
+  return await invoke('get_group_poam_by_id', { id });
+}
+
+export async function createGroupPOAM(poam: any): Promise<void> {
+  return await invoke('create_group_poam', { poam });
+}
+
+export async function updateGroupPOAM(poam: any): Promise<void> {
+  return await invoke('update_group_poam', { poam });
+}
+
+export async function deleteGroupPOAM(id: number): Promise<void> {
+  return await invoke('delete_group_poam', { id });
+}
+
+export async function createGroupMilestone(groupPoamId: number, milestone: any): Promise<void> {
+  return await invoke('create_group_milestone', { groupPoamId: groupPoamId, milestone });
+}
+
+export async function updateGroupMilestoneStatus(milestoneId: string, status: string): Promise<void> {
+  return await invoke('update_group_milestone_status', { milestoneId, status });
+}

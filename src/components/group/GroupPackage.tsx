@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import GroupSidebar from './GroupSidebar';
+import GroupOverview from './GroupOverview';
 import * as api from '../../utils/tauriApi';
-import { Button } from '../ui/button';
 import { BrandedLoader } from '../ui/BrandedLoader';
 
 interface GroupPackageProps {
@@ -20,57 +20,38 @@ export default function GroupPackage({ groupId, onExit }: GroupPackageProps) {
   const [activeTab, setActiveTab] = useState<GroupTab>('overview');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [group, setGroup] = useState<any | null>(null);
+  const [systems, setSystems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       setIsLoading(true);
       try {
-        const g = await api.getGroupById(groupId);
-        setGroup(g);
+        const [groupData, systemsData] = await Promise.all([
+          api.getGroupById(groupId),
+          api.getSystemsInGroup(groupId)
+        ]);
+        setGroup(groupData);
+        setSystems(systemsData);
+      } catch (error) {
+        console.error('Failed to load group data:', error);
       } finally {
         setIsLoading(false);
       }
     })();
   }, [groupId]);
 
-  const navigation = useMemo(() => [
-    { id: 'overview', label: 'Overview', icon: require('lucide-react').LayoutDashboard },
-    { id: 'group-poams', label: 'Group POAMs', icon: require('lucide-react').Target },
-    { id: 'group-milestones', label: 'Milestones', icon: require('lucide-react').Milestone },
-    { id: 'group-stps', label: 'Test Plans', icon: require('lucide-react').ClipboardCheck },
-    { id: 'group-metrics', label: 'Metrics', icon: require('lucide-react').BarChart3 },
-  ], []);
+  // Navigation is handled inside GroupSidebar
 
   const renderContent = () => {
     switch (activeTab) {
       case 'overview':
         return (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold">{group?.name || 'Group'}</h1>
-                {group?.description && (
-                  <p className="text-muted-foreground">{group.description}</p>
-                )}
-              </div>
-              <Button variant="outline" onClick={onExit}>Exit Group</Button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-card border border-border rounded-lg">
-                <div className="text-sm text-muted-foreground">Systems</div>
-                <div className="text-2xl font-semibold">{group?.system_count ?? '—'}</div>
-              </div>
-              <div className="p-4 bg-card border border-border rounded-lg">
-                <div className="text-sm text-muted-foreground">Total POAMs</div>
-                <div className="text-2xl font-semibold">{group?.total_poam_count ?? '—'}</div>
-              </div>
-              <div className="p-4 bg-card border border-border rounded-lg">
-                <div className="text-sm text-muted-foreground">Test Plans</div>
-                <div className="text-2xl font-semibold">{group?.total_test_plans_count ?? '—'}</div>
-              </div>
-            </div>
-          </div>
+          <GroupOverview 
+            group={group} 
+            systems={systems} 
+            onExit={onExit} 
+          />
         );
       case 'group-poams':
         return <div className="text-muted-foreground">Group POAM Tracker (coming soon)</div>;

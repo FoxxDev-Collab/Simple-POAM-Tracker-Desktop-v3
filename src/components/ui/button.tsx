@@ -22,17 +22,17 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           {
             'bg-primary text-primary-foreground hover:bg-primary/90': variant === 'default',
             'bg-destructive text-destructive-foreground hover:bg-destructive/90': variant === 'destructive',
-            'border border-input bg-background hover:bg-accent hover:text-accent-foreground': variant === 'outline',
+            'border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground': variant === 'outline',
             'bg-secondary text-secondary-foreground hover:bg-secondary/80': variant === 'secondary',
-            'hover:bg-accent hover:text-accent-foreground': variant === 'ghost',
+            'text-foreground hover:bg-accent hover:text-accent-foreground': variant === 'ghost',
             'text-primary underline-offset-4 hover:underline': variant === 'link',
           },
           // Sizes
           {
-            'h-10 px-4 py-2': size === 'default',
-            'h-9 rounded-md px-3': size === 'sm',
-            'h-11 rounded-md px-8': size === 'lg',
-            'h-10 w-10': size === 'icon',
+            'h-10 px-4 py-2 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0': size === 'default',
+            'h-9 rounded-md px-3 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0': size === 'sm',
+            'h-11 rounded-md px-8 [&>svg]:h-5 [&>svg]:w-5 [&>svg]:shrink-0': size === 'lg',
+            'h-10 w-10 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0': size === 'icon',
           },
           className
         )}

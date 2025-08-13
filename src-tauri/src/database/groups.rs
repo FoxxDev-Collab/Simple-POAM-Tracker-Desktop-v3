@@ -1,4 +1,4 @@
-use crate::models::{SystemGroup, GroupSummary, SystemSummary};
+use crate::models::{SystemGroup, GroupSummary, SystemSummary, GroupPOAM, Milestone};
 use rusqlite::{params, Connection};
 use serde_json;
 use super::utils::DatabaseError;
@@ -334,6 +334,120 @@ impl<'a> GroupOperations<'a> {
         println!("Reordered systems in group {}", group_id);
         Ok(())
     }
+
+    // Group POAM operations
+    pub fn create_group_poam(&mut self, poam: &GroupPOAM) -> Result<(), DatabaseError> {
+        let affected_json = serde_json::to_string(&poam.affected_systems).unwrap_or("[]".to_string());
+        self.conn.execute(
+            "INSERT INTO group_poams (
+                id, title, description, start_date, end_date, status, priority, risk_level,
+                group_id, affected_systems, resources, source_identifying_vulnerability, raw_severity,
+                severity, relevance_of_threat, likelihood, impact, residual_risk, mitigations, devices_affected
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+            params![
+                poam.id,
+                poam.title,
+                poam.description,
+                poam.start_date,
+                poam.end_date,
+                poam.status,
+                poam.priority,
+                poam.risk_level,
+                poam.group_id,
+                affected_json,
+                poam.resources,
+                poam.source_identifying_vulnerability,
+                poam.raw_severity,
+                poam.severity,
+                poam.relevance_of_threat,
+                poam.likelihood,
+                poam.impact,
+                poam.residual_risk,
+                poam.mitigations,
+                poam.devices_affected,
+            ],
+        )?;
+
+        for m in &poam.milestones {
+            self.conn.execute(
+                "INSERT INTO group_milestones (id, group_poam_id, title, due_date, status, description) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![m.id, poam.id, m.title, m.due_date, m.status, m.description],
+            )?;
+        }
+
+        Ok(())
+    }
+
+    pub fn update_group_poam(&mut self, poam: &GroupPOAM) -> Result<(), DatabaseError> {
+        let affected_json = serde_json::to_string(&poam.affected_systems).unwrap_or("[]".to_string());
+        self.conn.execute(
+            "UPDATE group_poams SET
+                title = ?2, description = ?3, start_date = ?4, end_date = ?5, status = ?6,
+                priority = ?7, risk_level = ?8, group_id = ?9, affected_systems = ?10,
+                resources = ?11, source_identifying_vulnerability = ?12, raw_severity = ?13,
+                severity = ?14, relevance_of_threat = ?15, likelihood = ?16, impact = ?17,
+                residual_risk = ?18, mitigations = ?19, devices_affected = ?20
+             WHERE id = ?1",
+            params![
+                poam.id,
+                poam.title,
+                poam.description,
+                poam.start_date,
+                poam.end_date,
+                poam.status,
+                poam.priority,
+                poam.risk_level,
+                poam.group_id,
+                affected_json,
+                poam.resources,
+                poam.source_identifying_vulnerability,
+                poam.raw_severity,
+                poam.severity,
+                poam.relevance_of_threat,
+                poam.likelihood,
+                poam.impact,
+                poam.residual_risk,
+                poam.mitigations,
+                poam.devices_affected,
+            ],
+        )?;
+
+        // Replace milestones for simplicity
+        self.conn.execute(
+            "DELETE FROM group_milestones WHERE group_poam_id = ?1",
+            params![poam.id],
+        )?;
+        for m in &poam.milestones {
+            self.conn.execute(
+                "INSERT INTO group_milestones (id, group_poam_id, title, due_date, status, description) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![m.id, poam.id, m.title, m.due_date, m.status, m.description],
+            )?;
+        }
+
+        Ok(())
+    }
+
+    pub fn delete_group_poam(&mut self, id: i64) -> Result<(), DatabaseError> {
+        self.conn.execute("DELETE FROM group_milestones WHERE group_poam_id = ?1", params![id])?;
+        self.conn.execute("DELETE FROM group_poams WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn create_group_milestone(&mut self, group_poam_id: i64, milestone: &Milestone) -> Result<(), DatabaseError> {
+        self.conn.execute(
+            "INSERT INTO group_milestones (id, group_poam_id, title, due_date, status, description) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![milestone.id, group_poam_id, milestone.title, milestone.due_date, milestone.status, milestone.description],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_group_milestone_status(&mut self, milestone_id: &str, status: &str) -> Result<(), DatabaseError> {
+        self.conn.execute(
+            "UPDATE group_milestones SET status = ?2 WHERE id = ?1",
+            params![milestone_id, status],
+        )?;
+        Ok(())
+    }
 }
 
 impl<'a> GroupQueries<'a> {
@@ -400,5 +514,122 @@ impl<'a> GroupQueries<'a> {
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(DatabaseError::Sqlite(e)),
         }
+    }
+
+    pub fn get_group_poams(&self, group_id: &str) -> Result<Vec<GroupPOAM>, DatabaseError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, title, description, start_date, end_date, status, priority, risk_level,
+                    group_id, affected_systems, resources, source_identifying_vulnerability, raw_severity,
+                    severity, relevance_of_threat, likelihood, impact, residual_risk, mitigations, devices_affected
+             FROM group_poams WHERE group_id = ?1 ORDER BY start_date DESC"
+        )?;
+
+        let rows = stmt.query_map(params![group_id], |row| {
+            let affected_str: String = row.get(9)?;
+            let affected: Vec<String> = serde_json::from_str(&affected_str).unwrap_or_default();
+
+            Ok(GroupPOAM {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                description: row.get(2)?,
+                start_date: row.get(3)?,
+                end_date: row.get(4)?,
+                status: row.get(5)?,
+                priority: row.get(6)?,
+                risk_level: row.get(7)?,
+                group_id: row.get(8)?,
+                affected_systems: affected,
+                milestones: Vec::new(),
+                resources: row.get(10)?,
+                source_identifying_vulnerability: row.get(11)?,
+                raw_severity: row.get(12)?,
+                severity: row.get(13)?,
+                relevance_of_threat: row.get(14)?,
+                likelihood: row.get(15)?,
+                impact: row.get(16)?,
+                residual_risk: row.get(17)?,
+                mitigations: row.get(18)?,
+                devices_affected: row.get(19)?,
+            })
+        })?;
+
+        let mut poams = Vec::new();
+        for r in rows { poams.push(r?); }
+
+        // Load milestones per poam
+        for poam in &mut poams {
+            let mut ms_stmt = self.conn.prepare(
+                "SELECT id, title, due_date, status, description FROM group_milestones WHERE group_poam_id = ?1 ORDER BY due_date"
+            )?;
+            let ms_rows = ms_stmt.query_map(params![poam.id], |row| {
+                Ok(Milestone {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    due_date: row.get(2)?,
+                    status: row.get(3)?,
+                    description: row.get(4)?,
+                })
+            })?;
+            let mut milestones = Vec::new();
+            for m in ms_rows { milestones.push(m?); }
+            poam.milestones = milestones;
+        }
+
+        Ok(poams)
+    }
+
+    pub fn get_group_poam_by_id(&self, id: i64) -> Result<Option<GroupPOAM>, DatabaseError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, title, description, start_date, end_date, status, priority, risk_level,
+                    group_id, affected_systems, resources, source_identifying_vulnerability, raw_severity,
+                    severity, relevance_of_threat, likelihood, impact, residual_risk, mitigations, devices_affected
+             FROM group_poams WHERE id = ?1"
+        )?;
+
+        let result = stmt.query_row(params![id], |row| {
+            let affected_str: String = row.get(9)?;
+            let affected: Vec<String> = serde_json::from_str(&affected_str).unwrap_or_default();
+            Ok(GroupPOAM {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                description: row.get(2)?,
+                start_date: row.get(3)?,
+                end_date: row.get(4)?,
+                status: row.get(5)?,
+                priority: row.get(6)?,
+                risk_level: row.get(7)?,
+                group_id: row.get(8)?,
+                affected_systems: affected,
+                milestones: Vec::new(),
+                resources: row.get(10)?,
+                source_identifying_vulnerability: row.get(11)?,
+                raw_severity: row.get(12)?,
+                severity: row.get(13)?,
+                relevance_of_threat: row.get(14)?,
+                likelihood: row.get(15)?,
+                impact: row.get(16)?,
+                residual_risk: row.get(17)?,
+                mitigations: row.get(18)?,
+                devices_affected: row.get(19)?,
+            })
+        });
+
+        let mut poam = match result {
+            Ok(p) => p,
+            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+            Err(e) => return Err(DatabaseError::Sqlite(e)),
+        };
+
+        let mut ms_stmt = self.conn.prepare(
+            "SELECT id, title, due_date, status, description FROM group_milestones WHERE group_poam_id = ?1 ORDER BY due_date"
+        )?;
+        let ms_rows = ms_stmt.query_map(params![poam.id], |row| {
+            Ok(Milestone { id: row.get(0)?, title: row.get(1)?, due_date: row.get(2)?, status: row.get(3)?, description: row.get(4)? })
+        })?;
+        let mut milestones = Vec::new();
+        for m in ms_rows { milestones.push(m?); }
+        poam.milestones = milestones;
+
+        Ok(Some(poam))
     }
 }

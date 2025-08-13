@@ -21,7 +21,7 @@ pub use security_test_plans::{SecurityTestPlanOperations, SecurityTestPlanQuerie
 pub use control_poam_associations::{ControlPOAMAssociationOperations, ControlPOAMAssociationQueries};
 pub use baseline_controls::{BaselineControlOperations, BaselineControlQueries};
 
-use crate::models::{POAM, POAMData, Note, STIGMappingData, SecurityTestPlan, StpPrepList, System, SystemSummary, ControlPOAMAssociation, BaselineControl, SystemGroup, GroupSummary};
+use crate::models::{POAM, POAMData, Note, STIGMappingData, SecurityTestPlan, StpPrepList, System, SystemSummary, ControlPOAMAssociation, BaselineControl, SystemGroup, GroupSummary, GroupPOAM, Milestone};
 use rusqlite::Connection;
 use tauri::AppHandle;
 

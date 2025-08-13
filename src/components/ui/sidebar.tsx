@@ -28,6 +28,7 @@ import { useNotifications } from '../../context/NotificationContext'
 import { useSystem } from '../../context/SystemContext'
 import { useNotificationGenerator } from '../../hooks/useNotificationGenerator'
 import { NotificationCenter } from './NotificationCenter'
+import { Icon } from './icon'
 
 interface SidebarProps {
   activeTab: string
@@ -186,7 +187,7 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
                   className="w-full flex items-center gap-3 p-3 bg-accent/50 rounded-lg hover:bg-accent transition-colors"
                 >
                   <div className="p-2 bg-primary/10 rounded-lg">
-                    <Building className="w-4 h-4 text-primary" />
+                    <Icon icon={Building} size="sm" className="text-primary" />
                   </div>
                   <div className="flex-1 text-left min-w-0">
                     <p className="text-sm font-medium text-foreground">
@@ -221,7 +222,7 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
                   className="w-full flex items-center justify-center p-2 bg-accent/50 rounded-lg hover:bg-accent transition-colors"
                   title="Switch System"
                 >
-                  <Building className="w-4 h-4 text-primary" />
+                  <Icon icon={Building} size="sm" className="text-primary" />
                 </button>
               </div>
             )}
@@ -261,9 +262,9 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
             title={isCollapsed ? "Toggle theme" : undefined}
           >
             {theme === 'dark' ? (
-              <Sun className="h-4 w-4" />
+              <Icon icon={Sun} size="sm" />
             ) : (
-              <Moon className="h-4 w-4" />
+              <Icon icon={Moon} size="sm" />
             )}
           </button>
 
@@ -274,7 +275,7 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
             className="p-2 rounded-lg hover:bg-accent transition-colors text-foreground disabled:opacity-50"
             title={isCollapsed ? "Check for new notifications" : undefined}
           >
-            <RefreshCw className={`h-4 w-4 ${isCheckingNotifications ? 'animate-spin' : ''}`} />
+            <Icon icon={RefreshCw} size="sm" className={isCheckingNotifications ? 'animate-spin' : ''} />
           </button>
 
           {/* Notifications */}
@@ -283,7 +284,7 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
             className="p-2 rounded-lg hover:bg-accent transition-colors relative text-foreground"
             title={isCollapsed ? "Notifications" : undefined}
           >
-            <Bell className="h-4 w-4" />
+            <Icon icon={Bell} size="sm" />
             {unreadCount > 0 && (
               <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
                 {unreadCount > 99 ? '99+' : unreadCount}
@@ -307,7 +308,7 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
           className="w-full flex items-center justify-center p-3 text-muted-foreground hover:bg-accent hover:text-foreground rounded-lg transition-colors"
           aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <ChevronRight className={cn("w-5 h-5 transition-transform", !isCollapsed && "rotate-180")} />
+          <Icon icon={ChevronRight} size="md" className={cn("transition-transform", !isCollapsed && "rotate-180")} />
         </button>
       </div>
 
@@ -354,7 +355,7 @@ function NavItem({ item, isActive, isCollapsed, onClick, level = 0 }: NavItemPro
         title={isCollapsed ? item.label : undefined}
       >
         <div className="flex items-center space-x-3">
-          <item.icon className="w-4 h-4 flex-shrink-0" />
+          <Icon icon={item.icon} size="sm" className="flex-shrink-0" />
           {!isCollapsed && (
             <span className="truncate">{item.label}</span>
           )}
@@ -368,12 +369,7 @@ function NavItem({ item, isActive, isCollapsed, onClick, level = 0 }: NavItemPro
               </span>
             )}
             {hasChildren && (
-              <ChevronRight 
-                className={cn(
-                  "w-4 h-4 transition-transform",
-                  isExpanded && "rotate-90"
-                )}
-              />
+              <Icon icon={ChevronRight} size="sm" className={cn("transition-transform", isExpanded && "rotate-90")} />
             )}
           </div>
         )}

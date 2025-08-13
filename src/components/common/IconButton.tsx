@@ -23,6 +23,7 @@ import {
   X,
   Check
 } from 'lucide-react';
+import { Icon } from '../ui/icon';
 
 export type IconType = 
   | 'delete' 
@@ -99,16 +100,17 @@ const IconButton: React.FC<IconButtonProps> = ({
   const IconComponent = iconComponents[icon];
   
   const style = color ? { color } : {};
+  const mappedSize = size <= 14 ? 'xs' : size <= 16 ? 'sm' : size <= 20 ? 'md' : size <= 24 ? 'lg' : 'xl';
   
   return (
     <button
       type={type}
-      className={`btn icon-btn ${className}`}
+      className={`btn icon-btn inline-flex items-center justify-center gap-2 ${className}`}
       onClick={onClick}
       disabled={disabled}
       title={title}
     >
-      <IconComponent size={size} style={style} />
+      <Icon icon={IconComponent} size={mappedSize as any} style={style as any} />
       {label && <span>{label}</span>}
     </button>
   );

@@ -558,21 +558,24 @@ export default function MilestoneTracker() {
             </select>
           </div>
           
-          <label className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50 rounded-md transition-colors">
-            <input
-              type="checkbox"
-              checked={hideCompleted}
-              onChange={(e) => setHideCompleted(e.target.checked)}
-              className="rounded border-input focus:ring-2 focus:ring-ring/20"
-            />
-            Hide Completed
-          </label>
+          {/* Hide Completed moved to results bar below */}
         </div>
       </div>
 
-      {/* Results Summary */}
-      <div className="text-sm text-muted-foreground">
-        Showing {filteredMilestones.length} of {milestones.length} milestones
+      {/* Results Summary and Quick Filter */}
+      <div className="flex items-center justify-between text-sm">
+        <div className="text-muted-foreground">
+          Showing {filteredMilestones.length} of {milestones.length} milestones
+        </div>
+        <label className="flex items-center gap-2 px-3 py-2 font-medium text-foreground cursor-pointer rounded-md transition-colors border border-border bg-card hover:bg-accent whitespace-nowrap">
+          <input
+            type="checkbox"
+            checked={hideCompleted}
+            onChange={(e) => setHideCompleted(e.target.checked)}
+            className="rounded border-input focus:ring-2 focus:ring-ring/20 h-4 w-4"
+          />
+          Hide Completed
+        </label>
       </div>
       
       {/* Milestone Table */}
@@ -588,43 +591,43 @@ export default function MilestoneTracker() {
           </p>
         </div>
       ) : (
-        <div className="bg-card rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted">
+        <div className="bg-card rounded-lg overflow-hidden border border-border">
+          <div className="table-responsive">
+            <table className="w-full table-fixed">
+              <thead className="bg-muted/50">
                 <tr>
                   <th 
-                    className="text-left p-4 cursor-pointer hover:bg-muted/80"
+                    className="text-left p-4 font-medium text-muted-foreground cursor-pointer hover:bg-muted/80 w-[34%]"
                     onClick={() => handleSort('title')}
                   >
                     Milestone {renderSortIndicator('title')}
                   </th>
                   <th 
-                    className="text-left p-4 cursor-pointer hover:bg-muted/80"
+                    className="text-left p-4 font-medium text-muted-foreground cursor-pointer hover:bg-muted/80 w-[24%]"
                     onClick={() => handleSort('poamTitle')}
                   >
                     POAM {renderSortIndicator('poamTitle')}
                   </th>
                   <th 
-                    className="text-left p-4 cursor-pointer hover:bg-muted/80"
+                    className="text-left p-4 font-medium text-muted-foreground cursor-pointer hover:bg-muted/80 w-[16%]"
                     onClick={() => handleSort('dueDate')}
                   >
                     Due Date {renderSortIndicator('dueDate')}
                   </th>
                   <th 
-                    className="text-left p-4 cursor-pointer hover:bg-muted/80"
+                    className="text-left p-4 font-medium text-muted-foreground cursor-pointer hover:bg-muted/80 w-[16%]"
                     onClick={() => handleSort('status')}
                   >
                     Status {renderSortIndicator('status')}
                   </th>
-                  <th className="text-left p-4">Actions</th>
+                  <th className="text-left p-4 font-medium text-muted-foreground w-[10%]">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredMilestones.map((milestone) => (
                   <tr 
                     key={milestone.id} 
-                    className={`border-t border-border hover:bg-muted/50 cursor-pointer ${
+                    className={`border-t border-border hover:bg-muted/50 cursor-pointer transition-colors ${
                       highlightedMilestone === milestone.id ? 'highlighted-milestone bg-primary/10 border-primary/30' : ''
                     }`}
                     onClick={() => {
@@ -633,15 +636,15 @@ export default function MilestoneTracker() {
                     }}
                   >
                     <td className="p-4">
-                      <div className="font-medium text-foreground">{milestone.title}</div>
+                      <div className="font-medium text-foreground truncate" title={milestone.title}>{milestone.title}</div>
                       {milestone.description && (
-                        <div className="text-sm text-muted-foreground truncate max-w-xs">
+                        <div className="text-sm text-muted-foreground line-clamp-1">
                           {milestone.description}
                         </div>
                       )}
                     </td>
-                    <td className="p-4 text-sm">{milestone.poamTitle}</td>
-                    <td className="p-4 text-sm">{formatDateDisplay(milestone.dueDate, timezone)}</td>
+                    <td className="p-4 text-sm truncate" title={milestone.poamTitle}>{milestone.poamTitle}</td>
+                    <td className="p-4 text-sm whitespace-nowrap">{formatDateDisplay(milestone.dueDate, timezone)}</td>
                     <td className="p-4">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(milestone.status)}`}>
                         {milestone.status}
