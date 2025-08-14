@@ -182,6 +182,14 @@ function AppContent() {
                   setActiveGroupId(null);
                   setShowSystemSelector(true);
                 }}
+                onSwitchToSystem={(_systemId: string, targetTab?: string) => {
+                  // Exit group view and optionally switch to specific tab
+                  // System switching is handled within the component
+                  setActiveGroupId(null);
+                  if (targetTab) {
+                    setActiveTabId(targetTab);
+                  }
+                }}
               />
             </main>
             <ToastContainer />

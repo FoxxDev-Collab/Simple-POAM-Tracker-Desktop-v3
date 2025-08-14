@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import GroupSidebar from './GroupSidebar';
-import GroupOverview from './GroupOverview';
+import EnhancedGroupOverview from './EnhancedGroupOverview';
 import GroupPOAMTracker from './GroupPOAMTracker';
 import GroupNistControls from './GroupNistControls';
 import * as api from '../../utils/tauriApi';
@@ -9,6 +9,7 @@ import { BrandedLoader } from '../ui/BrandedLoader';
 interface GroupPackageProps {
   groupId: string;
   onExit: () => void;
+  onSwitchToSystem?: (systemId: string, targetTab?: string) => void;
 }
 
 type GroupTab =
@@ -19,7 +20,7 @@ type GroupTab =
   | 'group-stps'
   | 'group-metrics';
 
-export default function GroupPackage({ groupId, onExit }: GroupPackageProps) {
+export default function GroupPackage({ groupId, onExit, onSwitchToSystem }: GroupPackageProps) {
   const [activeTab, setActiveTab] = useState<GroupTab>('overview');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [group, setGroup] = useState<any | null>(null);
@@ -50,10 +51,11 @@ export default function GroupPackage({ groupId, onExit }: GroupPackageProps) {
     switch (activeTab) {
       case 'overview':
         return (
-          <GroupOverview 
+          <EnhancedGroupOverview 
             group={group} 
             systems={systems} 
-            onExit={onExit} 
+            onExit={onExit}
+            onSwitchToSystem={onSwitchToSystem}
           />
         );
       case 'group-poams':

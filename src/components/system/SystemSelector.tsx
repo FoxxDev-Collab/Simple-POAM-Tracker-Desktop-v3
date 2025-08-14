@@ -15,7 +15,14 @@ import {
   ChevronDown,
   ChevronRight,
   Move,
-  X
+  X,
+  Clock,
+  User,
+  Tag,
+  Shield,
+  Activity,
+  ArrowRight,
+  CheckCircle2
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { BrandedLoader } from '../ui/BrandedLoader';
@@ -26,7 +33,6 @@ import CreateGroupModal from './CreateGroupModal';
 import EditGroupModal from './EditGroupModal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu';
 import * as api from '../../utils/tauriApi';
-
 
 interface SystemSelectorProps {
   onSystemSelected: () => void;
@@ -228,11 +234,21 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
 
   const handleUpdateGroup = async (groupData: any) => {
     try {
-      await api.updateGroup(groupData);
+      // Fetch the complete group to ensure required fields (created_by, is_active, created_date) are present
+      const completeGroup = await api.getGroupById(groupData.id);
+      const updatedGroup = {
+        ...completeGroup,
+        name: groupData.name,
+        description: groupData.description ?? null,
+        color: groupData.color,
+        updated_date: new Date().toISOString(),
+      };
+      await api.updateGroup(updatedGroup);
       showToast('success', `Updated group: ${groupData.name}`);
       setEditingGroup(null);
       await loadGroupsAndSystems();
     } catch (error) {
+      console.error('Failed to update group:', error);
       showToast('error', 'Failed to update group');
     }
   };
@@ -323,54 +339,61 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col items-center">
-      {/* Header */}
-      <div className="w-full text-center py-12 px-4">
-        <h1 className="text-5xl font-bold tracking-tight">POAM Tracker Desktop</h1>
-        <p className="text-muted-foreground mt-2 text-lg max-w-2xl mx-auto">
-          Select or create a system to begin managing your Plan of Action & Milestones
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      {/* Hero Section */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-primary/5"></div>
+        <div className="relative container-responsive py-16 text-center">
+          <div className="max-w-4xl mx-auto">
+            <h1 className="text-5xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent mb-4">
+              POAM Tracker Desktop
+            </h1>
+            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
+              Select or create a system to begin managing your Plan of Action & Milestones with enterprise-grade security and compliance tracking.
+            </p>
 
-        <div className="flex flex-wrap items-center justify-center gap-4 mt-8">
-          <Button onClick={() => setShowCreateModal(true)} size="lg" className="shadow-lg">
-            <Icon icon={Plus} size="md" className="mr-2" />
-            Create New System
-          </Button>
-          <Button onClick={() => setShowCreateGroupModal(true)} variant="outline" size="lg" className="shadow-lg">
-            <Icon icon={FolderPlus} size="md" className="mr-2" />
-            Create New Group
-          </Button>
-          <Button onClick={handleImportSystem} variant="outline" size="lg" className="shadow-lg" disabled={isImporting}>
-            {isImporting ? (
-              <div className="flex items-center">
-                <div className="w-4 h-4 border-2 border-transparent border-t-primary rounded-full animate-spin mr-2"></div>
-                Importing...
-              </div>
-            ) : (
-              <>
-                <Icon icon={Upload} size="md" className="mr-2" />
-                Import System
-              </>
-            )}
-          </Button>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <Button onClick={() => setShowCreateModal(true)} size="lg" className="shadow-lg hover:shadow-xl transition-all duration-200">
+                <Icon icon={Plus} size="md" className="mr-2" />
+                Create New System
+              </Button>
+              <Button onClick={() => setShowCreateGroupModal(true)} variant="outline" size="lg" className="shadow-lg hover:shadow-xl transition-all duration-200">
+                <Icon icon={FolderPlus} size="md" className="mr-2" />
+                Create New Group
+              </Button>
+              <Button onClick={handleImportSystem} variant="outline" size="lg" className="shadow-lg hover:shadow-xl transition-all duration-200" disabled={isImporting}>
+                {isImporting ? (
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 border-2 border-transparent border-t-primary rounded-full animate-spin mr-2"></div>
+                    Importing...
+                  </div>
+                ) : (
+                  <>
+                    <Icon icon={Upload} size="md" className="mr-2" />
+                    Import System
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
       
-      {/* Grouped Systems */}
-      <div className="flex-grow w-full px-4 sm:px-6 lg:px-8 py-8">
-        <div className="max-w-screen-2xl mx-auto space-y-8">
+      {/* Systems Content */}
+      <div className="container-responsive pb-16">
+        <div className="space-y-12">
           
           {/* Groups */}
           {groups.map((group) => (
-            <div key={group.id} className="space-y-4">
+            <div key={group.id} className="space-y-6">
               {/* Group Header */}
-              <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-sm">
-              <div className="flex items-center gap-4 title-row">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => toggleGroupExpansion(group.id)}
-                    className="p-2"
+                    className="h-10 w-10 rounded-full hover:bg-muted/50"
                   >
                     {expandedGroups.has(group.id) ? (
                       <Icon icon={ChevronDown} size="md" />
@@ -378,34 +401,37 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
                       <Icon icon={ChevronRight} size="md" />
                     )}
                   </Button>
-                  <div 
-                    className="w-4 h-4 rounded-full border border-gray-300 flex-shrink-0"
-                    style={{ backgroundColor: group.color }}
-                  />
-                  <div>
-                    <h3 className="text-lg font-semibold">{group.name}</h3>
-                    {group.description && (
-                      <p className="text-sm text-muted-foreground">{group.description}</p>
-                    )}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {group.systems?.length || 0} systems
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-3 h-3 rounded-full border border-gray-300 flex-shrink-0 shadow-sm"
+                      style={{ backgroundColor: group.color }}
+                    />
+                    <div>
+                      <h2 className="text-2xl font-semibold text-foreground">{group.name}</h2>
+                      {group.description && (
+                        <p className="text-muted-foreground mt-1">{group.description}</p>
+                      )}
+                    </div>
+                    <div className="px-3 py-1 bg-muted rounded-full text-sm font-medium text-muted-foreground">
+                      {group.systems?.length || 0} systems
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   {onGroupSelected && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onGroupSelected(group.id)}
+                      className="shadow-sm"
                     >
                       Manage Group
                     </Button>
                   )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-9 w-9">
-                        <Icon icon={MoreVertical} size="sm" />
+                      <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full">
+                        <Icon icon={MoreVertical} size="md" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
@@ -426,10 +452,10 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
                 </div>
               </div>
 
-              {/* Group Systems */}
+              {/* Group Systems Grid */}
               {expandedGroups.has(group.id) && (
-                <div className="ml-8">
-                  <SystemsTable
+                <div className="ml-14">
+                  <SystemsGrid
                     systems={group.systems || []}
                     selectedSystemId={selectedSystemId}
                     onSystemSelect={handleSystemSelect}
@@ -449,35 +475,37 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
 
           {/* Ungrouped Systems */}
           {ungroupedSystems.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-sm">
-                <div className="flex items-center gap-4 title-row">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleGroupExpansion('ungrouped')}
-                    className="p-2"
-                  >
-                    {expandedGroups.has('ungrouped') ? (
-                      <Icon icon={ChevronDown} size="md" />
-                    ) : (
-                      <Icon icon={ChevronRight} size="md" />
-                    )}
-                  </Button>
-                  <Icon icon={Folder} size="md" className="text-muted-foreground" />
-                  <div>
-                    <h3 className="text-lg font-semibold">Ungrouped Systems</h3>
-                    <p className="text-sm text-muted-foreground">Systems not assigned to any group</p>
+            <div className="space-y-6">
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => toggleGroupExpansion('ungrouped')}
+                  className="h-10 w-10 rounded-full hover:bg-muted/50"
+                >
+                  {expandedGroups.has('ungrouped') ? (
+                    <Icon icon={ChevronDown} size="md" />
+                  ) : (
+                    <Icon icon={ChevronRight} size="md" />
+                  )}
+                </Button>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-muted rounded-lg">
+                    <Icon icon={Folder} size="md" className="text-muted-foreground" />
                   </div>
-                  <div className="text-sm text-muted-foreground">
+                  <div>
+                    <h2 className="text-2xl font-semibold text-foreground">Ungrouped Systems</h2>
+                    <p className="text-muted-foreground mt-1">Systems not assigned to any group</p>
+                  </div>
+                  <div className="px-3 py-1 bg-muted rounded-full text-sm font-medium text-muted-foreground">
                     {ungroupedSystems.length} systems
                   </div>
                 </div>
               </div>
 
               {expandedGroups.has('ungrouped') && (
-                <div className="ml-8">
-                  <SystemsTable
+                <div className="ml-14">
+                  <SystemsGrid
                     systems={ungroupedSystems}
                     selectedSystemId={selectedSystemId}
                     onSystemSelect={handleSystemSelect}
@@ -496,25 +524,46 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
             </div>
           )}
 
-          {/* Default expanded state for first time users */}
+          {/* Empty State */}
           {groups.length === 0 && ungroupedSystems.length === 0 && (
-            <div className="text-center py-12">
-              <div className="p-8 bg-card border border-border rounded-xl shadow-sm">
-                <Icon icon={Building} size="xl" className="text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No Systems Found</h3>
-                <p className="text-muted-foreground mb-4">
-                  Create your first system or import an existing one to get started.
-                </p>
+            <div className="text-center py-20">
+              <div className="max-w-md mx-auto">
+                <div className="p-8 bg-card border border-border rounded-2xl shadow-lg">
+                  <div className="p-4 bg-primary/10 rounded-full w-16 h-16 mx-auto mb-6 flex items-center justify-center">
+                    <Icon icon={Building} size="xl" className="text-primary" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-3">No Systems Found</h3>
+                  <p className="text-muted-foreground mb-6 leading-relaxed">
+                    Create your first system or import an existing one to get started with POAM tracking and compliance management.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Button onClick={() => setShowCreateModal(true)} size="lg">
+                      <Icon icon={Plus} size="md" className="mr-2" />
+                      Create System
+                    </Button>
+                    <Button onClick={handleImportSystem} variant="outline" size="lg">
+                      <Icon icon={Upload} size="md" className="mr-2" />
+                      Import System
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
       
-      <div className="text-center py-8 text-sm text-muted-foreground">
-        <p>Systems provide complete data isolation for different organizations, projects, or environments.</p>
+      {/* Footer */}
+      <div className="border-t border-border bg-card/50">
+        <div className="container-responsive py-8 text-center">
+          <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            Systems provide complete data isolation for different organizations, projects, or environments. 
+            Each system maintains its own POAMs, notes, STIG mappings, and security test plans.
+          </p>
+        </div>
       </div>
 
+      {/* Modals */}
       {showCreateModal && (
         <CreateSystemModal
           onClose={() => setShowCreateModal(false)}
@@ -545,8 +594,8 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
   );
 }
 
-// SystemsTable component for list view
-interface SystemsTableProps {
+// SystemsGrid component for modern card layout
+interface SystemsGridProps {
   systems: any[];
   selectedSystemId: string | null;
   onSystemSelect: (system: any) => void;
@@ -562,7 +611,7 @@ interface SystemsTableProps {
   showGroupActions: boolean;
 }
 
-function SystemsTable({
+function SystemsGrid({
   systems,
   selectedSystemId,
   onSystemSelect,
@@ -576,12 +625,14 @@ function SystemsTable({
   formatLastAccessed,
   groups,
   showGroupActions
-}: SystemsTableProps) {
+}: SystemsGridProps) {
   if (systems.length === 0) {
     return (
-      <div className="text-center py-8">
-        <div className="p-6 bg-card border border-border rounded-lg">
-          <Icon icon={Building} size="xl" className="text-muted-foreground mx-auto mb-4" />
+      <div className="text-center py-12">
+        <div className="p-8 bg-card border border-border rounded-2xl shadow-sm">
+          <div className="p-4 bg-muted rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+            <Icon icon={Building} size="xl" className="text-muted-foreground" />
+          </div>
           <p className="text-muted-foreground">No systems found in this group.</p>
         </div>
       </div>
@@ -589,149 +640,220 @@ function SystemsTable({
   }
 
   return (
-    <div className="bg-card rounded-lg overflow-hidden border border-border">
-      <div className="table-responsive">
-        <table className="w-full">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left p-4 font-medium text-muted-foreground">System</th>
-              <th className="text-left p-4 font-medium text-muted-foreground">Description</th>
-              <th className="text-left p-4 font-medium text-muted-foreground">Owner</th>
-              <th className="text-left p-4 font-medium text-muted-foreground">Classification</th>
-              <th className="text-left p-4 font-medium text-muted-foreground">Tags</th>
-              <th className="text-left p-4 font-medium text-muted-foreground">Statistics</th>
-              <th className="text-left p-4 font-medium text-muted-foreground">Last Access</th>
-              <th className="text-left p-4 font-medium text-muted-foreground">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {systems.map((system) => (
-              <tr 
-                key={system.id} 
-                className={`border-t border-border hover:bg-muted/30 transition-colors ${
-                  selectedSystemId === system.id ? 'bg-primary/5 border-primary/20' : ''
-                }`}
-              >
-                <td className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg flex-shrink-0">
-                      <Building className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-medium text-foreground">{system.name || 'Unnamed System'}</div>
-                      <div className="text-sm text-muted-foreground">ID: {system.id}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <div className="text-sm text-muted-foreground max-w-xs truncate">
-                    {system.description || 'No description provided'}
-                  </div>
-                </td>
-                <td className="p-4">
-                  <div className="text-sm">
-                    {system.owner ? (
-                      <span className="text-foreground">{system.owner}</span>
-                    ) : (
-                      <span className="text-muted-foreground">Not assigned</span>
-                    )}
-                  </div>
-                </td>
-                <td className="p-4">
-                  {system.classification ? (
-                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getClassificationClasses(system.classification)}`}>
-                      {system.classification}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">—</span>
-                  )}
-                </td>
-                <td className="p-4">
-                  {system.tags && system.tags.length > 0 ? (
-                    <div className="flex flex-wrap gap-1 max-w-48">
-                      {system.tags.slice(0, 3).map((tag: string) => (
-                        <span key={tag} className="px-2 py-1 text-xs font-medium bg-secondary text-secondary-foreground rounded-full">
-                          {tag}
-                        </span>
-                      ))}
-                      {system.tags.length > 3 && (
-                        <span className="px-2 py-1 text-xs text-muted-foreground">
-                          +{system.tags.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">No tags</span>
-                  )}
-                </td>
-                <td className="p-4">
-                  <div className="text-sm text-muted-foreground">
-                    {getSystemStats(system)}
-                  </div>
-                </td>
-                <td className="p-4">
-                  <div className="text-sm text-muted-foreground">
-                    {formatLastAccessed(system.last_accessed)}
-                  </div>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      size="sm" 
-                      onClick={() => onSystemSelect(system)} 
-                      variant={selectedSystemId === system.id ? 'default' : 'outline'}
-                      className="text-xs"
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {systems.map((system) => (
+        <SystemCard
+          key={system.id}
+          system={system}
+          selectedSystemId={selectedSystemId}
+          onSystemSelect={onSystemSelect}
+          onEditSystem={onEditSystem}
+          onDeleteSystem={onDeleteSystem}
+          onRemoveFromGroup={onRemoveFromGroup}
+          onAddToGroup={onAddToGroup}
+          deletingSystemId={deletingSystemId}
+          getSystemStats={getSystemStats}
+          getClassificationClasses={getClassificationClasses}
+          formatLastAccessed={formatLastAccessed}
+          groups={groups}
+          showGroupActions={showGroupActions}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Individual System Card Component
+interface SystemCardProps {
+  system: any;
+  selectedSystemId: string | null;
+  onSystemSelect: (system: any) => void;
+  onEditSystem: (system: any) => void;
+  onDeleteSystem: (systemId: string) => void;
+  onRemoveFromGroup?: (systemId: string) => void;
+  onAddToGroup?: (groupId: string, systemId: string) => void;
+  deletingSystemId: string | null;
+  getSystemStats: (system: any) => string;
+  getClassificationClasses: (classification: string) => string;
+  formatLastAccessed: (dateString?: string) => string;
+  groups?: any[];
+  showGroupActions: boolean;
+}
+
+function SystemCard({
+  system,
+  selectedSystemId,
+  onSystemSelect,
+  onEditSystem,
+  onDeleteSystem,
+  onRemoveFromGroup,
+  onAddToGroup,
+  deletingSystemId,
+  getSystemStats,
+  getClassificationClasses,
+  formatLastAccessed,
+  groups,
+  showGroupActions
+}: SystemCardProps) {
+  const isSelected = selectedSystemId === system.id;
+  const isDeleting = deletingSystemId === system.id;
+
+  return (
+    <div className={`
+      group relative bg-card border border-border rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden
+      ${isSelected ? 'ring-2 ring-primary/20 border-primary/30 bg-primary/5' : 'hover:border-border/60'}
+      ${isDeleting ? 'opacity-50 pointer-events-none' : ''}
+    `}>
+      {/* Header */}
+      <div className="p-6 border-b border-border/50">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="p-2.5 bg-primary/10 rounded-xl flex-shrink-0">
+              <Icon icon={Building} size="md" className="text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-foreground truncate">{system.name || 'Unnamed System'}</h3>
+              <p className="text-xs text-muted-foreground font-mono">ID: {system.id}</p>
+            </div>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                <Icon icon={MoreVertical} size="sm" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEditSystem(system)}>
+                <Icon icon={Edit3} size="sm" className="mr-2" />
+                <span>Edit</span>
+              </DropdownMenuItem>
+              {showGroupActions && onRemoveFromGroup && (
+                <DropdownMenuItem onClick={() => onRemoveFromGroup(system.id)}>
+                  <Icon icon={X} size="sm" className="mr-2" />
+                  <span>Remove from Group</span>
+                </DropdownMenuItem>
+              )}
+              {!showGroupActions && onAddToGroup && groups && groups.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  {groups.map((group) => (
+                    <DropdownMenuItem 
+                      key={group.id}
+                      onClick={() => onAddToGroup(group.id, system.id)}
                     >
-                      {selectedSystemId === system.id ? 'Connect' : 'Select'}
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEditSystem(system)}>
-                          <Edit3 className="mr-2 h-4 w-4" />
-                          <span>Edit</span>
-                        </DropdownMenuItem>
-                        {showGroupActions && onRemoveFromGroup && (
-                          <DropdownMenuItem onClick={() => onRemoveFromGroup(system.id)}>
-                            <X className="mr-2 h-4 w-4" />
-                            <span>Remove from Group</span>
-                          </DropdownMenuItem>
-                        )}
-                        {!showGroupActions && onAddToGroup && groups && groups.length > 0 && (
-                          <>
-                            <DropdownMenuSeparator />
-                            {groups.map((group) => (
-                              <DropdownMenuItem 
-                                key={group.id}
-                                onClick={() => onAddToGroup(group.id, system.id)}
-                              >
-                                <Move className="mr-2 h-4 w-4" />
-                                <span>Add to {group.name}</span>
-                              </DropdownMenuItem>
-                            ))}
-                          </>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => onDeleteSystem(system.id)} 
-                          disabled={system.id === 'default' || deletingSystemId === system.id}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          <span>Delete</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                      <Icon icon={Move} size="sm" className="mr-2" />
+                      <span>Add to {group.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => onDeleteSystem(system.id)} 
+                disabled={system.id === 'default'}
+                className="text-destructive"
+              >
+                <Icon icon={Trash2} size="sm" className="mr-2" />
+                <span>Delete</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Description */}
+        {system.description && (
+          <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+            {system.description}
+          </p>
+        )}
+
+        {/* Classification Badge */}
+        {system.classification && (
+          <div className="mb-4">
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full ${getClassificationClasses(system.classification)}`}>
+              <Icon icon={Shield} size="xs" />
+              {system.classification}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="p-6 space-y-4">
+        {/* Owner */}
+        {system.owner && (
+          <div className="flex items-center gap-2 text-sm">
+            <Icon icon={User} size="sm" className="text-muted-foreground" />
+            <span className="text-muted-foreground">Owner:</span>
+            <span className="font-medium text-foreground">{system.owner}</span>
+          </div>
+        )}
+
+        {/* Tags */}
+        {system.tags && system.tags.length > 0 && (
+          <div className="flex items-start gap-2 text-sm">
+            <Icon icon={Tag} size="sm" className="text-muted-foreground mt-0.5" />
+            <div className="flex flex-wrap gap-1">
+              {system.tags.slice(0, 3).map((tag: string) => (
+                <span key={tag} className="px-2 py-1 text-xs font-medium bg-secondary text-secondary-foreground rounded-md">
+                  {tag}
+                </span>
+              ))}
+              {system.tags.length > 3 && (
+                <span className="px-2 py-1 text-xs text-muted-foreground">
+                  +{system.tags.length - 3} more
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Statistics */}
+        <div className="flex items-center gap-2 text-sm">
+          <Icon icon={Activity} size="sm" className="text-muted-foreground" />
+          <span className="text-muted-foreground">Stats:</span>
+          <span className="font-medium text-foreground">{getSystemStats(system)}</span>
+        </div>
+
+        {/* Last Access */}
+        <div className="flex items-center gap-2 text-sm">
+          <Icon icon={Clock} size="sm" className="text-muted-foreground" />
+          <span className="text-muted-foreground">Last access:</span>
+          <span className="font-medium text-foreground">{formatLastAccessed(system.last_accessed)}</span>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="p-6 border-t border-border/50 bg-muted/20">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {isSelected && (
+              <Icon icon={CheckCircle2} size="sm" className="text-success" />
+            )}
+            <span className="text-xs text-muted-foreground">
+              {isSelected ? 'Currently connected' : 'Ready to connect'}
+            </span>
+          </div>
+          <Button 
+            size="sm" 
+            onClick={() => onSystemSelect(system)} 
+            variant={isSelected ? 'default' : 'outline'}
+            className="shadow-sm"
+            disabled={isDeleting}
+          >
+            {isSelected ? (
+              <>
+                <Icon icon={CheckCircle2} size="sm" className="mr-1.5" />
+                Connected
+              </>
+            ) : (
+              <>
+                Connect
+                <Icon icon={ArrowRight} size="sm" className="ml-1.5" />
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
