@@ -11,8 +11,9 @@ import STIGComplianceChart from './STIGComplianceChart';
 import SecurityTestingChart from './SecurityTestingChart';
 import NessusVulnerabilityChart from './NessusVulnerabilityChart';
 import { NistAssociationSummary } from '.';
-import './Metrics.css';
+// Unified styles via global patterns and Tailwind
 import { BarChart3 } from 'lucide-react';
+import { Icon } from '../ui/icon';
 
 interface POAM {
   id: number;
@@ -293,9 +294,9 @@ const MetricsDashboard: React.FC = () => {
   return (
     <div className="metrics-dashboard">
       <div className="responsive-header metrics-header">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 title-row">
           <div className="p-2 bg-primary/10 rounded-lg">
-            <BarChart3 className="h-6 w-6 text-primary" />
+            <Icon icon={BarChart3} size="lg" tone="primary" />
           </div>
           <div>
             <h1 className="text-3xl font-bold">Security Metrics Dashboard</h1>

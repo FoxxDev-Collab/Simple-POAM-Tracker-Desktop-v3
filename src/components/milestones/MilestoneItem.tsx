@@ -1,7 +1,7 @@
 import React from 'react';
 import { Milestone } from '../../types/Milestone';
 import { formatDateDisplay } from '../../utils/dateUtils';
-import './Milestone.css';
+// Unified styles via global patterns and Tailwind
 
 interface MilestoneItemProps {
   milestone: Milestone;

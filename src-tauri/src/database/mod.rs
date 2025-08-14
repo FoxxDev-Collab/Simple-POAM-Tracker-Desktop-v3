@@ -8,6 +8,7 @@ pub mod stig_mappings;
 pub mod security_test_plans;
 pub mod control_poam_associations;
 pub mod baseline_controls;
+pub mod group_baseline_controls;
 pub mod nessus;
 
 pub use utils::{DatabaseError, get_database};
@@ -20,8 +21,9 @@ pub use stig_mappings::{STIGMappingOperations, STIGMappingQueries};
 pub use security_test_plans::{SecurityTestPlanOperations, SecurityTestPlanQueries};
 pub use control_poam_associations::{ControlPOAMAssociationOperations, ControlPOAMAssociationQueries};
 pub use baseline_controls::{BaselineControlOperations, BaselineControlQueries};
+pub use group_baseline_controls::{GroupBaselineControlOperations, GroupBaselineControlQueries, GroupControlPOAMAssociationOperations, GroupControlPOAMAssociationQueries, GroupBaselineControl, GroupControlPOAMAssociation};
 
-use crate::models::{POAM, POAMData, Note, STIGMappingData, SecurityTestPlan, StpPrepList, System, SystemSummary, ControlPOAMAssociation, BaselineControl, SystemGroup, GroupSummary, GroupPOAM, Milestone};
+use crate::models::{POAM, POAMData, Note, STIGMappingData, SecurityTestPlan, StpPrepList, System, SystemSummary, ControlPOAMAssociation, BaselineControl, SystemGroup, GroupSummary, GroupPOAM};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
@@ -122,6 +124,32 @@ impl Database {
     pub fn reorder_systems_in_group(&mut self, group_id: &str, system_orders: &[(String, i32)]) -> Result<(), DatabaseError> {
         let mut group_ops = GroupOperations::new(&mut self.conn);
         group_ops.reorder_systems_in_group(group_id, system_orders)
+    }
+
+    // Group POAM Operations
+    pub fn get_group_poams(&self, group_id: &str) -> Result<Vec<GroupPOAM>, DatabaseError> {
+        let group_queries = GroupQueries::new(&self.conn);
+        group_queries.get_group_poams(group_id)
+    }
+
+    pub fn get_group_poam_by_id(&self, id: i64) -> Result<Option<GroupPOAM>, DatabaseError> {
+        let group_queries = GroupQueries::new(&self.conn);
+        group_queries.get_group_poam_by_id(id)
+    }
+
+    pub fn create_group_poam(&mut self, poam: &GroupPOAM) -> Result<(), DatabaseError> {
+        let mut group_ops = GroupOperations::new(&mut self.conn);
+        group_ops.create_group_poam(poam)
+    }
+
+    pub fn update_group_poam(&mut self, poam: &GroupPOAM) -> Result<(), DatabaseError> {
+        let mut group_ops = GroupOperations::new(&mut self.conn);
+        group_ops.update_group_poam(poam)
+    }
+
+    pub fn delete_group_poam(&mut self, id: i64) -> Result<(), DatabaseError> {
+        let mut group_ops = GroupOperations::new(&mut self.conn);
+        group_ops.delete_group_poam(id)
     }
 
     // POAM Operations
@@ -330,6 +358,67 @@ impl Database {
     pub fn remove_baseline_control(&mut self, control_id: &str, system_id: &str) -> Result<(), DatabaseError> {
         let mut baseline_ops = BaselineControlOperations::new(&mut self.conn);
         baseline_ops.remove_baseline_control(control_id, system_id)
+    }
+
+    // Group Baseline Controls Operations
+    pub fn get_group_baseline_controls(&self, group_id: &str) -> Result<Vec<GroupBaselineControl>, DatabaseError> {
+        let group_baseline_queries = GroupBaselineControlQueries::new(&self.conn);
+        group_baseline_queries.get_group_baseline_controls(group_id)
+    }
+
+    pub fn add_group_baseline_control(&mut self, control: &GroupBaselineControl) -> Result<(), DatabaseError> {
+        let mut group_baseline_ops = GroupBaselineControlOperations::new(&mut self.conn);
+        group_baseline_ops.add_group_baseline_control(control)
+    }
+
+    pub fn update_group_baseline_control(&mut self, control: &GroupBaselineControl) -> Result<(), DatabaseError> {
+        let mut group_baseline_ops = GroupBaselineControlOperations::new(&mut self.conn);
+        group_baseline_ops.update_group_baseline_control(control)
+    }
+
+    pub fn remove_group_baseline_control(&mut self, control_id: &str, group_id: &str) -> Result<(), DatabaseError> {
+        let mut group_baseline_ops = GroupBaselineControlOperations::new(&mut self.conn);
+        group_baseline_ops.remove_group_baseline_control(control_id, group_id)
+    }
+
+    // Group Control-POAM Association Operations
+    pub fn create_group_control_poam_association(
+        &mut self,
+        control_id: &str,
+        group_poam_id: i64,
+        group_id: &str,
+        created_by: Option<&str>,
+        notes: Option<&str>
+    ) -> Result<String, DatabaseError> {
+        let mut assoc_ops = GroupControlPOAMAssociationOperations::new(&mut self.conn);
+        assoc_ops.create_group_control_poam_association(control_id, group_poam_id, group_id, created_by, notes)
+    }
+
+    pub fn delete_group_control_poam_association(
+        &mut self,
+        association_id: &str,
+        group_id: &str
+    ) -> Result<(), DatabaseError> {
+        let mut assoc_ops = GroupControlPOAMAssociationOperations::new(&mut self.conn);
+        assoc_ops.delete_group_control_poam_association(association_id, group_id)
+    }
+
+    pub fn get_group_control_poam_associations_by_control(
+        &self,
+        control_id: &str,
+        group_id: &str
+    ) -> Result<Vec<GroupControlPOAMAssociation>, DatabaseError> {
+        let assoc_queries = GroupControlPOAMAssociationQueries::new(&self.conn);
+        assoc_queries.get_group_control_poam_associations_by_control(control_id, group_id)
+    }
+
+    pub fn get_group_control_poam_associations_by_poam(
+        &self,
+        group_poam_id: i64,
+        group_id: &str
+    ) -> Result<Vec<GroupControlPOAMAssociation>, DatabaseError> {
+        let assoc_queries = GroupControlPOAMAssociationQueries::new(&self.conn);
+        assoc_queries.get_group_control_poam_associations_by_poam(group_poam_id, group_id)
     }
 
     // Nessus scans and findings

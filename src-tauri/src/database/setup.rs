@@ -295,6 +295,38 @@ impl<'a> DatabaseSetup<'a> {
             )",
             params![],
         )?;
+
+        // Create Group Baseline Controls table (group-level NIST controls)
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS group_baseline_controls (
+                id TEXT PRIMARY KEY,
+                family TEXT NOT NULL,
+                title TEXT NOT NULL,
+                implementation_status TEXT NOT NULL,
+                date_added TEXT NOT NULL,
+                responsible_party TEXT,
+                notes TEXT,
+                group_id TEXT NOT NULL,
+                FOREIGN KEY (group_id) REFERENCES system_groups (id) ON DELETE CASCADE
+            )",
+            params![],
+        )?;
+
+        // Create Group Control-POAM associations table
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS group_control_poam_associations (
+                id TEXT PRIMARY KEY,
+                control_id TEXT NOT NULL,
+                group_poam_id INTEGER NOT NULL,
+                association_date TEXT NOT NULL,
+                group_id TEXT NOT NULL,
+                created_by TEXT,
+                notes TEXT,
+                FOREIGN KEY (group_poam_id) REFERENCES group_poams (id) ON DELETE CASCADE,
+                FOREIGN KEY (group_id) REFERENCES system_groups (id) ON DELETE CASCADE
+            )",
+            params![],
+        )?;
         
         // Create System Groups table
         self.conn.execute(

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import GroupSidebar from './GroupSidebar';
 import GroupOverview from './GroupOverview';
+import GroupPOAMTracker from './GroupPOAMTracker';
+import GroupNistControls from './GroupNistControls';
 import * as api from '../../utils/tauriApi';
 import { BrandedLoader } from '../ui/BrandedLoader';
 
@@ -12,6 +14,7 @@ interface GroupPackageProps {
 type GroupTab =
   | 'overview'
   | 'group-poams'
+  | 'group-nist-controls'
   | 'group-milestones'
   | 'group-stps'
   | 'group-metrics';
@@ -54,7 +57,19 @@ export default function GroupPackage({ groupId, onExit }: GroupPackageProps) {
           />
         );
       case 'group-poams':
-        return <div className="text-muted-foreground">Group POAM Tracker (coming soon)</div>;
+        return (
+          <GroupPOAMTracker 
+            groupId={groupId} 
+            systems={systems}
+          />
+        );
+      case 'group-nist-controls':
+        return (
+          <GroupNistControls 
+            groupId={groupId} 
+            systems={systems}
+          />
+        );
       case 'group-milestones':
         return <div className="text-muted-foreground">Group Milestones (coming soon)</div>;
       case 'group-stps':

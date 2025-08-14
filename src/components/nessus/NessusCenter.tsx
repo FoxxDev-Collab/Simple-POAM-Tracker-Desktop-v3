@@ -2,12 +2,13 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   Upload, FileText, Shield, CheckCircle, Info, Search, Save, ChevronUp, ChevronDown, ChevronRight, Edit3, Check, X,
 } from 'lucide-react';
+import { Icon } from '../ui/icon';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { getNessusScans, importNessusFiles, getNessusFindingsByScan, saveNessusPrepList, getAllNessusPrepLists, deleteNessusPrepList } from '../../utils/tauriApi';
 import { useToast } from '../../context/ToastContext';
 import { useSystem } from '../../context/SystemContext';
-import './NessusCenter.css';
+// Unified styles moved to global patterns
 
 interface FileUploadState {
   nessusFilePath: string | null;
@@ -889,10 +890,10 @@ export default function NessusCenter() {
   return (
     <div className="container-responsive space-y-6">
       {/* Header */}
-      <div className="responsive-header">
-        <div className="flex items-center gap-3">
+        <div className="responsive-header">
+          <div className="flex items-center gap-3 title-row">
           <div className="p-2 bg-primary/10 rounded-lg">
-            <Shield className="h-6 w-6 text-primary" />
+            <Icon icon={Shield} size="lg" tone="primary" />
           </div>
           <div>
             <h1 className="text-3xl font-bold text-foreground">Nessus Center</h1>
@@ -911,7 +912,7 @@ export default function NessusCenter() {
                 disabled={loading}
                 className="btn-responsive"
               >
-                <Save className="mr-2 h-4 w-4" />
+                 <Icon icon={Save} size="sm" className="mr-2" />
                 <span className="hide-mobile">Create Prep List</span>
                 <span className="show-mobile">Prep</span>
           </Button>
@@ -920,7 +921,7 @@ export default function NessusCenter() {
                 onClick={handleDeleteAnalysis}
                 className="btn-responsive"
               >
-                <X className="mr-2 h-4 w-4" />
+                <Icon icon={X} size="sm" className="mr-2" />
                 <span className="hide-mobile">Delete Analysis</span>
                 <span className="show-mobile">Delete</span>
               </Button>
@@ -932,7 +933,7 @@ export default function NessusCenter() {
       {/* File Upload Section */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-          <FileText className="w-5 h-5" />
+          <Icon icon={FileText} size="md" />
           Upload Nessus Scan Files
         </h3>
         <div className={`upload-zone ${fileState.nessusLoaded ? 'uploaded' : ''}`}>
@@ -1368,7 +1369,7 @@ export default function NessusCenter() {
             <div className="flex items-center justify-between p-6 border-b border-border bg-card rounded-t-lg">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-primary/10 rounded-lg">
-                  <Save className="h-5 w-5" />
+                 <Icon icon={Save} size="md" />
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold text-foreground">Create Nessus Prep List</h3>

@@ -20,7 +20,6 @@ import {
 } from '../ui/select';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../ui/card';
 import { BaselineControl, ControlFamily } from './types';
-import { compareNistControlIdStrings } from '../../lib/utils';
 
 interface BaselineControlsProps {
   controls: BaselineControl[];
@@ -108,21 +107,35 @@ export default function BaselineControls({
       const direction = sortConfig.direction === 'asc' ? 1 : -1;
 
       if (sortConfig.key === 'id') {
-        const cmp = compareNistControlIdStrings(a.id, b.id);
-        return direction === 1 ? cmp : -cmp;
+        const aParts = a.id.split(/[-()]/).filter(p => p);
+        const bParts = b.id.split(/[-()]/).filter(p => p);
+        
+        const familyCompare = aParts[0].localeCompare(bParts[0]);
+        if (familyCompare !== 0) return familyCompare * direction;
+
+        const aNum = parseInt(aParts[1]);
+        const bNum = parseInt(bParts[1]);
+        if (aNum !== bNum) return (aNum - bNum) * direction;
+
+        // Handle enhancements (e.g., AC-2 (1))
+        const aEnh = aParts.length > 2 ? parseInt(aParts[2]) : -1;
+        const bEnh = bParts.length > 2 ? parseInt(bParts[2]) : -1;
+        return (aEnh - bEnh) * direction;
       }
       
       if (sortConfig.key === 'dateAdded') {
         const aDate = new Date(a.dateAdded).getTime();
         const bDate = new Date(b.dateAdded).getTime();
-        return direction === 1 ? aDate - bDate : bDate - aDate;
+        return sortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate;
       }
       
       const aValue = a[sortConfig.key as keyof BaselineControl];
       const bValue = b[sortConfig.key as keyof BaselineControl];
       
       if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return direction === 1 ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+        return sortConfig.direction === 'asc' ? 
+          aValue.localeCompare(bValue) : 
+          bValue.localeCompare(aValue);
       }
       
       return 0;

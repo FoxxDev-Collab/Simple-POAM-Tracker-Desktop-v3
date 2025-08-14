@@ -530,7 +530,46 @@ pub fn map_stig_to_nist_controls(
     }
     
     let mut mapped_controls: Vec<MappedControl> = control_map.into_values().collect();
-    mapped_controls.sort_by(|a, b| a.nist_control.cmp(&b.nist_control));
+    // Natural sort: family (alpha) -> base number (numeric) -> enhancement (numeric) -> suffix (alpha)
+    mapped_controls.sort_by(|a, b| {
+        fn parse(id: &str) -> (String, i64, i64, String) {
+            let normalized = id.replace(' ', "");
+            let family = normalized.get(0..2).unwrap_or("").to_string();
+            let mut base: i64 = i64::MAX;
+            if let Some(idx) = normalized.find('-') {
+                let rest = &normalized[idx + 1..];
+                let mut digits = String::new();
+                for ch in rest.chars() {
+                    if ch.is_ascii_digit() { digits.push(ch) } else { break }
+                }
+                if !digits.is_empty() {
+                    base = digits.parse::<i64>().unwrap_or(i64::MAX);
+                }
+            }
+            let mut enh: i64 = -1;
+            if let Some(start) = normalized.find('(') {
+                // take first (...) content as enhancement if numeric
+                if let Some(end) = normalized[start+1..].find(')') {
+                    let inner = &normalized[start+1..start+1+end];
+                    if let Ok(n) = inner.parse::<i64>() { enh = n; }
+                }
+            }
+            // optional trailing alpha suffix like (a)
+            let suffix = if let Some(pos) = normalized.rfind("(") {
+                if let Some(end) = normalized[pos+1..].find(')') {
+                    let inner = &normalized[pos+1..pos+1+end];
+                    if inner.chars().all(|c| c.is_ascii_alphabetic()) { inner.to_lowercase() } else { String::new() }
+                } else { String::new() }
+            } else { String::new() };
+            (family, base, enh, suffix)
+        }
+        let (af, ab, ae, asfx) = parse(&a.nist_control);
+        let (bf, bb, be, bsfx) = parse(&b.nist_control);
+        af.cmp(&bf)
+            .then(ab.cmp(&bb))
+            .then(ae.cmp(&be))
+            .then(asfx.cmp(&bsfx))
+    });
     mapped_controls
 }
 

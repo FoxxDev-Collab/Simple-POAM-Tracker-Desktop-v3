@@ -9,6 +9,7 @@ import { SimpleDateInput } from '../common';
 import TabNavigation from '../tabNavigation/TabNavigation';
 import catalogData from '../nistControls/catalog.json';
 import { X } from 'lucide-react';
+import { useTabNavigation } from '../../context/TabContext';
 
 interface Milestone {
   id: string;
@@ -56,7 +57,6 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
   const [originalPOAM, setOriginalPOAM] = useState<POAM | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('details');
-  const [isCreatingSTP, setIsCreatingSTP] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   // Associations state
@@ -69,6 +69,7 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
   const { showToast } = useToast();
   const { currentSystem } = useSystem();
   const { notifyPOAMUpdated, notifyMilestoneCompleted, notifySystemEvent } = useNotificationGenerator();
+  const { setActiveTab: navigateTab } = useTabNavigation();
 
   // Check if system is selected
   if (!currentSystem) {
@@ -546,155 +547,7 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
     }
   };
 
-  // Handle creating Security Test Plan from this POAM
-  const handleCreateSTP = async () => {
-    if (!editedPOAM || !currentSystem?.id) {
-      showToast('error', 'POAM or system not available');
-      return;
-    }
-
-    setIsCreatingSTP(true);
-    try {
-      // Verify POAM exists in database before creating STP
-      try {
-        const poamExists = await invoke<any>('get_poam_by_id', {
-          id: editedPOAM.id,
-          systemId: currentSystem.id
-        });
-        
-        if (!poamExists) {
-          throw new Error(`POAM ${editedPOAM.id} not found in database`);
-        }
-        
-        console.log('POAM verification successful:', poamExists.id);
-      } catch (verificationError) {
-        console.error('POAM verification failed:', verificationError);
-        showToast('error', 'Unable to verify POAM exists in database. Please save the POAM first.');
-        return;
-      }
-
-      const testCases = [];
-      
-      // First, try to create test cases from vulnerabilities if they exist
-      if (editedPOAM.selectedVulnerabilities && editedPOAM.selectedVulnerabilities.length > 0 && editedPOAM.sourceStigMappingId) {
-        try {
-          // Verify STIG mapping exists before referencing it
-          const stigMapping = await invoke<any>('get_stig_mapping_by_id', { 
-            id: editedPOAM.sourceStigMappingId, 
-            systemId: currentSystem.id 
-          });
-          
-          if (stigMapping?.mapping_result?.mapped_controls) {
-            console.log('STIG mapping found, creating vulnerability-based test cases');
-            // Find vulnerabilities that match the selected ones
-            editedPOAM.selectedVulnerabilities.forEach(vulnNum => {
-              // Search through mapped controls for this vulnerability
-              stigMapping.mapping_result.mapped_controls.forEach((control: any) => {
-                const matchingVuln = control.stigs?.find((stig: any) => stig.vuln_num === vulnNum);
-                if (matchingVuln) {
-                  const testCase = {
-                    id: crypto.randomUUID(),
-                    nist_control: control.nist_control || 'TBD',
-                    cci_ref: control.ccis?.[0] || 'TBD',
-                    stig_vuln_id: matchingVuln.stig_id || matchingVuln.vuln_num,
-                    test_description: `Security Test for ${vulnNum}: ${matchingVuln.rule_title}`,
-                    test_procedure: `Verify remediation of vulnerability ${vulnNum}:\n\nCheck: ${matchingVuln.check_content}\n\nFix: ${matchingVuln.fix_text}`,
-                    expected_result: `Vulnerability ${vulnNum} is properly remediated and the system complies with the security requirement`,
-                    status: 'Not Started',
-                    risk_rating: matchingVuln.severity === 'high' ? 'High' : 
-                               matchingVuln.severity === 'medium' ? 'Medium' : 'Low',
-                    // Link to corresponding milestone if it exists
-                    milestone_id: editedPOAM.milestones.find(m => m.title.includes(vulnNum))?.id
-                  };
-                  testCases.push(testCase);
-                }
-              });
-            });
-          }
-        } catch (stigError) {
-          console.warn('Could not load STIG mapping details, will not reference it:', stigError);
-                     // Set sourceStigMappingId to undefined if the mapping doesn't exist
-           editedPOAM.sourceStigMappingId = undefined;
-        }
-      }
-      
-      // Fallback: Create test cases from milestones if no vulnerabilities were found
-      if (testCases.length === 0 && editedPOAM.milestones.length > 0) {
-        console.log('Creating milestone-based test cases');
-        editedPOAM.milestones.forEach((milestone, index) => {
-          const testCase = {
-            id: crypto.randomUUID(),
-            nist_control: 'TBD',
-            cci_ref: 'TBD',
-            stig_vuln_id: `POAM-${editedPOAM.id}-M${index + 1}`,
-            test_description: `Milestone Test: ${milestone.title}`,
-            test_procedure: `Execute and verify completion of milestone: ${milestone.description}`,
-            expected_result: 'Milestone objectives are successfully completed and documented',
-            status: 'Not Started',
-            risk_rating: editedPOAM.riskLevel === 'High' ? 'High' : editedPOAM.riskLevel === 'Medium' ? 'Medium' : 'Low',
-            milestone_id: milestone.id
-          };
-          testCases.push(testCase);
-        });
-      }
-
-      // Final fallback: Create a basic test case for the POAM
-      if (testCases.length === 0) {
-        console.log('Creating basic POAM test case');
-        const testCase = {
-          id: crypto.randomUUID(),
-          nist_control: 'TBD',
-          cci_ref: 'TBD',
-          stig_vuln_id: `POAM-${editedPOAM.id}`,
-          test_description: `Security Test for POAM: ${editedPOAM.title}`,
-          test_procedure: `Verify remediation of vulnerabilities addressed in POAM: ${editedPOAM.title}`,
-          expected_result: 'All vulnerabilities identified in the POAM are properly remediated',
-          status: 'Not Started',
-          risk_rating: editedPOAM.riskLevel === 'High' ? 'High' : editedPOAM.riskLevel === 'Medium' ? 'Medium' : 'Low'
-        };
-        testCases.push(testCase);
-      }
-
-      const newSTP = {
-        id: crypto.randomUUID(),
-        name: `STP for ${editedPOAM.title}`,
-        description: `Security Test Plan automatically generated for POAM: ${editedPOAM.title}` +
-          (editedPOAM.selectedVulnerabilities?.length 
-            ? `\n\nGenerated from ${editedPOAM.selectedVulnerabilities.length} STIG vulnerabilities: ${editedPOAM.selectedVulnerabilities.join(', ')}`
-            : ''
-          ),
-        created_date: new Date().toISOString(),
-        updated_date: new Date().toISOString(),
-        status: 'Draft',
-        poam_id: editedPOAM.id,
-        stig_mapping_id: editedPOAM.sourceStigMappingId || null,
-        test_cases: testCases,
-      };
-
-      console.log('Creating STP with data:', {
-        poam_id: newSTP.poam_id,
-        stig_mapping_id: newSTP.stig_mapping_id,
-        test_cases_count: newSTP.test_cases.length
-      });
-
-      await invoke('save_security_test_plan', { plan: newSTP, systemId: currentSystem.id });
-      
-      showToast('success', `Security Test Plan created with ${testCases.length} test cases for "${editedPOAM.title}"`);
-      
-      // Notify about STP creation
-      notifySystemEvent({
-        type: 'sync',
-        message: `Security Test Plan created for POAM "${editedPOAM.title}" with ${testCases.length} test cases`,
-        success: true
-      });
-      
-    } catch (error) {
-      console.error('Error creating Security Test Plan:', error);
-      showToast('error', `Failed to create Security Test Plan: ${error}`);
-    } finally {
-      setIsCreatingSTP(false);
-    }
-  };
+  // STP creation is intentionally disabled from Edit POAM. Users should create STPs from scan results.
 
   // Handle deleting the POAM
   const handleDeletePOAM = async () => {
@@ -739,7 +592,7 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="responsive-header mb-6 pb-4 border-b border-border">
-        <div>
+        <div className="title-row">
           <h1 className="text-3xl font-bold text-foreground">Edit POAM</h1>
           <p className="text-muted-foreground">
             {editedPOAM ? `Editing "${editedPOAM.title}" for ${currentSystem.name}` : 'Loading POAM...'}
@@ -748,14 +601,6 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
         
         {editedPOAM && (
           <div className="button-group">
-            <Button
-              variant="outline"
-              onClick={handleCreateSTP}
-              disabled={isCreatingSTP}
-              className="btn-responsive"
-            >
-              {isCreatingSTP ? 'Creating STP...' : 'Create Security Test Plan'}
-            </Button>
             <Button
               variant="outline"
               onClick={() => setShowDeleteConfirmation(true)}
@@ -782,6 +627,28 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
           </div>
         )}
       </div>
+
+      {/* Guidance banner for new flow: Scan -> Prep List -> STP -> POAM */}
+      {editedPOAM && (
+        <div className="bg-muted/40 border border-border rounded-md p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="text-sm text-muted-foreground">
+              Security Test Plans are created from scan findings. Import results and build Prep Lists first, then generate STPs and link them here.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => navigateTab('nessus-center')}>
+                Go to Nessus Center
+              </Button>
+              <Button variant="outline" onClick={() => navigateTab('stig-mapper')}>
+                Go to STIG Mapper
+              </Button>
+              <Button variant="outline" onClick={() => navigateTab('security-test-plan')}>
+                Open Security Test Plans
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {loading ? (
         <div className="text-center py-8">

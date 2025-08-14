@@ -20,7 +20,7 @@ export function Header({ className, onThemeToggle, isDark }: HeaderProps) {
       "border-b border-border sticky top-0 z-50",
       className
     )}>
-      <div className="responsive-header px-6 py-3">
+      <div className="responsive-header px-6 py-3 title-row">
         {/* Search */}
         <div className="flex items-center space-x-4 flex-1 max-w-md">
           <div className="relative w-full">

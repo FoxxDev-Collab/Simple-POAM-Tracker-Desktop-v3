@@ -20,7 +20,7 @@ import {
   ChevronDown,
   Shuffle,
   RefreshCw,
-  ClipboardList
+  
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useTheme } from '../../context/ThemeContext'
@@ -86,11 +86,6 @@ const navigation: NavItem[] = [
     id: 'stig-mapper',
     label: 'STIG Mapper',
     icon: Shield,
-  },
-  {
-    id: 'nist-controls',
-    label: 'NIST Controls',
-    icon: ClipboardList,
   },
   {
     id: 'security-test-plan',

@@ -1,6 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use std::fs;
 use tauri::{AppHandle, Manager};
+use serde::{Serialize, Deserialize};
 use uuid;
 use chrono;
 
@@ -2128,10 +2129,331 @@ pub fn run() {
             remove_system_from_group,
             get_systems_in_group,
             get_ungrouped_systems,
-            reorder_systems_in_group
+            reorder_systems_in_group,
+            // Group POAM commands
+            get_group_poams,
+            get_group_poam_by_id,
+            create_group_poam,
+            update_group_poam,
+            delete_group_poam,
+            analyze_group_vulnerabilities,
+            // Group NIST Controls commands
+            get_group_baseline_controls,
+            add_group_baseline_control,
+            update_group_baseline_control,
+            remove_group_baseline_control,
+            associate_group_poam_with_control,
+            remove_group_poam_control_association,
+            get_group_poam_associations_by_control,
+            get_group_control_associations_by_poam
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+// Group POAM API Commands
+
+#[tauri::command]
+async fn get_group_poams(app_handle: AppHandle, group_id: String) -> Result<Vec<models::GroupPOAM>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let poams = db.get_group_poams(&group_id)?;
+    println!("Retrieved {} group POAMs for group {}", poams.len(), group_id);
+    Ok(poams)
+}
+
+#[tauri::command]
+async fn get_group_poam_by_id(app_handle: AppHandle, id: i64) -> Result<Option<models::GroupPOAM>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let poam = db.get_group_poam_by_id(id)?;
+    Ok(poam)
+}
+
+#[tauri::command]
+async fn create_group_poam(app_handle: AppHandle, poam: models::GroupPOAM) -> Result<(), Error> {
+    println!("Creating group POAM: {}", poam.title);
+    let mut db = database::get_database(&app_handle)?;
+    db.create_group_poam(&poam)?;
+    println!("Successfully created group POAM: {}", poam.title);
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_group_poam(app_handle: AppHandle, poam: models::GroupPOAM) -> Result<(), Error> {
+    println!("Updating group POAM: {}", poam.title);
+    let mut db = database::get_database(&app_handle)?;
+    db.update_group_poam(&poam)?;
+    println!("Successfully updated group POAM: {}", poam.title);
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_group_poam(app_handle: AppHandle, id: i64) -> Result<(), Error> {
+    println!("Deleting group POAM with id: {}", id);
+    let mut db = database::get_database(&app_handle)?;
+    db.delete_group_poam(id)?;
+    println!("Successfully deleted group POAM");
+    Ok(())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GroupVulnerabilityAnalysis {
+    pub group_id: String,
+    pub total_systems: i32,
+    pub total_vulnerabilities: i32,
+    pub critical_vulnerabilities: i32,
+    pub high_vulnerabilities: i32,
+    pub medium_vulnerabilities: i32,
+    pub low_vulnerabilities: i32,
+    pub cross_system_vulnerabilities: Vec<CrossSystemVulnerability>,
+    pub system_summaries: Vec<SystemVulnerabilitySummary>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CrossSystemVulnerability {
+    pub vulnerability_id: String,
+    pub severity: String,
+    pub title: String,
+    pub description: String,
+    pub affected_systems: Vec<String>,
+    pub cve_ids: Vec<String>,
+    pub suggested_poam_title: String,
+    pub risk_score: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SystemVulnerabilitySummary {
+    pub system_id: String,
+    pub system_name: String,
+    pub total_vulnerabilities: i32,
+    pub critical_count: i32,
+    pub high_count: i32,
+    pub medium_count: i32,
+    pub low_count: i32,
+    pub unique_vulnerabilities: Vec<String>,
+}
+
+#[tauri::command]
+async fn analyze_group_vulnerabilities(app_handle: AppHandle, group_id: String) -> Result<GroupVulnerabilityAnalysis, Error> {
+    println!("Analyzing vulnerabilities for group: {}", group_id);
+    
+    let mut db = database::get_database(&app_handle)?;
+    let systems = db.get_systems_in_group(&group_id)?;
+    
+    let mut all_vulnerabilities: Vec<CrossSystemVulnerability> = Vec::new();
+    let mut system_summaries: Vec<SystemVulnerabilitySummary> = Vec::new();
+    
+    let mut total_vulnerabilities = 0;
+    let mut critical_count = 0;
+    let mut high_count = 0;
+    let mut medium_count = 0;
+    let mut low_count = 0;
+    
+    // Analyze each system for vulnerabilities
+    for system in &systems {
+        println!("Analyzing system: {}", system.name);
+        
+        // Get STIG mappings for vulnerability data
+        let stig_mappings = db.get_all_stig_mappings(&system.id).unwrap_or_default();
+        
+        let mut system_vulnerabilities = 0;
+        let mut system_critical = 0;
+        let mut system_high = 0;
+        let mut system_medium = 0;
+        let mut system_low = 0;
+        let mut unique_vulns: Vec<String> = Vec::new();
+        
+        for mapping in &stig_mappings {
+            let result = &mapping.mapping_result;
+            for control in &result.mapped_controls {
+                    for stig in &control.stigs {
+                        // Count vulnerability by severity
+                        match stig.severity.as_str() {
+                            "critical" | "Critical" => {
+                                system_critical += 1;
+                                critical_count += 1;
+                            },
+                            "high" | "High" => {
+                                system_high += 1;
+                                high_count += 1;
+                            },
+                            "medium" | "Medium" => {
+                                system_medium += 1;
+                                medium_count += 1;
+                            },
+                            "low" | "Low" => {
+                                system_low += 1;
+                                low_count += 1;
+                            },
+                            _ => {}
+                        }
+                        
+                        system_vulnerabilities += 1;
+                        total_vulnerabilities += 1;
+                        unique_vulns.push(stig.vuln_num.clone());
+                        
+                        // Check if this is a cross-system vulnerability
+                        if let Some(existing_vuln) = all_vulnerabilities.iter_mut()
+                            .find(|v| v.vulnerability_id == stig.vuln_num) {
+                            // Add this system to affected systems if not already there
+                            if !existing_vuln.affected_systems.contains(&system.id) {
+                                existing_vuln.affected_systems.push(system.id.clone());
+                            }
+                        } else {
+                            // Create new cross-system vulnerability entry
+                            let cross_vuln = CrossSystemVulnerability {
+                                vulnerability_id: stig.vuln_num.clone(),
+                                severity: stig.severity.clone(),
+                                title: stig.rule_title.clone(),
+                                description: stig.vuln_discuss.clone(),
+                                affected_systems: vec![system.id.clone()],
+                                cve_ids: vec![], // Could be populated from additional data
+                                suggested_poam_title: format!("Remediate {} - {}", stig.vuln_num, stig.rule_title),
+                                risk_score: match stig.severity.as_str() {
+                                    "critical" | "Critical" => 9.0,
+                                    "high" | "High" => 7.0,
+                                    "medium" | "Medium" => 5.0,
+                                    "low" | "Low" => 3.0,
+                                    _ => 1.0,
+                                },
+                            };
+                            all_vulnerabilities.push(cross_vuln);
+                        }
+                    }
+                }
+        }
+        
+        system_summaries.push(SystemVulnerabilitySummary {
+            system_id: system.id.clone(),
+            system_name: system.name.clone(),
+            total_vulnerabilities: system_vulnerabilities,
+            critical_count: system_critical,
+            high_count: system_high,
+            medium_count: system_medium,
+            low_count: system_low,
+            unique_vulnerabilities: unique_vulns,
+        });
+    }
+    
+    // Filter for true cross-system vulnerabilities (affecting multiple systems)
+    let cross_system_vulnerabilities: Vec<CrossSystemVulnerability> = all_vulnerabilities
+        .into_iter()
+        .filter(|v| v.affected_systems.len() > 1)
+        .collect();
+    
+    let analysis = GroupVulnerabilityAnalysis {
+        group_id: group_id.clone(),
+        total_systems: systems.len() as i32,
+        total_vulnerabilities,
+        critical_vulnerabilities: critical_count,
+        high_vulnerabilities: high_count,
+        medium_vulnerabilities: medium_count,
+        low_vulnerabilities: low_count,
+        cross_system_vulnerabilities,
+        system_summaries,
+    };
+    
+    println!("Completed vulnerability analysis for group {}: {} total vulnerabilities, {} cross-system", 
+             group_id, total_vulnerabilities, analysis.cross_system_vulnerabilities.len());
+    
+    Ok(analysis)
+}
+
+// Group NIST Controls API Commands
+
+#[tauri::command]
+async fn get_group_baseline_controls(app_handle: AppHandle, group_id: String) -> Result<Vec<database::GroupBaselineControl>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let controls = db.get_group_baseline_controls(&group_id)?;
+    println!("Retrieved {} group baseline controls for group {}", controls.len(), group_id);
+    Ok(controls)
+}
+
+#[tauri::command]
+async fn add_group_baseline_control(app_handle: AppHandle, control: database::GroupBaselineControl) -> Result<(), Error> {
+    println!("Adding group baseline control: {} to group {}", control.id, control.group_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.add_group_baseline_control(&control)?;
+    println!("Successfully added group baseline control: {}", control.id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_group_baseline_control(app_handle: AppHandle, control: database::GroupBaselineControl) -> Result<(), Error> {
+    println!("Updating group baseline control: {} in group {}", control.id, control.group_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.update_group_baseline_control(&control)?;
+    println!("Successfully updated group baseline control: {}", control.id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn remove_group_baseline_control(app_handle: AppHandle, control_id: String, group_id: String) -> Result<(), Error> {
+    println!("Removing group baseline control: {} from group {}", control_id, group_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.remove_group_baseline_control(&control_id, &group_id)?;
+    println!("Successfully removed group baseline control: {}", control_id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn associate_group_poam_with_control(
+    app_handle: AppHandle, 
+    control_id: String, 
+    group_poam_id: i64, 
+    group_id: String,
+    created_by: Option<String>,
+    notes: Option<String>
+) -> Result<String, Error> {
+    println!("Associating group POAM {} with control {} in group {}", group_poam_id, control_id, group_id);
+    let mut db = database::get_database(&app_handle)?;
+    let association_id = db.create_group_control_poam_association(
+        &control_id, 
+        group_poam_id, 
+        &group_id,
+        created_by.as_deref(),
+        notes.as_deref()
+    )?;
+    println!("Successfully created group control-POAM association: {}", association_id);
+    Ok(association_id)
+}
+
+#[tauri::command]
+async fn remove_group_poam_control_association(
+    app_handle: AppHandle, 
+    association_id: String, 
+    group_id: String
+) -> Result<(), Error> {
+    println!("Removing group control-POAM association: {} from group {}", association_id, group_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.delete_group_control_poam_association(&association_id, &group_id)?;
+    println!("Successfully removed group control-POAM association: {}", association_id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_group_poam_associations_by_control(
+    app_handle: AppHandle, 
+    control_id: String, 
+    group_id: String
+) -> Result<Vec<database::GroupControlPOAMAssociation>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let associations = db.get_group_control_poam_associations_by_control(&control_id, &group_id)?;
+    println!("Retrieved {} group control-POAM associations for control {} in group {}", 
+             associations.len(), control_id, group_id);
+    Ok(associations)
+}
+
+#[tauri::command]
+async fn get_group_control_associations_by_poam(
+    app_handle: AppHandle, 
+    group_poam_id: i64, 
+    group_id: String
+) -> Result<Vec<database::GroupControlPOAMAssociation>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let associations = db.get_group_control_poam_associations_by_poam(group_poam_id, &group_id)?;
+    println!("Retrieved {} group control associations for group POAM {} in group {}", 
+             associations.len(), group_poam_id, group_id);
+    Ok(associations)
 }
 
 #[tauri::command]

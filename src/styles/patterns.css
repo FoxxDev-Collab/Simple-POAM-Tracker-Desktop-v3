@@ -1,0 +1,181 @@
+.section-title { @apply flex items-center gap-2; }
+.section-header { @apply p-5 border-b border-border bg-card; }
+.upcoming-tasks-section { @apply mt-8 bg-card border border-border rounded-xl overflow-hidden shadow-lg; }
+
+/* Title row normalization for icon + heading alignment */
+.title-row { @apply flex items-center gap-2; }
+.title-row h1, .title-row h2, .title-row h3 { @apply leading-none; }
+.title-row .lucide { position: relative; top: 1px; }
+/* Shared UI patterns extracted from feature components */
+
+/* Containers & headers */
+.container-responsive {
+  @apply mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl;
+}
+
+.responsive-header {
+  @apply flex flex-col sm:flex-row sm:items-center justify-between gap-4;
+}
+
+.button-group {
+  @apply flex items-center gap-2;
+}
+
+.btn-responsive {
+  @apply flex items-center gap-2;
+}
+
+.hide-mobile {
+  @apply hidden sm:inline;
+}
+
+.show-mobile {
+  @apply inline sm:hidden;
+}
+
+/* Upload zones */
+.upload-zone {
+  @apply border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer transition-colors;
+}
+
+.upload-zone:hover {
+  @apply border-primary bg-primary/5;
+}
+
+.upload-zone.uploaded {
+  @apply border-success bg-success/10;
+}
+
+.upload-zone.disabled {
+  @apply border-muted bg-muted/20 cursor-not-allowed;
+}
+
+.upload-content {
+  @apply flex flex-col items-center justify-center text-muted-foreground;
+}
+
+.upload-zone.uploaded .upload-content {
+  @apply text-success;
+}
+
+.upload-zone.disabled .upload-content {
+  @apply text-muted-foreground/50;
+}
+
+/* Generic modal layout */
+.modal-overlay {
+  @apply fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4;
+}
+
+.modal-content {
+  @apply bg-background border border-border rounded-lg shadow-2xl w-full;
+}
+
+.modal-header {
+  @apply flex items-center justify-between p-6 border-b border-border bg-card;
+}
+
+.modal-body {
+  @apply p-6 space-y-4;
+}
+
+.modal-footer {
+  @apply flex items-center justify-end gap-3 p-6 border-t border-border bg-card;
+}
+
+/* Metrics dashboard patterns */
+.metrics-dashboard { @apply w-full p-5 max-w-screen-xl mx-auto bg-background text-foreground; }
+.metrics-header { @apply mb-5 text-center; }
+.metrics-summary { @apply mb-6; }
+.summary-section { @apply bg-card border border-border rounded-lg p-5 shadow; }
+.summary-grid { @apply grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6; }
+.summary-item { @apply bg-muted border border-border rounded-md p-4 text-center transition; }
+.summary-value { @apply text-2xl font-bold text-foreground; }
+.metrics-grid { @apply grid grid-cols-1 md:grid-cols-2 gap-5 mb-7; }
+.grid-item { @apply bg-card border border-border rounded-lg p-4 shadow; }
+.grid-item-full { @apply col-span-1 md:col-span-2; }
+.loading-container, .error-container { @apply min-h-[400px] flex items-center justify-center; }
+.retry-button, .refresh-button { @apply px-4 py-2 bg-primary text-primary-foreground rounded; }
+.metrics-footer { @apply flex justify-between items-center mt-5 pt-4 border-t border-border; }
+
+/* Security Test Plan layout helpers */
+.test-plan-main-header { @apply flex items-center justify-between gap-4 flex-wrap lg:flex-nowrap; }
+.test-plan-header-content { @apply flex items-center gap-3; }
+.test-plan-header-actions { @apply flex items-center gap-2; }
+.test-plan-action-bar { @apply flex items-center justify-between bg-muted/30 rounded-lg p-4 flex-wrap lg:flex-nowrap; }
+.test-plan-stats { @apply flex items-center gap-6 text-sm text-muted-foreground; }
+.test-plan-actions { @apply flex items-center gap-2; }
+.card-header-responsive { @apply flex items-center justify-between gap-3 flex-wrap lg:flex-nowrap; }
+.card-header-actions { @apply flex items-center gap-2; }
+.test-case-filters { @apply flex items-center gap-2 w-full lg:w-auto; }
+.flex-mobile-stack { @apply flex flex-col gap-2; }
+
+/* Shared table wrapper */
+.table-responsive { @apply overflow-x-auto; -webkit-overflow-scrolling: touch; }
+
+/* Calendar patterns - refined */
+.calendar-container { @apply p-4 max-w-full min-h-screen bg-background text-foreground; }
+.calendar-header { @apply flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 p-4 rounded-lg border border-border bg-gradient-to-tr from-primary/5 to-accent/10; }
+.calendar-title { @apply flex items-center gap-2; }
+.calendar-nav { @apply flex items-center gap-2; }
+.nav-button { @apply inline-flex items-center justify-center w-9 h-9 border border-border rounded bg-card text-foreground transition hover:bg-primary hover:text-primary-foreground hover:border-primary; }
+.current-month { @apply mx-2 text-center min-w-[140px] px-3 py-2 bg-card rounded-md border border-border shadow-sm; }
+.month-year { @apply text-base font-semibold text-foreground tracking-tight; }
+.calendar-grid { @apply bg-card border border-border rounded-xl shadow-lg overflow-hidden grid grid-rows-[auto,1fr]; }
+.calendar-header-row { @apply grid grid-cols-7 bg-muted/50 border-b border-border; }
+.calendar-day-header { @apply py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground; }
+.calendar-body { @apply grid grid-cols-7; }
+.calendar-day { @apply relative flex flex-col gap-1 min-h-[110px] p-2 bg-card transition shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] border-l border-t border-border; }
+@media (max-width: 768px) {
+  .calendar-day { min-height: 90px; }
+}
+.calendar-body .calendar-day:nth-child(7n+1) { border-left: 0; }
+.calendar-day.other-month { @apply opacity-60; }
+.calendar-day.today { @apply bg-background; box-shadow: inset 0 0 0 2px hsl(var(--ring)); }
+.calendar-day.has-events { @apply cursor-pointer; }
+.calendar-day.has-events:hover { @apply bg-accent; }
+.day-number { @apply font-semibold text-xs text-foreground inline-flex items-center justify-center w-7 h-7 rounded-md transition; }
+.calendar-day:hover .day-number { @apply bg-primary/10 text-primary; }
+.calendar-day.today .day-number { @apply bg-primary text-primary-foreground; }
+.event-indicators { @apply flex flex-wrap gap-1 mt-auto; }
+.event-dot { @apply w-2 h-2 rounded-full border border-white/70 shadow; }
+.event-dot::before { content: ""; display: block; width: 100%; height: 100%; border-radius: 9999px; }
+.event-count { @apply text-[10px] text-primary-foreground font-semibold bg-primary px-1 rounded-full border border-primary; }
+.status-completed { @apply bg-green-500 text-white; }
+.status-in-progress { @apply bg-blue-500 text-white; }
+.status-delayed { @apply bg-red-500 text-white; }
+.status-not-started { @apply bg-gray-500 text-white; }
+.event-modal { @apply bg-background/95 backdrop-blur-md border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col; }
+.event-details { @apply flex-1; }
+.event-title { @apply font-semibold text-foreground text-base; }
+.event-poam { @apply text-sm text-muted-foreground; }
+.event-status { @apply text-[11px] font-semibold px-2 py-0.5 rounded-full border; }
+.modal-header { @apply flex items-center justify-between p-5 border-b border-border bg-card; }
+.modal-header h3 { @apply text-lg font-semibold; }
+.close-button { @apply inline-flex items-center justify-center h-9 w-9 rounded-md border border-border bg-card hover:bg-muted; }
+.modal-content { @apply p-5 space-y-3 overflow-y-auto; }
+.event-item { @apply flex items-center justify-between p-4 border border-border rounded-lg bg-background hover:bg-muted/50 transition cursor-pointer; }
+
+/* Milestone progress table */
+.metrics-card { @apply w-full h-full; }
+.milestone-progress-container { @apply overflow-x-auto max-w-full; }
+.milestone-progress-table { @apply w-full border-collapse text-sm mt-2; }
+.poam-title { @apply max-w-[250px] overflow-hidden text-ellipsis whitespace-nowrap; }
+.status-cell, .priority-cell, .risk-cell { @apply font-medium text-center; }
+.progress-bar-container { @apply w-full h-5 bg-muted rounded-[10px] overflow-hidden relative; }
+.progress-bar { @apply h-full rounded-[10px] transition-[width]; }
+.progress-text { @apply absolute inset-x-0 text-center text-xs text-foreground leading-5 font-medium; }
+.percent-cell { @apply text-center; }
+.percent-badge { @apply px-2 py-1 rounded-[15px] font-semibold text-xs text-white; }
+.progress-very-low { @apply bg-red-500; }
+.progress-low { @apply bg-orange-500; }
+.progress-medium { @apply bg-yellow-400; }
+.progress-high { @apply bg-green-500; }
+
+/* Milestone item */
+.milestone-item { @apply bg-card border border-border rounded-lg p-4 mb-4 hover:shadow transition cursor-pointer; }
+.milestone-header { @apply flex items-center justify-between mb-2; }
+.remove-milestone-button { @apply bg-transparent border-0 text-xl leading-none px-2 py-1 rounded hover:bg-muted; }
+.milestone-description { @apply text-sm text-muted-foreground; }
+
+

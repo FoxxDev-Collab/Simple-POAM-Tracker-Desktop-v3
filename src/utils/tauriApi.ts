@@ -204,7 +204,7 @@ export async function reorderSystemsInGroup(groupId: string, systemOrders: Array
   return await invoke('reorder_systems_in_group', { groupId, systemOrders });
 }
 
-// Group-level POAMs
+// Group POAM API functions
 export async function getGroupPOAMs(groupId: string): Promise<any[]> {
   return await invoke('get_group_poams', { groupId });
 }
@@ -225,10 +225,69 @@ export async function deleteGroupPOAM(id: number): Promise<void> {
   return await invoke('delete_group_poam', { id });
 }
 
-export async function createGroupMilestone(groupPoamId: number, milestone: any): Promise<void> {
-  return await invoke('create_group_milestone', { groupPoamId: groupPoamId, milestone });
+export async function analyzeGroupVulnerabilities(groupId: string): Promise<any> {
+  return await invoke('analyze_group_vulnerabilities', { groupId });
 }
 
-export async function updateGroupMilestoneStatus(milestoneId: string, status: string): Promise<void> {
-  return await invoke('update_group_milestone_status', { milestoneId, status });
+// Group NIST Controls API functions
+export async function getGroupBaselineControls(groupId: string): Promise<any[]> {
+  return await invoke('get_group_baseline_controls', { groupId });
+}
+
+export async function addGroupBaselineControl(control: any): Promise<void> {
+  return await invoke('add_group_baseline_control', { control });
+}
+
+export async function updateGroupBaselineControl(control: any): Promise<void> {
+  return await invoke('update_group_baseline_control', { control });
+}
+
+export async function removeGroupBaselineControl(controlId: string, groupId: string): Promise<void> {
+  return await invoke('remove_group_baseline_control', { controlId, groupId });
+}
+
+export async function associateGroupPOAMWithControl(
+  controlId: string,
+  groupPoamId: number,
+  groupId: string,
+  createdBy?: string,
+  notes?: string
+): Promise<string> {
+  return await invoke('associate_group_poam_with_control', {
+    controlId,
+    groupPoamId,
+    groupId,
+    createdBy,
+    notes
+  });
+}
+
+export async function removeGroupPOAMControlAssociation(
+  associationId: string,
+  groupId: string
+): Promise<void> {
+  return await invoke('remove_group_poam_control_association', {
+    associationId,
+    groupId
+  });
+}
+
+export async function getGroupPOAMAssociationsByControl(
+  controlId: string,
+  groupId: string
+): Promise<any[]> {
+  return await invoke('get_group_poam_associations_by_control', {
+    controlId,
+    groupId
+  });
+}
+
+export async function getGroupControlAssociationsByPOAM(
+  groupPoamId: number,
+  groupId: string
+): Promise<any[]> {
+  return await invoke('get_group_control_associations_by_poam', {
+    groupPoamId,
+    groupId
+  });
 }

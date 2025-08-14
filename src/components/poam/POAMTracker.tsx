@@ -4,7 +4,6 @@ import { useToast } from '../../context/ToastContext';
 import { useSystem } from '../../context/SystemContext';
 import { formatDateDisplay } from '../../utils/dateUtils';
 import { useEditPOAM } from '../../App';
-import '../poams/POAMs.css';
 
 interface POAM {
   id: number;
@@ -212,7 +211,7 @@ export default function POAMTracker() {
     <div className="container-responsive space-y-6">
       {/* Header */}
       <div className="responsive-header">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 title-row">
           <div className="p-2 bg-primary/10 rounded-lg">
             <div className="h-6 w-6 text-primary">📋</div>
           </div>

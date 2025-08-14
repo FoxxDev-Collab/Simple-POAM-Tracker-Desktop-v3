@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useToast } from '../../context/ToastContext';
 import { useSystem } from '../../context/SystemContext';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Target, Clock, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Target, Clock, AlertCircle, X } from 'lucide-react';
+import { Icon } from '../ui/icon';
+import { Button } from '../ui/button';
 import { Milestone } from '../../types/Milestone';
 import { formatDateDisplay } from '../../utils/dateUtils';
-import './Calendar.css';
+// Unified styles via global patterns and Tailwind
 
 interface POAM {
   id: number;
@@ -326,7 +328,7 @@ export default function Calendar({ onNavigateToMilestone }: CalendarProps) {
     return (
       <div className="calendar-container">
         <div className="loading-indicator">
-          <CalendarIcon className="h-8 w-8 animate-spin" />
+          <Icon icon={CalendarIcon} size="xl" spin />
           <p>Loading calendar...</p>
         </div>
       </div>
@@ -344,19 +346,21 @@ export default function Calendar({ onNavigateToMilestone }: CalendarProps) {
         <>
           {/* Calendar Header */}
           <div className="calendar-header">
-            <div className="calendar-title">
-              <CalendarIcon className="h-6 w-6 text-primary" />
-              <h1>Calendar View</h1>
+            <div className="calendar-title title-row">
+              <Icon icon={CalendarIcon} size="lg" tone="primary" />
+              <h1 className="text-2xl font-bold tracking-tight">Calendar View</h1>
             </div>
             
             <div className="calendar-nav">
-              <button
+              <Button
                 onClick={goToPreviousMonth}
-                className="nav-button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
                 title="Previous Month"
               >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
+                <Icon icon={ChevronLeft} size="sm" />
+              </Button>
               
               <div className="current-month">
                 <span className="month-year">
@@ -364,22 +368,24 @@ export default function Calendar({ onNavigateToMilestone }: CalendarProps) {
                 </span>
               </div>
               
-              <button
+              <Button
                 onClick={goToNextMonth}
-                className="nav-button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
                 title="Next Month"
               >
-                <ChevronRight className="h-4 w-4" />
-              </button>
+                <Icon icon={ChevronRight} size="sm" />
+              </Button>
               
-              <button
+              <Button
                 onClick={goToToday}
-                className="nav-button today-button"
+                size="sm"
                 title="Go to Today"
               >
                 <span className="hide-mobile">Today</span>
                 <span className="show-mobile">T</span>
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -431,22 +437,22 @@ export default function Calendar({ onNavigateToMilestone }: CalendarProps) {
           {/* Upcoming Tasks Section */}
           <div className="upcoming-tasks-section">
             <div className="section-header">
-              <div className="section-title">
-                <Clock className="h-5 w-5 text-primary" />
+              <div className="section-title title-row">
+                <Icon icon={Clock} size="md" tone="primary" />
                 <h2>Upcoming Tasks</h2>
               </div>
             </div>
 
             {/* Results Summary */}
-            <div className="text-sm text-muted-foreground">
-              Showing {getUpcomingTasks().length} upcoming tasks in next 30 days
+            <div className="px-5 py-3 border-b border-border bg-muted/10 text-sm text-muted-foreground">
+              Showing {getUpcomingTasks().length} upcoming tasks in the next 30 days
             </div>
 
             {getUpcomingTasks().length === 0 ? (
-              <div className="text-center py-8">
-                <CalendarIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <div className="py-16 flex flex-col items-center justify-center text-center">
+                <Icon icon={CalendarIcon} size="xl" className="opacity-60 mb-3" />
+                <h4 className="text-lg font-semibold mb-1">You’re all caught up</h4>
                 <p className="text-muted-foreground">No upcoming tasks in the next 30 days</p>
-                <p className="text-sm text-muted-foreground">All caught up! 🎉</p>
               </div>
             ) : (
               <div className="bg-card rounded-lg overflow-hidden">
@@ -489,9 +495,9 @@ export default function Calendar({ onNavigateToMilestone }: CalendarProps) {
                             </td>
                             <td className="p-4">
                               <div className={`flex items-center gap-1 text-xs font-medium ${getPriorityBadgeColor(daysUntil)}`}>
-                                {daysUntil < 0 && <AlertCircle className="h-3 w-3" />}
-                                {daysUntil >= 0 && daysUntil <= 3 && <AlertCircle className="h-3 w-3" />}
-                                {daysUntil > 3 && <Clock className="h-3 w-3" />}
+                                {daysUntil < 0 && <Icon icon={AlertCircle} size="xs" tone="destructive" />}
+                                {daysUntil >= 0 && daysUntil <= 3 && <Icon icon={AlertCircle} size="xs" tone="warning" />}
+                                {daysUntil > 3 && <Icon icon={Clock} size="xs" tone="muted" />}
                                 <span>{formatDaysUntil(daysUntil)}</span>
                               </div>
                             </td>
@@ -520,12 +526,9 @@ export default function Calendar({ onNavigateToMilestone }: CalendarProps) {
               <div className="event-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                   <h3>Events for {formatDateDisplay(selectedDate.toISOString())}</h3>
-                  <button
-                    onClick={() => setShowEventModal(false)}
-                    className="close-button"
-                  >
-                    ×
-                  </button>
+                  <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setShowEventModal(false)}>
+                    <Icon icon={X} size="sm" />
+                  </Button>
                 </div>
                 
                 <div className="modal-content">
@@ -542,7 +545,7 @@ export default function Calendar({ onNavigateToMilestone }: CalendarProps) {
                           {event.status}
                         </div>
                       </div>
-                      <Target className="h-4 w-4 text-muted-foreground" />
+                      <Icon icon={Target} size="sm" tone="muted" />
                     </div>
                   ))}
                 </div>

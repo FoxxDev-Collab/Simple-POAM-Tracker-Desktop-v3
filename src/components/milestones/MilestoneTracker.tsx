@@ -464,7 +464,7 @@ export default function MilestoneTracker() {
     <div className="container-responsive space-y-6">
       {/* Header */}
       <div className="responsive-header">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 title-row">
           <div className="p-2 bg-primary/10 rounded-lg">
             <Target className="h-6 w-6 text-primary" />
           </div>
@@ -496,7 +496,7 @@ export default function MilestoneTracker() {
       {/* Filters and Search */}
       <div className="container-responsive bg-card rounded-lg p-6 space-y-4">
         <div className="responsive-header">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 title-row">
             <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
             </svg>

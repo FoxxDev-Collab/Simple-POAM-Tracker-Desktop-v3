@@ -9,7 +9,7 @@ export default function About() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">About</h1>
+          <h1 className="text-3xl font-bold tracking-tight title-row">About</h1>
           <p className="text-muted-foreground mt-1">Learn more about this application</p>
         </div>
         <div className="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium">

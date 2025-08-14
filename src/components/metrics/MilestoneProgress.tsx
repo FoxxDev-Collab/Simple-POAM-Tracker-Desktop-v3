@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import './Metrics.css';
+// Unified styles via global patterns and Tailwind
 
 interface Milestone {
   id: number;

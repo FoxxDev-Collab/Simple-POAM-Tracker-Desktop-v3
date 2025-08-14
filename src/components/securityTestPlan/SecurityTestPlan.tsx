@@ -18,15 +18,17 @@ import {
   FileText,
   Image,
   Trash2} from 'lucide-react';
+import { Icon } from '../ui/icon';
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { useToast } from '../../context/ToastContext';
 import { useSystem } from '../../context/SystemContext';
+import { useTabNavigation } from '../../context/TabContext';
 import TestPlanList from './TestPlanList';
 import TestCaseModal from './TestCaseModal';
-import './SecurityTestPlan.css';
+// Unified styles via global patterns and Tailwind
 
 interface TestCase {
   id: string;
@@ -174,6 +176,7 @@ export default function SecurityTestPlan() {
 
   const { addToast } = useToast();
   const { currentSystem } = useSystem();
+  const { setActiveTab } = useTabNavigation();
 
   // Combine STIG and Nessus prep lists for display
   const combinePrepLists = useCallback(() => {
@@ -370,6 +373,7 @@ export default function SecurityTestPlan() {
       prepListData = {
         source_type: 'stig',
         source_id: prepList.id,
+        stig_mapping_id: prepList.source_mapping_id,
         name: prepList.name,
         control_count: prepList.control_count
       };
@@ -385,7 +389,7 @@ export default function SecurityTestPlan() {
         created_date: new Date().toISOString(),
         updated_date: new Date().toISOString(),
         status: 'Draft',
-        stig_mapping_id: prepListData.source_type === 'stig' ? prepListData.source_id : null,
+        stig_mapping_id: prepListData.source_type === 'stig' ? (prepListData.stig_mapping_id || null) : null,
         test_cases: testCases,
       };
 
@@ -689,7 +693,7 @@ export default function SecurityTestPlan() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-lg">
-                <Shield className="h-6 w-6 text-primary" />
+                <Icon icon={Shield} size="lg" tone="primary" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-foreground">Security Test Plans</h1>
@@ -726,9 +730,9 @@ export default function SecurityTestPlan() {
       {/* Header */}
       <div className="mb-6 pb-4 border-b border-border">
         <div className="test-plan-main-header flex items-center justify-between flex-wrap lg:flex-nowrap">
-          <div className="test-plan-header-content flex items-center gap-3 mb-4 lg:mb-0">
+          <div className="test-plan-header-content flex items-center gap-3 mb-4 lg:mb-0 title-row">
             <div className="p-2 bg-primary/10 rounded-lg">
-              <Shield className="h-6 w-6 text-primary" />
+              <Icon icon={Shield} size="lg" tone="primary" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground">Security Test Plans</h1>
@@ -835,8 +839,8 @@ export default function SecurityTestPlan() {
             <Card>
               <CardHeader>
                 <div className="card-header-responsive flex items-center justify-between flex-wrap lg:flex-nowrap">
-                  <div className="flex items-center gap-3 mb-4 lg:mb-0">
-                    <Button 
+            <div className="flex items-center gap-3 mb-4 lg:mb-0">
+              <Button 
                       variant="ghost" 
                       size="sm"
                       onClick={() => setSelectedPlan(null)}
@@ -850,7 +854,7 @@ export default function SecurityTestPlan() {
                   </div>
                   <div className="card-header-actions flex items-center gap-2 w-full lg:w-auto flex-wrap">
                     <Badge variant="outline" className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
+                    <Icon icon={Calendar} size="sm" />
                       <span className="hidden sm:inline">{new Date(selectedPlan.created_date).toLocaleDateString()}</span>
                       <span className="sm:hidden">{new Date(selectedPlan.created_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                     </Badge>
@@ -871,6 +875,18 @@ export default function SecurityTestPlan() {
                         <option value="On Hold">On Hold</option>
                       </select>
                     </div>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        try {
+                          sessionStorage.setItem('createPOAMFromSTP', selectedPlan.id);
+                        } catch (_) {}
+                        setActiveTab('create-poam');
+                      }}
+                      title="Create a POAM from this Security Test Plan"
+                    >
+                      Create POAM from STP
+                    </Button>
                   </div>
                 </div>
               </CardHeader>

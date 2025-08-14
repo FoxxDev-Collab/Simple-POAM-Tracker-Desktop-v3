@@ -8,7 +8,8 @@ import { STIGMappingResult, CCIMapping, STIGChecklist } from '../../types/stig';
 import { parseCCIListFile, parseMultipleSTIGChecklists, createSTIGMapping, getAllStigMappings, saveStpPrepList, getAllStpPrepLists, getStpPrepListById, updateStpPrepList, deleteStpPrepList } from '../../utils/tauriApi';
 import { useToast } from '../../context/ToastContext';
 import { useSystem } from '../../context/SystemContext';
-import './STIGMapper.css';
+// Unified styles moved to global patterns
+import { compareNistControlIdStrings } from '../../lib/utils';
 
 interface FileUploadState {
   cciFilePath: string | null;
@@ -864,9 +865,10 @@ export default function STIGMapper() {
 
       switch (sortField) {
         case 'nist_control':
-          aValue = a.nist_control;
-          bValue = b.nist_control;
-          break;
+          {
+            const cmp = compareNistControlIdStrings(a.nist_control, b.nist_control);
+            return sortDirection === 'asc' ? cmp : -cmp;
+          }
         case 'ccis':
           aValue = a.ccis?.length || 0;
           bValue = b.ccis?.length || 0;
@@ -1206,7 +1208,7 @@ export default function STIGMapper() {
     <div className="container-responsive space-y-6">
       {/* Header */}
       <div className="responsive-header">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 title-row">
           <div className="p-2 bg-primary/10 rounded-lg">
             <Shield className="h-6 w-6 text-primary" />
           </div>

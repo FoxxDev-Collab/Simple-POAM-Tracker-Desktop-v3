@@ -91,6 +91,23 @@ export default function NistControls() {
         controls.push(control);
       });
       
+      // Sort controls by ID using a natural sort algorithm
+      controls.sort((a, b) => {
+        const aParts = a.id.split(/[-()]/).filter(p => p);
+        const bParts = b.id.split(/[-()]/).filter(p => p);
+        
+        const familyCompare = aParts[0].localeCompare(bParts[0]);
+        if (familyCompare !== 0) return familyCompare;
+
+        const aNum = parseInt(aParts[1]);
+        const bNum = parseInt(bParts[1]);
+        if (aNum !== bNum) return aNum - bNum;
+
+        // Handle enhancements (e.g., AC-2 (1))
+        const aEnh = aParts.length > 2 ? parseInt(aParts[2]) : -1;
+        const bEnh = bParts.length > 2 ? parseInt(bParts[2]) : -1;
+        return aEnh - bEnh;
+      });
       
       return controls;
     } catch (error) {

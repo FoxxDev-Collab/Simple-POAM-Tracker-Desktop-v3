@@ -15,6 +15,9 @@
 /* Import common component styles */
 @import './components.css';
 
+/* Shared patterns (containers, upload zones, modals, etc.) */
+@import './patterns.css';
+
 /* Import common modal styles */
 @import './modal.css';
 

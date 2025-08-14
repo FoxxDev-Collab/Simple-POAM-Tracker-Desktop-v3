@@ -77,3 +77,55 @@ export function truncateText(text: string, maxLength: number) {
   if (text.length <= maxLength) return text
   return text.slice(0, maxLength) + '...'
 } 
+
+// Natural sort for NIST control IDs like "AC-2", "AC-10", "AC-2(1)", "AC-2 (1)(a)"
+export type ParsedNistControlId = {
+  family: string
+  baseNumber: number
+  enhancementNumber: number | null
+  suffix: string | null
+}
+
+export function parseNistControlId(id: string): ParsedNistControlId {
+  // Normalize spaces, e.g. "AC-2 (1)" -> "AC-2(1)"
+  const normalized = id.replace(/\s+/g, '')
+  // Match patterns like AC-2, AC-2(1), AC-2(1)(a)
+  const familyMatch = normalized.match(/^([A-Z]{2})-/)
+  const family = familyMatch ? familyMatch[1] : ''
+
+  // Extract numeric base after family-
+  const baseMatch = normalized.match(/^[A-Z]{2}-(\d+)/)
+  const baseNumber = baseMatch ? parseInt(baseMatch[1], 10) : Number.MAX_SAFE_INTEGER
+
+  // First numeric enhancement inside parentheses, if present
+  const enhMatch = normalized.match(/\((\d+)\)/)
+  const enhancementNumber = enhMatch ? parseInt(enhMatch[1], 10) : null
+
+  // Optional trailing non-numeric suffix in parentheses like (a)
+  const suffixMatch = normalized.match(/\(\d+\)\(([a-zA-Z])\)$/)
+  const suffix = suffixMatch ? suffixMatch[1].toLowerCase() : null
+
+  return { family, baseNumber, enhancementNumber, suffix }
+}
+
+export function compareNistControlIdStrings(a: string, b: string): number {
+  const pa = parseNistControlId(a)
+  const pb = parseNistControlId(b)
+
+  const familyCompare = pa.family.localeCompare(pb.family)
+  if (familyCompare !== 0) return familyCompare
+
+  if (pa.baseNumber !== pb.baseNumber) return pa.baseNumber - pb.baseNumber
+
+  const aEnh = pa.enhancementNumber ?? -1
+  const bEnh = pb.enhancementNumber ?? -1
+  if (aEnh !== bEnh) return aEnh - bEnh
+
+  // Compare suffix if both present
+  if (pa.suffix && pb.suffix) return pa.suffix.localeCompare(pb.suffix)
+  if (pa.suffix && !pb.suffix) return 1
+  if (!pa.suffix && pb.suffix) return -1
+
+  // Fallback to lexicographic if everything else equal
+  return a.localeCompare(b)
+}

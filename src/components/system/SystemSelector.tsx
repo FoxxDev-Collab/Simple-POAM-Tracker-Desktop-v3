@@ -365,7 +365,7 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
             <div key={group.id} className="space-y-4">
               {/* Group Header */}
               <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-sm">
-                <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 title-row">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -451,7 +451,7 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
           {ungroupedSystems.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-sm">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 title-row">
                   <Button
                     variant="ghost"
                     size="sm"

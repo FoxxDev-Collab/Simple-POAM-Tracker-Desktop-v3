@@ -5,6 +5,7 @@ import {
   Milestone,
   BarChart3,
   ClipboardCheck,
+  Shield,
   ChevronRight,
   ChevronDown,
   Building,
@@ -37,6 +38,7 @@ interface NavItemDef {
 const groupNavigation: NavItemDef[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'group-poams', label: 'Group POAMs', icon: Target },
+  { id: 'group-nist-controls', label: 'NIST Controls', icon: Shield },
   { id: 'group-milestones', label: 'Milestones', icon: Milestone },
   { id: 'group-stps', label: 'Test Plans', icon: ClipboardCheck },
   { id: 'group-metrics', label: 'Metrics', icon: BarChart3 },

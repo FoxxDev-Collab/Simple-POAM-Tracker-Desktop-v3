@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useToast } from '../../context/ToastContext';
 import { useSystem } from '../../context/SystemContext';
 import { useNotificationGenerator } from '../../hooks/useNotificationGenerator';
 import { SimpleDateInput } from '../common';
-import catalogData from '../nistControls/catalog.json';
-import TabNavigation from '../tabNavigation/TabNavigation';
+import { Button } from '../ui/button';
 
 interface POAM {
   id: number;
@@ -16,7 +15,7 @@ interface POAM {
   status: string;
   priority: string;
   riskLevel: string;
-  milestones: [];
+  milestones: Milestone[];
   // Enhanced fields (optional for backward compatibility)
   resources?: string;
   sourceIdentifyingVulnerability?: string;
@@ -30,6 +29,14 @@ interface POAM {
   // Additional optional fields
   mitigations?: string;
   devicesAffected?: string;
+}
+
+interface Milestone {
+  id: string;
+  title: string;
+  dueDate: string;
+  status: string;
+  description: string;
 }
 
 export default function CreatePOAM() {
@@ -54,14 +61,13 @@ export default function CreatePOAM() {
   const [mitigations, setMitigations] = useState('');
   const [devicesAffected, setDevicesAffected] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState('basic-details');
-  // Associations
-  const [selectedControlIds, setSelectedControlIds] = useState<string[]>([]);
-  const [availableControls] = useState<{ id: string; title: string }[]>(
-    Object.entries(catalogData as Record<string, any>).map(([id, c]: any) => ({ id, title: c?.name || id }))
-  );
+  // Wizard state
+  const [currentStep, setCurrentStep] = useState(0);
+  const steps = ['Select STP(s)', 'Basic Details', 'Schedule', 'Risk & Info', 'Review'];
+  // Associations (NIST control association is managed in the NIST Catalog, not during creation)
   const [stps, setStps] = useState<Array<{ id: string; name: string; poam_id?: number | null }>>([]);
   const [selectedStpIds, setSelectedStpIds] = useState<string[]>([]);
+  const [generatedMilestones, setGeneratedMilestones] = useState<Milestone[]>([]);
   const { showToast } = useToast();
   const { currentSystem } = useSystem();
   const { notifyPOAMCreated, notifySystemEvent } = useNotificationGenerator();
@@ -73,16 +79,87 @@ export default function CreatePOAM() {
       .catch(() => setStps([]));
   }
 
-  const toggleSelectedControl = (controlId: string) => {
-    setSelectedControlIds((prev) =>
-      prev.includes(controlId) ? prev.filter((id) => id !== controlId) : [...prev, controlId]
-    );
-  };
-
   const toggleSelectedStp = (stpId: string) => {
     setSelectedStpIds((prev) =>
       prev.includes(stpId) ? prev.filter((id) => id !== stpId) : [...prev, stpId]
     );
+  };
+
+  // Preselect STP if coming from STP view
+  useEffect(() => {
+    try {
+      const fromId = sessionStorage.getItem('createPOAMFromSTP');
+      if (fromId && selectedStpIds.length === 0) {
+        setSelectedStpIds([fromId]);
+        sessionStorage.removeItem('createPOAMFromSTP');
+        setCurrentStep(1);
+      }
+    } catch (_) {}
+  }, []);
+
+  // Helper to map risk ratings to an overall
+  const riskOrder: Record<string, number> = { 'Low': 1, 'Moderate': 2, 'Medium': 2, 'High': 3, 'Critical': 4 };
+
+  const canProceedFromStep = (stepIndex: number) => {
+    if (stepIndex === 0) return selectedStpIds.length > 0;
+    if (stepIndex === 1) return !!title && !!description;
+    if (stepIndex === 2) return !!startDate && !!endDate;
+    if (stepIndex === 3) return true;
+    return true;
+  };
+
+  const generateFromSelectedSTPs = async () => {
+    if (!currentSystem?.id || selectedStpIds.length === 0) return;
+    try {
+      // Fetch full plans to access test cases
+      const plans = await Promise.all(selectedStpIds.map((id) => invoke<any>('get_security_test_plan_by_id', { id, systemId: currentSystem.id })));
+      // Generate milestones from all test cases
+      const milestones: Milestone[] = [];
+      let highestRisk = 'Low';
+      for (const plan of plans) {
+        if (plan?.test_cases?.length) {
+          for (const tc of plan.test_cases) {
+            const ms: Milestone = {
+              id: `stp-${plan.id}-tc-${tc.id}`,
+              title: tc.test_description || `Test ${tc.id}`,
+              dueDate: '',
+              status: 'Not Started',
+              description: tc.test_procedure || ''
+            };
+            milestones.push(ms);
+            const tcRisk = (tc.risk_rating || 'Low');
+            if ((riskOrder[tcRisk] || 1) > (riskOrder[highestRisk] || 1)) {
+              highestRisk = tcRisk;
+            }
+          }
+        }
+      }
+
+      // Prefill title/description if empty
+      if (!title) {
+        const names = plans.map((p: any) => p?.name).filter(Boolean).join(', ');
+        setTitle(names ? `POAM for ${names}` : 'New POAM');
+      }
+      if (!description) {
+        setDescription('POAM generated from selected Security Test Plan(s).');
+      }
+      if (!sourceIdentifyingVulnerability) {
+        const names = plans.map((p: any) => p?.name).filter(Boolean).join(', ');
+        setSourceIdentifyingVulnerability(`Security Test Plan(s): ${names}`);
+      }
+      // Prefill risk based on highest test case risk
+      if (!riskLevel || riskLevel === 'Low') {
+        setRiskLevel(highestRisk === 'Critical' ? 'High' : highestRisk);
+      }
+      if (!severity) setSeverity(highestRisk);
+      if (!rawSeverity) setRawSeverity(highestRisk);
+
+      setGeneratedMilestones(milestones);
+      showToast('info', `Generated ${milestones.length} milestone(s) from selected STP test cases`);
+    } catch (error) {
+      console.error('Failed generating from STPs', error);
+      showToast('error', 'Failed to generate milestones from selected STPs');
+    }
   };
 
 
@@ -98,6 +175,12 @@ export default function CreatePOAM() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (selectedStpIds.length === 0) {
+      showToast('error', 'Please select at least one Security Test Plan');
+      setCurrentStep(0);
+      return;
+    }
+
     if (!title || !description || !startDate || !endDate) {
       showToast('error', 'Please fill in all required fields');
       return;
@@ -116,7 +199,7 @@ export default function CreatePOAM() {
         status,
         priority,
         riskLevel,
-        milestones: [],
+        milestones: generatedMilestones,
         // Enhanced fields
         resources,
         sourceIdentifyingVulnerability,
@@ -138,35 +221,17 @@ export default function CreatePOAM() {
         systemId: currentSystem.id 
       });
       
-      // Optionally associate selected NIST controls to the created POAM
-      if (selectedControlIds.length > 0) {
-        await Promise.all(
-          selectedControlIds.map((controlId) =>
-            invoke<string>('associate_poam_with_control', {
-              controlId,
-              poamId: newPOAM.id,
-              systemId: currentSystem.id,
-              createdBy: null,
-              notes: null,
-            })
-          )
-        );
-      }
-
-      // Optionally associate selected STPs to the created POAM (by setting stp.poam_id)
-      if (selectedStpIds.length > 0) {
-        for (const stpId of selectedStpIds) {
-          try {
-            const plan = await invoke<any>('get_security_test_plan_by_id', { id: stpId, systemId: currentSystem.id });
-            if (plan) {
-              plan.poam_id = newPOAM.id;
-              await invoke('save_security_test_plan', { plan, systemId: currentSystem.id });
-            }
-          } catch (_) {}
-        }
+      // Associate selected STPs to the created POAM (by setting stp.poam_id)
+      for (const stpId of selectedStpIds) {
+        try {
+          const plan = await invoke<any>('get_security_test_plan_by_id', { id: stpId, systemId: currentSystem.id });
+          if (plan) {
+            plan.poam_id = newPOAM.id;
+            await invoke('save_security_test_plan', { plan, systemId: currentSystem.id });
+          }
+        } catch (_) {}
       }
       // Reset associations
-      setSelectedControlIds([]);
       setSelectedStpIds([]);
       
       showToast('success', `POAM created successfully for ${currentSystem.name}`);
@@ -228,509 +293,366 @@ export default function CreatePOAM() {
     <div className="space-y-6">
       {/* Header */}
       <div className="responsive-header mb-6 pb-4 border-b border-border">
-        <div>
+        <div className="title-row">
           <h1 className="text-3xl font-bold text-foreground">Create New POAM</h1>
-          <p className="text-muted-foreground">
-            Plan of Action and Milestones Entry Form for {currentSystem.name}
-          </p>
+          <p className="text-muted-foreground">Plan of Action and Milestones Wizard for {currentSystem.name}</p>
         </div>
         
         <div className="button-group">
-          <button
-            type="submit"
-            form="create-poam-form"
-            className="btn btn-primary btn-responsive"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <div className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground"></div>
-                Creating...
-              </div>
-            ) : (
-              'Create POAM'
-            )}
-          </button>
+          {currentStep > 0 && (
+            <Button
+              variant="outline"
+              className="btn-responsive"
+              type="button"
+              onClick={() => setCurrentStep((s) => Math.max(0, s - 1))}
+              disabled={isSubmitting}
+            >
+              Back
+            </Button>
+          )}
+          {currentStep < steps.length - 1 ? (
+            <Button
+              className="btn-responsive"
+              type="button"
+              onClick={async () => {
+                if (!canProceedFromStep(currentStep)) {
+                  showToast('warning', 'Complete required fields before continuing');
+                  return;
+                }
+                if (currentStep === 0) {
+                  await generateFromSelectedSTPs();
+                }
+                setCurrentStep((s) => s + 1);
+              }}
+              disabled={isSubmitting}
+            >
+              Next
+            </Button>
+          ) : (
+            <button
+              type="submit"
+              form="create-poam-form"
+              className="btn btn-primary btn-responsive"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground"></div>
+                  Creating...
+                </div>
+              ) : (
+                'Create POAM'
+              )}
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Stepper indicator */}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        {steps.map((step, idx) => (
+          <div key={step} className="flex items-center gap-2">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${idx <= currentStep ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground/60'}`}>{idx + 1}</div>
+            <span className={`${idx === currentStep ? 'text-foreground font-medium' : ''}`}>{step}</span>
+            {idx < steps.length - 1 && <span className="opacity-50">→</span>}
+          </div>
+        ))}
+      </div>
+
       <form onSubmit={handleSubmit} id="create-poam-form">
-        <TabNavigation
-          tabs={[
-            {
-              id: 'basic-details',
-              label: 'Basic Details',
-              content: (
-                <div className="container-responsive p-6 space-y-8">
-                <div className="space-y-8">
-                  {/* Basic Information Section */}
-                  <div className="bg-muted/30 rounded-lg p-6 space-y-6">
-                    <div className="border-b border-border pb-3">
-                      <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                        <div className="w-2 h-2 bg-primary rounded-full"></div>
-                        Basic Information
-                      </h3>
-                      <p className="text-sm text-muted-foreground mt-1">Essential POAM details and description</p>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <label htmlFor="title" className="block text-sm font-medium text-foreground mb-2">
-                          POAM Title <span className="text-destructive">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          id="title"
-                          value={title}
-                          onChange={(e) => setTitle(e.target.value)}
-                          required
-                          placeholder="Enter a clear, descriptive title for this POAM"
-                          className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label htmlFor="description" className="block text-sm font-medium text-foreground mb-2">
-                          Description <span className="text-destructive">*</span>
-                        </label>
-                        <textarea
-                          id="description"
-                          value={description}
-                          onChange={(e) => setDescription(e.target.value)}
-                          rows={5}
-                          required
-                          placeholder="Provide a detailed description of the security issue, remediation plan, and expected outcomes"
-                          className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-vertical"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Include relevant details about the security finding and remediation approach
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+        {currentStep === 0 && (
+          <div className="container-responsive p-6 space-y-8">
+            <div className="bg-muted/30 rounded-lg p-6 space-y-6">
+              <div className="border-b border-border pb-3">
+                <h3 className="text-lg font-semibold text-foreground">Select Security Test Plan(s) <span className="text-destructive">*</span></h3>
+                <p className="text-sm text-muted-foreground">POAMs require at least one STP. Milestones will be generated from the test cases.</p>
+              </div>
+              <div className="max-h-64 overflow-y-auto border rounded-md p-2 custom-scrollbar">
+                {stps.length === 0 ? (
+                  <div className="text-sm text-muted-foreground p-2">No Security Test Plans found</div>
+                ) : (
+                  stps.map((plan) => (
+                    <label key={plan.id} className="flex items-center gap-2 py-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedStpIds.includes(plan.id)}
+                        onChange={() => toggleSelectedStp(plan.id)}
+                      />
+                      <span className="text-sm"><span className="font-medium">{plan.name}</span></span>
+                    </label>
+                  ))
+                )}
+              </div>
+              {selectedStpIds.length === 0 && (
+                <p className="text-xs text-destructive">Select at least one STP to continue.</p>
+              )}
+            </div>
+          </div>
+        )}
 
-                  {/* Timeline Section */}
-                  <div className="bg-muted/30 rounded-lg p-6 space-y-6">
-                    <div className="border-b border-border pb-3">
-                      <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        Timeline & Schedule
-                      </h3>
-                      <p className="text-sm text-muted-foreground mt-1">Define project start and completion dates</p>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label htmlFor="startDate" className="block text-sm font-medium text-foreground mb-2">
-                          Start Date <span className="text-destructive">*</span>
-                        </label>
-                        <SimpleDateInput
-                          value={startDate}
-                          onChange={setStartDate}
-                          className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                          required
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">When work on this POAM begins</p>
-                      </div>
-                      
-                      <div>
-                        <label htmlFor="endDate" className="block text-sm font-medium text-foreground mb-2">
-                          Target Completion <span className="text-destructive">*</span>
-                        </label>
-                        <SimpleDateInput
-                          value={endDate}
-                          onChange={setEndDate}
-                          min={startDate}
-                          className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                          required
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">Expected completion date</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Classification Section */}
-                  <div className="bg-muted/30 rounded-lg p-6 space-y-6">
-                    <div className="border-b border-border pb-3">
-                      <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                        Classification & Assessment
-                      </h3>
-                      <p className="text-sm text-muted-foreground mt-1">Current status, priority level, and basic risk assessment</p>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div>
-                        <label htmlFor="status" className="block text-sm font-medium text-foreground mb-2">
-                          Current Status
-                        </label>
-                        <select
-                          id="status"
-                          value={status}
-                          onChange={(e) => setStatus(e.target.value)}
-                          className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                        >
-                          <option value="Not Started">Not Started</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Completed">Completed</option>
-                          <option value="Delayed">Delayed</option>
-                        </select>
-                        <div className="mt-2">
-                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                            status === 'Completed' ? 'bg-green-100 text-green-800' :
-                            status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                            status === 'Delayed' ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {status}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label htmlFor="priority" className="block text-sm font-medium text-foreground mb-2">
-                          Priority Level
-                        </label>
-                        <select
-                          id="priority"
-                          value={priority}
-                          onChange={(e) => setPriority(e.target.value)}
-                          className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                        >
-                          <option value="Low">Low</option>
-                          <option value="Medium">Medium</option>
-                          <option value="High">High</option>
-                        </select>
-                        <div className="mt-2">
-                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                            priority === 'High' ? 'bg-red-100 text-red-800' :
-                            priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
-                            {priority} Priority
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label htmlFor="riskLevel" className="block text-sm font-medium text-foreground mb-2">
-                          Risk Assessment
-                        </label>
-                        <select
-                          id="riskLevel"
-                          value={riskLevel}
-                          onChange={(e) => setRiskLevel(e.target.value)}
-                          className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                        >
-                          <option value="Low">Low</option>
-                          <option value="Moderate">Moderate</option>
-                          <option value="High">High</option>
-                        </select>
-                        <div className="mt-2">
-                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                            riskLevel === 'High' ? 'bg-red-100 text-red-800' :
-                            riskLevel === 'Moderate' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
-                            {riskLevel} Risk
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+        {currentStep === 1 && (
+          <div className="container-responsive p-6 space-y-8">
+            <div className="bg-muted/30 rounded-lg p-6 space-y-6">
+              <div className="border-b border-border pb-3">
+                <h3 className="text-lg font-semibold text-foreground">Basic Information</h3>
+                <p className="text-sm text-muted-foreground">Essential POAM details and description</p>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="title" className="block text-sm font-medium text-foreground mb-2">POAM Title <span className="text-destructive">*</span></label>
+                  <input
+                    type="text"
+                    id="title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    required
+                    placeholder="Enter a clear, descriptive title for this POAM"
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="description" className="block text-sm font-medium text-foreground mb-2">Description <span className="text-destructive">*</span></label>
+                  <textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={5}
+                    required
+                    placeholder="Provide a detailed description of scope and expected outcomes"
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-vertical"
+                  />
                 </div>
               </div>
-            )
-          },
-          {
-            id: 'risk-analysis',
-            label: 'Risk Analysis',
-            content: (
-              <div className="container-responsive p-6 space-y-8">
-                <div className="bg-muted/30 rounded-lg p-6 space-y-6">
-                  <div className="border-b border-border pb-3">
-                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                      Risk Assessment & Analysis
-                    </h3>
-                    <p className="text-sm text-muted-foreground mt-1">Comprehensive risk evaluation and threat assessment</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label htmlFor="rawSeverity" className="block text-sm font-medium text-foreground mb-2">
-                        Raw Severity
-                      </label>
-                      <select
-                        id="rawSeverity"
-                        value={rawSeverity}
-                        onChange={(e) => setRawSeverity(e.target.value)}
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                      >
-                        <option value="">Select Raw Severity</option>
-                        <option value="Critical">Critical</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
-                        <option value="Informational">Informational</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="severity" className="block text-sm font-medium text-foreground mb-2">
-                        Adjusted Severity
-                      </label>
-                      <select
-                        id="severity"
-                        value={severity}
-                        onChange={(e) => setSeverity(e.target.value)}
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                      >
-                        <option value="">Select Adjusted Severity</option>
-                        <option value="Critical">Critical</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
-                        <option value="Informational">Informational</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="relevanceOfThreat" className="block text-sm font-medium text-foreground mb-2">
-                        Relevance of Threat
-                      </label>
-                      <select
-                        id="relevanceOfThreat"
-                        value={relevanceOfThreat}
-                        onChange={(e) => setRelevanceOfThreat(e.target.value)}
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                      >
-                        <option value="">Select Relevance</option>
-                        <option value="Very High">Very High</option>
-                        <option value="High">High</option>
-                        <option value="Moderate">Moderate</option>
-                        <option value="Low">Low</option>
-                        <option value="Very Low">Very Low</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="likelihood" className="block text-sm font-medium text-foreground mb-2">
-                        Likelihood
-                      </label>
-                      <select
-                        id="likelihood"
-                        value={likelihood}
-                        onChange={(e) => setLikelihood(e.target.value)}
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                      >
-                        <option value="">Select Likelihood</option>
-                        <option value="Very High">Very High</option>
-                        <option value="High">High</option>
-                        <option value="Moderate">Moderate</option>
-                        <option value="Low">Low</option>
-                        <option value="Very Low">Very Low</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="impact" className="block text-sm font-medium text-foreground mb-2">
-                        Impact
-                      </label>
-                      <select
-                        id="impact"
-                        value={impact}
-                        onChange={(e) => setImpact(e.target.value)}
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                      >
-                        <option value="">Select Impact</option>
-                        <option value="Very High">Very High</option>
-                        <option value="High">High</option>
-                        <option value="Moderate">Moderate</option>
-                        <option value="Low">Low</option>
-                        <option value="Very Low">Very Low</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="residualRisk" className="block text-sm font-medium text-foreground mb-2">
-                        Residual Risk
-                      </label>
-                      <select
-                        id="residualRisk"
-                        value={residualRisk}
-                        onChange={(e) => setResidualRisk(e.target.value)}
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                      >
-                        <option value="">Select Residual Risk</option>
-                        <option value="Very High">Very High</option>
-                        <option value="High">High</option>
-                        <option value="Moderate">Moderate</option>
-                        <option value="Low">Low</option>
-                        <option value="Very Low">Very Low</option>
-                      </select>
-                    </div>
-                  </div>
+            </div>
+          </div>
+        )}
+
+        {currentStep === 2 && (
+          <div className="container-responsive p-6 space-y-8">
+            <div className="bg-muted/30 rounded-lg p-6 space-y-6">
+              <div className="border-b border-border pb-3">
+                <h3 className="text-lg font-semibold text-foreground">Timeline & Schedule</h3>
+                <p className="text-sm text-muted-foreground">Define project start and completion dates</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label htmlFor="startDate" className="block text-sm font-medium text-foreground mb-2">Start Date <span className="text-destructive">*</span></label>
+                  <SimpleDateInput
+                    value={startDate}
+                    onChange={setStartDate}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="endDate" className="block text-sm font-medium text-foreground mb-2">Target Completion <span className="text-destructive">*</span></label>
+                  <SimpleDateInput
+                    value={endDate}
+                    onChange={setEndDate}
+                    min={startDate}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                    required
+                  />
                 </div>
               </div>
-            )
-          },
-          {
-            id: 'additional-info',
-            label: 'Additional Information',
-            content: (
-              <div className="container-responsive p-6 space-y-8">
-                {/* Source and Resources Section */}
-                <div className="bg-muted/30 rounded-lg p-6 space-y-6">
-                  <div className="border-b border-border pb-3">
-                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                      Source & Resources
-                    </h3>
-                    <p className="text-sm text-muted-foreground mt-1">Vulnerability source and required resources</p>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label htmlFor="sourceIdentifyingVulnerability" className="block text-sm font-medium text-foreground mb-2">
-                        Source Identifying Vulnerability
-                      </label>
-                      <textarea
-                        id="sourceIdentifyingVulnerability"
-                        value={sourceIdentifyingVulnerability}
-                        onChange={(e) => setSourceIdentifyingVulnerability(e.target.value)}
-                        rows={3}
-                        placeholder="e.g., NESSUS Scan, Manual Testing, Code Review, STIG Finding ID"
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-vertical"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Specify the tool, process, or method that identified this vulnerability
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="resources" className="block text-sm font-medium text-foreground mb-2">
-                        Resources Required
-                      </label>
-                      <textarea
-                        id="resources"
-                        value={resources}
-                        onChange={(e) => setResources(e.target.value)}
-                        rows={4}
-                        placeholder="e.g., 2 FTE developers, $50,000 budget, 3rd party security consultant, specific tools or licenses"
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-vertical"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Detail personnel, budget, tools, and other resources needed for remediation
-                      </p>
-                    </div>
-                  </div>
+            </div>
+          </div>
+        )}
+
+        {currentStep === 3 && (
+          <div className="container-responsive p-6 space-y-8">
+            <div className="bg-muted/30 rounded-lg p-6 space-y-6">
+              <div className="border-b border-border pb-3">
+                <h3 className="text-lg font-semibold text-foreground">Risk & Additional Information</h3>
+                <p className="text-sm text-muted-foreground">Risk context can be prefilled from selected STPs</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Current Status</label>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option value="Not Started">Not Started</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Delayed">Delayed</option>
+                  </select>
                 </div>
-
-                {/* Mitigations and Devices Section */}
-                <div className="bg-muted/30 rounded-lg p-6 space-y-6">
-                  <div className="border-b border-border pb-3">
-                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      Mitigations & Affected Systems
-                    </h3>
-                    <p className="text-sm text-muted-foreground mt-1">Current mitigations and system impact scope</p>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label htmlFor="mitigations" className="block text-sm font-medium text-foreground mb-2">
-                        Current Mitigations
-                      </label>
-                      <textarea
-                        id="mitigations"
-                        value={mitigations}
-                        onChange={(e) => setMitigations(e.target.value)}
-                        rows={4}
-                        placeholder="e.g., Network segmentation in place, Access controls implemented, Monitoring enabled, WAF rules configured"
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-vertical"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Describe existing controls and temporary mitigations currently in place
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="devicesAffected" className="block text-sm font-medium text-foreground mb-2">
-                        Devices/Systems Affected
-                      </label>
-                      <textarea
-                        id="devicesAffected"
-                        value={devicesAffected}
-                        onChange={(e) => setDevicesAffected(e.target.value)}
-                        rows={4}
-                        placeholder="e.g., Web servers (10), Database servers (3), Workstations (150), Network devices (25), Specific hostnames or IP ranges"
-                        className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-vertical"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        List specific devices, systems, or components affected by this vulnerability
-                      </p>
-                    </div>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Priority Level</label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
                 </div>
-
-                {/* Optional Associations Section */}
-                <div className="bg-muted/30 rounded-lg p-6 space-y-6">
-                  <div className="border-b border-border pb-3">
-                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                      <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-                      Optional Associations
-                    </h3>
-                    <p className="text-sm text-muted-foreground mt-1">Optionally associate this POAM with NIST controls and Security Test Plans</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* NIST Controls Multi-select */}
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">NIST Controls (optional)</label>
-                      <div className="max-h-48 overflow-y-auto border rounded-md p-2 custom-scrollbar">
-                        {availableControls.map((c) => (
-                          <label key={c.id} className="flex items-center gap-2 py-1">
-                            <input
-                              type="checkbox"
-                              checked={selectedControlIds.includes(c.id)}
-                              onChange={() => toggleSelectedControl(c.id)}
-                            />
-                            <span className="text-sm"><span className="font-medium">{c.id}</span> — {c.title}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* STPs Multi-select */}
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">Security Test Plans (optional)</label>
-                      <div className="max-h-48 overflow-y-auto border rounded-md p-2 custom-scrollbar">
-                        {stps.length === 0 ? (
-                          <div className="text-sm text-muted-foreground p-2">No Security Test Plans found</div>
-                        ) : (
-                          stps.map((plan) => (
-                            <label key={plan.id} className="flex items-center gap-2 py-1">
-                              <input
-                                type="checkbox"
-                                checked={selectedStpIds.includes(plan.id)}
-                                onChange={() => toggleSelectedStp(plan.id)}
-                              />
-                              <span className="text-sm"><span className="font-medium">{plan.name}</span></span>
-                            </label>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Risk Assessment</label>
+                  <select
+                    value={riskLevel}
+                    onChange={(e) => setRiskLevel(e.target.value)}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="High">High</option>
+                  </select>
                 </div>
               </div>
-            )
-          }
-        ]}
-        activeTabId={activeTab}
-        onTabChange={setActiveTab}
-      />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Raw Severity</label>
+                  <select
+                    value={rawSeverity}
+                    onChange={(e) => setRawSeverity(e.target.value)}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option value="">Select Raw Severity</option>
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                    <option value="Informational">Informational</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Adjusted Severity</label>
+                  <select
+                    value={severity}
+                    onChange={(e) => setSeverity(e.target.value)}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option value="">Select Adjusted Severity</option>
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                    <option value="Informational">Informational</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Relevance of Threat</label>
+                  <select
+                    value={relevanceOfThreat}
+                    onChange={(e) => setRelevanceOfThreat(e.target.value)}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option value="">Select Relevance</option>
+                    <option value="Very High">Very High</option>
+                    <option value="High">High</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="Low">Low</option>
+                    <option value="Very Low">Very Low</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Likelihood</label>
+                  <select
+                    value={likelihood}
+                    onChange={(e) => setLikelihood(e.target.value)}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option value="">Select Likelihood</option>
+                    <option value="Very High">Very High</option>
+                    <option value="High">High</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="Low">Low</option>
+                    <option value="Very Low">Very Low</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Impact</label>
+                  <select
+                    value={impact}
+                    onChange={(e) => setImpact(e.target.value)}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option value="">Select Impact</option>
+                    <option value="Very High">Very High</option>
+                    <option value="High">High</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="Low">Low</option>
+                    <option value="Very Low">Very Low</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Residual Risk</label>
+                  <select
+                    value={residualRisk}
+                    onChange={(e) => setResidualRisk(e.target.value)}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option value="">Select Residual Risk</option>
+                    <option value="Very High">Very High</option>
+                    <option value="High">High</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="Low">Low</option>
+                    <option value="Very Low">Very Low</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Source Identifying Vulnerability</label>
+                  <textarea
+                    id="sourceIdentifyingVulnerability"
+                    value={sourceIdentifyingVulnerability}
+                    onChange={(e) => setSourceIdentifyingVulnerability(e.target.value)}
+                    rows={3}
+                    placeholder="e.g., STP names, NESSUS Scan, Manual Testing"
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-vertical"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Resources Required</label>
+                  <textarea
+                    id="resources"
+                    value={resources}
+                    onChange={(e) => setResources(e.target.value)}
+                    rows={3}
+                    placeholder="e.g., Staff, budget, tools"
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-vertical"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentStep === 4 && (
+          <div className="container-responsive p-6 space-y-8">
+            <div className="bg-muted/30 rounded-lg p-6 space-y-6">
+              <div className="border-b border-border pb-3">
+                <h3 className="text-lg font-semibold text-foreground">Review & Confirm</h3>
+                <p className="text-sm text-muted-foreground">Milestones will be created from {generatedMilestones.length} test case(s).</p>
+              </div>
+              <ul className="text-sm space-y-1">
+                <li><strong>Title:</strong> {title}</li>
+                <li><strong>Dates:</strong> {startDate || 'N/A'} → {endDate || 'N/A'}</li>
+                <li><strong>Risk:</strong> {riskLevel} {severity ? `(Severity: ${severity})` : ''}</li>
+                <li><strong>STPs:</strong> {selectedStpIds.length}</li>
+              </ul>
+              <div className="max-h-64 overflow-auto border rounded p-2">
+                {generatedMilestones.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No milestones generated yet.</p>
+                ) : (
+                  generatedMilestones.map((m, idx) => (
+                    <div key={m.id} className="py-1 text-sm">
+                      <span className="text-muted-foreground mr-2">{idx + 1}.</span>
+                      <span className="font-medium">{m.title}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </form>
     </div>
   );

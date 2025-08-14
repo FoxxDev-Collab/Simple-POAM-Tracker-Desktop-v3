@@ -8,7 +8,6 @@ import Metrics from "./components/metrics";
 import { Notes } from "./components/notes";
 import { STIGMapper } from "./components/stigMapper";
 import { SecurityTestPlan } from "./components/securityTestPlan";
-import NistControls from "./components/nistControls";
 import ImportExport from "./components/importExport";
 import { NessusCenter } from "./components/nessus";
 import Settings from "./components/settings";
@@ -116,8 +115,6 @@ function AppContent() {
         return <Notes />;
       case "stig-mapper":
         return <STIGMapper />;
-      case "nist-controls":
-        return <NistControls />;
       case "security-test-plan":
         return <SecurityTestPlan />;
       case "nessus-center":
