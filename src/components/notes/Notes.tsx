@@ -343,13 +343,13 @@ const Notes: React.FC = () => {
   };
 
   const renderNoteCard = (note: Note) => (
-    <Card key={note.id} className="h-full hover:shadow-lg transition-all duration-200 cursor-pointer group">
-      <CardHeader className="pb-3" onClick={() => openViewModal(note)}>
-        <div className="flex items-start justify-between">
-          <CardTitle className="text-lg line-clamp-2 group-hover:text-primary transition-colors">
+    <Card key={note.id} className="h-full hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 cursor-pointer group border-border/50 bg-gradient-to-br from-card to-card/50 backdrop-blur-sm">
+      <CardHeader className="pb-4" onClick={() => openViewModal(note)}>
+        <div className="flex items-start justify-between gap-3">
+          <CardTitle className="text-lg font-semibold line-clamp-2 group-hover:text-primary transition-colors leading-tight">
             {note.title || 'Untitled Note'}
           </CardTitle>
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0">
             <Button
               variant="ghost"
               size="sm"
@@ -357,7 +357,8 @@ const Notes: React.FC = () => {
                 e.stopPropagation();
                 openEditModal(note);
               }}
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary transition-colors"
+              title="Edit Note"
             >
               <Edit className="h-4 w-4" />
             </Button>
@@ -370,101 +371,118 @@ const Notes: React.FC = () => {
                   handleDeleteNote(note.id);
                 }
               }}
-              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+              className="h-8 w-8 p-0 text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors"
+              title="Delete Note"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         </div>
         
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            {formatDate(note.date)}
+        <div className="flex items-center gap-4 text-sm text-muted-foreground mt-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1 bg-muted/50 rounded">
+              <Calendar className="h-3 w-3" />
+            </div>
+            <span className="font-medium">{formatDate(note.date)}</span>
           </div>
           {note.poamTitles.length > 0 && (
-            <div className="flex items-center gap-1">
-              <Users className="h-3 w-3" />
-              {note.poamTitles.length} POAM{note.poamTitles.length !== 1 ? 's' : ''}
+            <div className="flex items-center gap-2">
+              <div className="p-1 bg-primary/10 rounded">
+                <Users className="h-3 w-3 text-primary" />
+              </div>
+              <span className="font-medium text-primary">
+                {note.poamTitles.length} POAM{note.poamTitles.length !== 1 ? 's' : ''}
+              </span>
             </div>
           )}
         </div>
       </CardHeader>
       
       <CardContent className="pt-0" onClick={() => openViewModal(note)}>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {note.tags && note.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
               {note.tags.slice(0, 3).map(tag => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded-full"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs bg-primary/10 text-primary rounded-full font-medium hover:bg-primary/20 transition-colors"
                 >
-                  <Tag className="h-2 w-2" />
+                  <Tag className="h-2.5 w-2.5" />
                   {tag}
                 </span>
               ))}
               {note.tags.length > 3 && (
-                <span className="text-xs text-muted-foreground">
+                <span className="inline-flex items-center px-2.5 py-1 text-xs text-muted-foreground bg-muted/50 rounded-full font-medium">
                   +{note.tags.length - 3} more
                 </span>
               )}
             </div>
           )}
+          <div className="text-xs text-muted-foreground/80 mt-auto">
+            Click to view full note
+          </div>
         </div>
       </CardContent>
     </Card>
   );
 
   const renderListItem = (note: Note) => (
-    <Card key={note.id} className="hover:shadow-md transition-all duration-200">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between">
+    <Card key={note.id} className="hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border-border/50 bg-gradient-to-r from-card to-card/50 backdrop-blur-sm group">
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between">
           <div className="flex-1 cursor-pointer" onClick={() => openViewModal(note)}>
-            <div className="flex items-start justify-between mb-2">
-              <h3 className="font-medium text-lg hover:text-primary transition-colors">
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="font-semibold text-xl hover:text-primary transition-colors leading-tight">
                 {note.title || 'Untitled Note'}
               </h3>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  {formatDate(note.date)}
+              <div className="flex items-center gap-4 text-sm text-muted-foreground ml-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-1 bg-muted/50 rounded">
+                    <Calendar className="h-3 w-3" />
+                  </div>
+                  <span className="font-medium">{formatDate(note.date)}</span>
                 </div>
                 {note.poamTitles.length > 0 && (
-                  <div className="flex items-center gap-1">
-                    <Users className="h-3 w-3" />
-                    {note.poamTitles.length}
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 bg-primary/10 rounded">
+                      <Users className="h-3 w-3 text-primary" />
+                    </div>
+                    <span className="font-medium text-primary">
+                      {note.poamTitles.length} POAM{note.poamTitles.length !== 1 ? 's' : ''}
+                    </span>
                   </div>
                 )}
               </div>
             </div>
             
             {note.tags && note.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {note.tags.slice(0, 2).map(tag => (
+              <div className="flex flex-wrap gap-1.5">
+                {note.tags.slice(0, 4).map(tag => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded-full"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs bg-primary/10 text-primary rounded-full font-medium hover:bg-primary/20 transition-colors"
                   >
-                    <Tag className="h-2 w-2" />
+                    <Tag className="h-2.5 w-2.5" />
                     {tag}
                   </span>
                 ))}
-                {note.tags.length > 2 && (
-                  <span className="text-xs text-muted-foreground">
-                    +{note.tags.length - 2} more
+                {note.tags.length > 4 && (
+                  <span className="inline-flex items-center px-2.5 py-1 text-xs text-muted-foreground bg-muted/50 rounded-full font-medium">
+                    +{note.tags.length - 4} more
                   </span>
                 )}
               </div>
             )}
           </div>
           
-          <div className="flex gap-1 ml-4">
+          <div className="flex gap-2 ml-6 opacity-60 group-hover:opacity-100 transition-all duration-200">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => openViewModal(note)}
-              className="h-8 w-8 p-0"
+              className="h-9 w-9 p-0 hover:bg-primary/10 hover:text-primary transition-colors"
+              title="View Note"
             >
               <Eye className="h-4 w-4" />
             </Button>
@@ -472,7 +490,8 @@ const Notes: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={() => openEditModal(note)}
-              className="h-8 w-8 p-0"
+              className="h-9 w-9 p-0 hover:bg-primary/10 hover:text-primary transition-colors"
+              title="Edit Note"
             >
               <Edit className="h-4 w-4" />
             </Button>
@@ -484,7 +503,8 @@ const Notes: React.FC = () => {
                   handleDeleteNote(note.id);
                 }
               }}
-              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+              className="h-9 w-9 p-0 text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors"
+              title="Delete Note"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -496,9 +516,15 @@ const Notes: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6 max-w-7xl">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex h-screen bg-background">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="p-4 bg-primary/10 rounded-2xl inline-block mb-6">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+            <h3 className="text-xl font-semibold text-foreground mb-2">Loading Notes</h3>
+            <p className="text-muted-foreground">Please wait while we fetch your notes...</p>
+          </div>
         </div>
       </div>
     );
@@ -507,45 +533,56 @@ const Notes: React.FC = () => {
   return (
     <div className="flex h-screen bg-background">
       {/* Folder Sidebar */}
-      <div className={`${sidebarCollapsed ? 'w-16' : 'w-80'} bg-card border-r border-border flex flex-col transition-all duration-200`}>
+      <div className={`${sidebarCollapsed ? 'w-16' : 'w-72'} bg-card/50 backdrop-blur-sm border-r border-border/50 flex flex-col transition-all duration-300 shadow-lg`}>
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border/50 bg-gradient-to-r from-primary/5 to-accent/5">
           <div className="flex items-center justify-between">
             {!sidebarCollapsed && (
-              <div className="flex items-center gap-2">
-                <div className="p-1 bg-primary/10 rounded">
-                  <Folder className="h-4 w-4 text-primary" />
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg shadow-sm">
+                  <Folder className="h-5 w-5 text-primary" />
                 </div>
-                <span className="font-medium text-sm">Folders</span>
+                <div>
+                  <span className="font-semibold text-sm text-foreground">Folders</span>
+                  <p className="text-xs text-muted-foreground">Organize your notes</p>
+                </div>
               </div>
             )}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="h-8 w-8 p-0"
+              className="h-9 w-9 p-0 hover:bg-primary/10 transition-colors"
             >
-              <ChevronRight className={`h-4 w-4 transition-transform ${sidebarCollapsed ? '' : 'rotate-180'}`} />
+              <ChevronRight className={`h-4 w-4 transition-transform duration-300 ${sidebarCollapsed ? '' : 'rotate-180'}`} />
             </Button>
           </div>
         </div>
 
         {/* Folder List */}
         {!sidebarCollapsed && (
-          <div className="flex-1 overflow-y-auto p-2">
-            <div className="space-y-1">
+          <div className="flex-1 overflow-y-auto p-3">
+            <div className="space-y-2">
               {/* All Notes */}
               <button
                 onClick={() => setSelectedFolder(null)}
-                className={`w-full flex items-center justify-between px-3 py-2 text-left text-sm rounded-lg transition-colors hover:bg-accent ${
-                  selectedFolder === null ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'
+                className={`w-full flex items-center justify-between px-4 py-3 text-left text-sm rounded-xl transition-all duration-200 hover:shadow-sm ${
+                  selectedFolder === null 
+                    ? 'bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20' 
+                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <Archive className="h-4 w-4" />
-                  <span>All Notes</span>
+                <div className="flex items-center gap-3">
+                  <div className={`p-1.5 rounded-lg ${selectedFolder === null ? 'bg-primary/20' : 'bg-muted/50'}`}>
+                    <Archive className="h-4 w-4" />
+                  </div>
+                  <span className="font-medium">All Notes</span>
                 </div>
-                <span className="text-xs bg-muted px-2 py-1 rounded-full">
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                  selectedFolder === null 
+                    ? 'bg-primary/20 text-primary' 
+                    : 'bg-muted text-muted-foreground'
+                }`}>
                   {folderStructure.totalNotes}
                 </span>
               </button>
@@ -555,15 +592,23 @@ const Notes: React.FC = () => {
                 <button
                   key={folder.name}
                   onClick={() => setSelectedFolder(folder.name)}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-left text-sm rounded-lg transition-colors hover:bg-accent ${
-                    selectedFolder === folder.name ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'
+                  className={`w-full flex items-center justify-between px-4 py-3 text-left text-sm rounded-xl transition-all duration-200 hover:shadow-sm ${
+                    selectedFolder === folder.name 
+                      ? 'bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20' 
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <FolderOpen className="h-4 w-4" />
-                    <span className="truncate">{folder.name}</span>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className={`p-1.5 rounded-lg flex-shrink-0 ${selectedFolder === folder.name ? 'bg-primary/20' : 'bg-muted/50'}`}>
+                      <FolderOpen className="h-4 w-4" />
+                    </div>
+                    <span className="font-medium truncate">{folder.name}</span>
                   </div>
-                  <span className="text-xs bg-muted px-2 py-1 rounded-full">
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${
+                    selectedFolder === folder.name 
+                      ? 'bg-primary/20 text-primary' 
+                      : 'bg-muted text-muted-foreground'
+                  }`}>
                     {folder.count}
                   </span>
                 </button>
@@ -573,15 +618,23 @@ const Notes: React.FC = () => {
               {folderStructure.notesWithoutFolder.length > 0 && (
                 <button
                   onClick={() => setSelectedFolder('')}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-left text-sm rounded-lg transition-colors hover:bg-accent ${
-                    selectedFolder === '' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'
+                  className={`w-full flex items-center justify-between px-4 py-3 text-left text-sm rounded-xl transition-all duration-200 hover:shadow-sm ${
+                    selectedFolder === '' 
+                      ? 'bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20' 
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    <span>No Folder</span>
+                  <div className="flex items-center gap-3">
+                    <div className={`p-1.5 rounded-lg ${selectedFolder === '' ? 'bg-primary/20' : 'bg-muted/50'}`}>
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <span className="font-medium">Uncategorized</span>
                   </div>
-                  <span className="text-xs bg-muted px-2 py-1 rounded-full">
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                    selectedFolder === '' 
+                      ? 'bg-primary/20 text-primary' 
+                      : 'bg-muted text-muted-foreground'
+                  }`}>
                     {folderStructure.notesWithoutFolder.length}
                   </span>
                 </button>
@@ -592,61 +645,77 @@ const Notes: React.FC = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-background via-background to-accent/5">
         {/* Header */}
-        <div className="p-6 border-b border-border bg-background">
-          <div className="responsive-header mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <FileText className="h-6 w-6 text-primary" />
+        <div className="p-8 border-b border-border/50 bg-background/80 backdrop-blur-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-br from-primary/10 to-accent/10 rounded-2xl shadow-sm">
+                <FileText className="h-7 w-7 text-primary" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-foreground">
+                <h1 className="text-3xl font-bold text-foreground tracking-tight">
                   {getCurrentFolderName()}
                 </h1>
-                <p className="text-muted-foreground">
+                <p className="text-muted-foreground text-lg mt-1">
                   {getCurrentFolderCount()} note{getCurrentFolderCount() !== 1 ? 's' : ''}
-                  {selectedFolder !== null && ` in ${getCurrentFolderName()}`}
+                  {selectedFolder !== null && selectedFolder !== '' && (
+                    <span className="ml-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                      {getCurrentFolderName()}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
             
-            <Button onClick={openCreateModal} size="lg" className="btn-responsive">
-              <Plus className="mr-2 h-4 w-4" />
-              <span className="hide-mobile">New Note</span>
-              <span className="show-mobile">New</span>
+            <Button 
+              onClick={openCreateModal} 
+              size="lg" 
+              className="px-6 py-3 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl transition-all duration-200"
+            >
+              <Plus className="mr-2 h-5 w-5" />
+              <span className="font-semibold">New Note</span>
             </Button>
           </div>
 
           {/* Search and Filters */}
-          <div className="filter-group mb-4">
+          <div className="flex flex-col lg:flex-row gap-4 mb-6">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search notes..."
+                placeholder="Search notes by title, content, or tags..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent w-full-mobile"
+                className="w-full pl-12 pr-4 py-3 bg-background/80 border border-input/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all duration-200 text-base placeholder:text-muted-foreground/70"
               />
             </div>
             
-            <div className="button-group">
+            <div className="flex items-center gap-3">
               <Button
                 variant="outline"
                 onClick={() => setShowFilters(!showFilters)}
-                className={`btn-responsive ${showFilters ? "bg-accent" : ""}`}
+                className={`px-4 py-3 rounded-xl border-input/50 transition-all duration-200 ${
+                  showFilters 
+                    ? "bg-primary/10 border-primary/30 text-primary shadow-sm" 
+                    : "hover:bg-accent/50"
+                }`}
               >
                 <Filter className="mr-2 h-4 w-4" />
-                <span className="hide-mobile">Filters</span>
+                <span className="font-medium">Filters</span>
               </Button>
               
-              <div className="flex border border-input rounded-lg overflow-hidden">
+              <div className="flex border border-input/50 rounded-xl overflow-hidden shadow-sm">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setViewMode('grid')}
-                  className={`rounded-none ${viewMode === 'grid' ? 'bg-accent' : ''}`}
+                  className={`rounded-none px-4 py-3 ${
+                    viewMode === 'grid' 
+                      ? 'bg-primary/10 text-primary' 
+                      : 'hover:bg-accent/50'
+                  }`}
+                  title="Grid View"
                 >
                   <Grid3X3 className="h-4 w-4" />
                 </Button>
@@ -654,7 +723,12 @@ const Notes: React.FC = () => {
                   variant="ghost"
                   size="sm"
                   onClick={() => setViewMode('list')}
-                  className={`rounded-none ${viewMode === 'list' ? 'bg-accent' : ''}`}
+                  className={`rounded-none px-4 py-3 ${
+                    viewMode === 'list' 
+                      ? 'bg-primary/10 text-primary' 
+                      : 'hover:bg-accent/50'
+                  }`}
+                  title="List View"
                 >
                   <List className="h-4 w-4" />
                 </Button>
@@ -664,15 +738,15 @@ const Notes: React.FC = () => {
 
           {/* Filters Panel */}
           {showFilters && (
-            <Card className="mb-4">
-              <CardContent className="p-4">
-                <div className="flex flex-col sm:flex-row gap-4">
+            <Card className="mb-6 border-border/50 shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex flex-col lg:flex-row gap-6">
                   <div className="flex-1">
-                    <label className="text-sm font-medium mb-2 block">Tag</label>
+                    <label className="text-sm font-semibold mb-3 block text-foreground">Filter by Tag</label>
                     <select
                       value={selectedTag}
                       onChange={(e) => setSelectedTag(e.target.value)}
-                      className="w-full px-3 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                      className="w-full px-4 py-3 bg-background/80 border border-input/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all duration-200"
                     >
                       <option value="">All Tags</option>
                       {availableTags.map(tag => (
@@ -682,17 +756,17 @@ const Notes: React.FC = () => {
                   </div>
                   
                   <div className="flex-1">
-                    <label className="text-sm font-medium mb-2 block">Sort By</label>
-                    <div className="flex gap-2">
+                    <label className="text-sm font-semibold mb-3 block text-foreground">Sort Order</label>
+                    <div className="flex gap-3">
                       <select
                         value={sortConfig.key || ''}
                         onChange={(e) => handleSort(e.target.value as SortableNoteKey)}
-                        className="flex-1 px-3 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                        className="flex-1 px-4 py-3 bg-background/80 border border-input/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all duration-200"
                       >
-                        <option value="">No Sort</option>
-                        <option value="title">Title</option>
-                        <option value="date">Date</option>
-                        <option value="poamTitles">POAMs</option>
+                        <option value="">Default Order</option>
+                        <option value="title">Title (A-Z)</option>
+                        <option value="date">Date Created</option>
+                        <option value="poamTitles">POAM Count</option>
                       </select>
                       <Button
                         variant="outline"
@@ -706,6 +780,8 @@ const Notes: React.FC = () => {
                           }
                         }}
                         disabled={!sortConfig.key}
+                        className="px-4 py-3 rounded-xl border-input/50 hover:bg-accent/50"
+                        title={`Sort ${sortConfig.direction === 'asc' ? 'Descending' : 'Ascending'}`}
                       >
                         {sortConfig.direction === 'asc' ? (
                           <SortAsc className="h-4 w-4" />
@@ -717,9 +793,13 @@ const Notes: React.FC = () => {
                   </div>
                   
                   <div className="flex items-end">
-                    <Button variant="outline" onClick={clearFilters}>
+                    <Button 
+                      variant="outline" 
+                      onClick={clearFilters}
+                      className="px-4 py-3 rounded-xl border-input/50 hover:bg-accent/50 transition-colors"
+                    >
                       <X className="mr-2 h-4 w-4" />
-                      Clear
+                      <span className="font-medium">Clear Filters</span>
                     </Button>
                   </div>
                 </div>
@@ -728,14 +808,20 @@ const Notes: React.FC = () => {
           )}
 
           {/* Results Summary */}
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              {processedNotes.length} of {getCurrentFolderCount()} notes
-              {searchQuery && ` matching "${searchQuery}"`}
-            </span>
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-3">
+              <span className="text-muted-foreground">
+                Showing <span className="font-semibold text-foreground">{processedNotes.length}</span> of <span className="font-semibold text-foreground">{getCurrentFolderCount()}</span> notes
+                {searchQuery && (
+                  <span className="ml-2">
+                    matching <span className="font-medium text-primary">"{searchQuery}"</span>
+                  </span>
+                )}
+              </span>
+            </div>
             {selectedTag && (
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-secondary text-secondary-foreground rounded text-xs">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-medium">
                   <Tag className="h-3 w-3" />
                   {selectedTag}
                 </span>
@@ -745,30 +831,40 @@ const Notes: React.FC = () => {
         </div>
 
         {/* Notes Display */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-8">
           {processedNotes.length === 0 ? (
-            <Card className="text-center py-16">
+            <Card className="text-center py-20 border-border/50 bg-gradient-to-br from-card/50 to-muted/30 backdrop-blur-sm">
               <CardContent>
-                <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">No notes found</h3>
-                <p className="text-muted-foreground mb-4">
-                  {currentFolderNotes.length === 0 
-                    ? `No notes in ${getCurrentFolderName()}.`
-                    : "Try adjusting your search or filters."
-                  }
-                </p>
-                <Button onClick={openCreateModal}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Note
-                  {selectedFolder && selectedFolder !== '' && ` in ${selectedFolder}`}
-                </Button>
+                <div className="max-w-md mx-auto">
+                  <div className="p-4 bg-primary/10 rounded-2xl inline-block mb-6">
+                    <FileText className="h-12 w-12 text-primary" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-foreground mb-3">No notes found</h3>
+                  <p className="text-muted-foreground text-lg mb-8 leading-relaxed">
+                    {currentFolderNotes.length === 0 
+                      ? `Start building your knowledge base by creating your first note${selectedFolder && selectedFolder !== '' ? ` in ${selectedFolder}` : ''}.`
+                      : "Your search didn't match any notes. Try adjusting your search terms or filters."
+                    }
+                  </p>
+                  <Button 
+                    onClick={openCreateModal}
+                    size="lg"
+                    className="px-8 py-3 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl transition-all duration-200"
+                  >
+                    <Plus className="mr-3 h-5 w-5" />
+                    <span className="font-semibold">
+                      Create Your First Note
+                      {selectedFolder && selectedFolder !== '' && ` in ${selectedFolder}`}
+                    </span>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ) : (
             <div className={
               viewMode === 'grid' 
                 ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                : "space-y-4"
+                : "space-y-6"
             }>
               {processedNotes.map(note => 
                 viewMode === 'grid' ? renderNoteCard(note) : renderListItem(note)

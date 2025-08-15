@@ -742,7 +742,7 @@ export default function SecurityTestPlan() {
             </div>
           </div>
           
-          <div className="test-plan-header-actions flex items-center gap-2 w-full lg:w-auto flex-mobile-stack">
+          <div className="test-plan-header-actions flex items-center gap-2 w-full lg:w-auto flex-wrap">
             <Button 
               variant="outline" 
               size="sm" 
@@ -786,7 +786,7 @@ export default function SecurityTestPlan() {
             </div>
           </div>
           
-          <div className="test-plan-actions flex items-center gap-2 w-full lg:w-auto flex-mobile-stack">
+          <div className="test-plan-actions flex items-center gap-2 w-full lg:w-auto flex-wrap">
             <Button 
               variant="outline" 
               size="sm" 

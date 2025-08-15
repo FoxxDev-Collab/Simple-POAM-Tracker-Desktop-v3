@@ -13,7 +13,6 @@ import NessusVulnerabilityChart from './NessusVulnerabilityChart';
 import { NistAssociationSummary } from '.';
 // Unified styles via global patterns and Tailwind
 import { BarChart3 } from 'lucide-react';
-import { Icon } from '../ui/icon';
 
 interface POAM {
   id: number;
@@ -273,236 +272,384 @@ const MetricsDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="metrics-dashboard loading-container">
-        <div className="loading-indicator">Loading metrics data...</div>
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 flex items-center justify-center">
+        <div className="text-center">
+          <div className="p-6 bg-primary/10 rounded-3xl inline-block mb-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          </div>
+          <h2 className="text-2xl font-bold text-foreground mb-3">Loading Security Metrics</h2>
+          <p className="text-muted-foreground text-lg">Analyzing data and generating insights...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="metrics-dashboard error-container">
-        <div className="error-message">
-          <h3>Error Loading Metrics</h3>
-          <p>{error}</p>
-          <button onClick={loadAllData} className="retry-button">Retry</button>
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <div className="p-6 bg-red-500/10 rounded-3xl inline-block mb-8">
+            <div className="w-12 h-12 bg-red-500 rounded-2xl"></div>
+          </div>
+          <h2 className="text-2xl font-bold text-foreground mb-3">Error Loading Metrics</h2>
+          <p className="text-muted-foreground text-lg mb-8">{error}</p>
+          <button 
+            onClick={loadAllData} 
+            className="px-8 py-3 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 font-semibold"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="metrics-dashboard">
-      <div className="responsive-header metrics-header">
-        <div className="flex items-center gap-3 title-row">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Icon icon={BarChart3} size="lg" tone="primary" />
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
+      {/* Enhanced Header */}
+      <div className="p-8 border-b border-border/50 bg-background/80 backdrop-blur-sm">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-gradient-to-br from-primary/10 to-accent/10 rounded-2xl shadow-sm">
+              <BarChart3 className="h-8 w-8 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-foreground tracking-tight">
+                Security Metrics Dashboard
+              </h1>
+              <p className="text-muted-foreground text-lg mt-2">
+                Comprehensive security insights and compliance analytics for{' '}
+                <span className="font-semibold text-primary">{currentSystem.name}</span>
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl font-bold">Security Metrics Dashboard</h1>
-            <p className="text-muted-foreground">Visual overview of POAMs, STIG compliance, and security testing progress for {currentSystem.name}</p>
-          </div>
+          
+          <button 
+            onClick={loadAllData}
+            className="px-6 py-3 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 font-semibold"
+          >
+            Refresh Data
+          </button>
         </div>
-        
-        <button onClick={loadAllData} className="btn btn-primary btn-responsive">
-          <span className="hide-mobile">Refresh Data</span>
-          <span className="show-mobile">Refresh</span>
-        </button>
-      </div>
 
-      {/* POAM Summary */}
-      <div className="metrics-summary">
-        <div className="summary-section">
-          <h3>Plan of Action & Milestones (POAM)</h3>
-          <div className="summary-grid">
-            <div className="summary-item">
-              <h4>Total POAMs</h4>
-              <div className="summary-value">{poams.length}</div>
-            </div>
-            <div className="summary-item">
-              <h4>Completed</h4>
-              <div className="summary-value">{poams.filter(p => p.status === 'Completed').length}</div>
-            </div>
-            <div className="summary-item">
-              <h4>In Progress</h4>
-              <div className="summary-value">{poams.filter(p => p.status === 'In Progress').length}</div>
-            </div>
-            <div className="summary-item">
-              <h4>Not Started</h4>
-              <div className="summary-value">{poams.filter(p => p.status === 'Not Started').length}</div>
-            </div>
-            <div className="summary-item">
-              <h4>High Risk</h4>
-              <div className="summary-value">{poams.filter(p => p.riskLevel === 'High' || p.riskLevel === 'Very High').length}</div>
-            </div>
-            <div className="summary-item">
-              <h4>High Priority</h4>
-              <div className="summary-value">{poams.filter(p => p.priority === 'High' || p.priority === 'Critical').length}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* STIG Compliance Summary */}
-      <div className="metrics-summary">
-        <div className="summary-section">
-          <h3>STIG Compliance</h3>
-          <div className="summary-grid">
-            <div className="summary-item">
-              <h4>Total Mappings</h4>
-              <div className="summary-value">{stigMappings.length}</div>
-            </div>
-            <div className="summary-item">
-              <h4>Total Controls</h4>
-              <div className="summary-value">{stigStats.totalControls}</div>
-            </div>
-            <div className="summary-item success">
-              <h4>Compliant</h4>
-              <div className="summary-value">{stigStats.compliantControls}</div>
-            </div>
-            <div className="summary-item danger">
-              <h4>Non-Compliant</h4>
-              <div className="summary-value">{stigStats.nonCompliantControls}</div>
-            </div>
-                         <div className="summary-item warning">
-               <h4>High Risk</h4>
-               <div className="summary-value">{stigStats.highRiskFindings}</div>
-             </div>
-            <div className="summary-item">
-              <h4>Compliance Rate</h4>
-              <div className="summary-value">
-                {stigStats.totalControls > 0 
-                  ? `${Math.round((stigStats.compliantControls / stigStats.totalControls) * 100)}%`
-                  : '0%'
-                }
+        {/* Quick Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+          <div className="bg-gradient-to-br from-card to-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total POAMs</p>
+                <p className="text-3xl font-bold text-foreground mt-1">{poams.length}</p>
+              </div>
+              <div className="p-3 bg-blue-500/10 rounded-xl">
+                <div className="w-6 h-6 bg-blue-500 rounded-full"></div>
               </div>
             </div>
+            <div className="mt-4 text-sm text-muted-foreground">
+              Active security items
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-card to-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Completion Rate</p>
+                <p className="text-3xl font-bold text-foreground mt-1">
+                  {poams.length > 0 ? Math.round((poams.filter(p => p.status === 'Completed').length / poams.length) * 100) : 0}%
+                </p>
+              </div>
+              <div className="p-3 bg-green-500/10 rounded-xl">
+                <div className="w-6 h-6 bg-green-500 rounded-full"></div>
+              </div>
+            </div>
+            <div className="mt-4 text-sm text-muted-foreground">
+              POAMs completed successfully
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-card to-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">STIG Compliance</p>
+                <p className="text-3xl font-bold text-foreground mt-1">
+                  {stigStats.totalControls > 0 ? Math.round((stigStats.compliantControls / stigStats.totalControls) * 100) : 0}%
+                </p>
+              </div>
+              <div className="p-3 bg-purple-500/10 rounded-xl">
+                <div className="w-6 h-6 bg-purple-500 rounded-full"></div>
+              </div>
+            </div>
+            <div className="mt-4 text-sm text-muted-foreground">
+              Security controls compliant
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-card to-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">High Risk Items</p>
+                <p className="text-3xl font-bold text-foreground mt-1">
+                  {poams.filter(p => p.riskLevel === 'High' || p.riskLevel === 'Very High' || p.riskLevel === 'Critical').length}
+                </p>
+              </div>
+              <div className="p-3 bg-red-500/10 rounded-xl">
+                <div className="w-6 h-6 bg-red-500 rounded-full"></div>
+              </div>
+            </div>
+            <div className="mt-4 text-sm text-muted-foreground">
+              Require immediate attention
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Nessus Vulnerability Scans Summary */}
-      <div className="metrics-summary">
-        <div className="summary-section">
-          <h3>Nessus Vulnerability Scans</h3>
-          <div className="summary-grid">
-            <div className="summary-item">
-              <h4>Total Scans</h4>
-              <div className="summary-value">{nessusStats.totalScans}</div>
+      {/* Detailed Analytics Sections */}
+      <div className="p-8 space-y-12">
+        {/* POAM Analytics */}
+        <div className="bg-gradient-to-br from-card/50 to-card/30 border border-border/50 rounded-3xl p-8 shadow-xl">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="p-3 bg-blue-500/10 rounded-2xl">
+              <div className="w-8 h-8 bg-blue-500 rounded-xl"></div>
             </div>
-            <div className="summary-item">
-              <h4>Total Findings</h4>
-              <div className="summary-value">{nessusStats.totalFindings}</div>
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">Plan of Action & Milestones</h2>
+              <p className="text-muted-foreground">Detailed breakdown of POAM status and progress</p>
             </div>
-            <div className="summary-item">
-              <h4>Hosts Scanned</h4>
-              <div className="summary-value">{nessusStats.totalHosts}</div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-blue-600 mb-2">{poams.length}</div>
+              <div className="text-sm font-medium text-muted-foreground">Total POAMs</div>
             </div>
-            <div className="summary-item danger">
-              <h4>Critical</h4>
-              <div className="summary-value">{nessusStats.criticalFindings}</div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-green-600 mb-2">{poams.filter(p => p.status === 'Completed').length}</div>
+              <div className="text-sm font-medium text-muted-foreground">Completed</div>
             </div>
-            <div className="summary-item warning">
-              <h4>High</h4>
-              <div className="summary-value">{nessusStats.highFindings}</div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-yellow-600 mb-2">{poams.filter(p => p.status === 'In Progress').length}</div>
+              <div className="text-sm font-medium text-muted-foreground">In Progress</div>
             </div>
-            <div className="summary-item">
-              <h4>Last Scan</h4>
-              <div className="summary-value text-sm">
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-gray-600 mb-2">{poams.filter(p => p.status === 'Not Started').length}</div>
+              <div className="text-sm font-medium text-muted-foreground">Not Started</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-red-600 mb-2">{poams.filter(p => p.riskLevel === 'High' || p.riskLevel === 'Very High' || p.riskLevel === 'Critical').length}</div>
+              <div className="text-sm font-medium text-muted-foreground">High Risk</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-orange-600 mb-2">{poams.filter(p => p.priority === 'High' || p.priority === 'Critical').length}</div>
+              <div className="text-sm font-medium text-muted-foreground">High Priority</div>
+            </div>
+          </div>
+        </div>
+
+        {/* STIG Compliance Analytics */}
+        <div className="bg-gradient-to-br from-card/50 to-card/30 border border-border/50 rounded-3xl p-8 shadow-xl">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="p-3 bg-purple-500/10 rounded-2xl">
+              <div className="w-8 h-8 bg-purple-500 rounded-xl"></div>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">STIG Compliance Overview</h2>
+              <p className="text-muted-foreground">Security Technical Implementation Guide compliance metrics</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-purple-600 mb-2">{stigMappings.length}</div>
+              <div className="text-sm font-medium text-muted-foreground">Total Mappings</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-blue-600 mb-2">{stigStats.totalControls}</div>
+              <div className="text-sm font-medium text-muted-foreground">Total Controls</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-green-600 mb-2">{stigStats.compliantControls}</div>
+              <div className="text-sm font-medium text-muted-foreground">Compliant</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-red-600 mb-2">{stigStats.nonCompliantControls}</div>
+              <div className="text-sm font-medium text-muted-foreground">Non-Compliant</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-orange-600 mb-2">{stigStats.highRiskFindings}</div>
+              <div className="text-sm font-medium text-muted-foreground">High Risk</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-primary mb-2">
+                {stigStats.totalControls > 0 ? Math.round((stigStats.compliantControls / stigStats.totalControls) * 100) : 0}%
+              </div>
+              <div className="text-sm font-medium text-muted-foreground">Compliance Rate</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Vulnerability Scan Analytics */}
+        <div className="bg-gradient-to-br from-card/50 to-card/30 border border-border/50 rounded-3xl p-8 shadow-xl">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="p-3 bg-red-500/10 rounded-2xl">
+              <div className="w-8 h-8 bg-red-500 rounded-xl"></div>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">Vulnerability Assessment</h2>
+              <p className="text-muted-foreground">Nessus scan results and vulnerability findings</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-6">
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-blue-600 mb-2">{nessusStats.totalScans}</div>
+              <div className="text-sm font-medium text-muted-foreground">Total Scans</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-gray-600 mb-2">{nessusStats.totalFindings}</div>
+              <div className="text-sm font-medium text-muted-foreground">Total Findings</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-purple-600 mb-2">{nessusStats.totalHosts}</div>
+              <div className="text-sm font-medium text-muted-foreground">Hosts Scanned</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-red-600 mb-2">{nessusStats.criticalFindings}</div>
+              <div className="text-sm font-medium text-muted-foreground">Critical</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-orange-600 mb-2">{nessusStats.highFindings}</div>
+              <div className="text-sm font-medium text-muted-foreground">High</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-2xl font-bold text-muted-foreground mb-2">
                 {nessusStats.mostRecentScan 
-                  ? `${nessusStats.daysSinceLastScan} days ago`
-                  : 'No scans'
+                  ? `${nessusStats.daysSinceLastScan}d`
+                  : '∞'
                 }
               </div>
+              <div className="text-sm font-medium text-muted-foreground">Days Since Scan</div>
             </div>
-            <div className={`summary-item ${nessusStats.monthlyCompliance ? 'success' : 'danger'}`}>
-              <h4>Monthly Compliance</h4>
-              <div className="summary-value text-sm">
-                {nessusStats.monthlyCompliance ? '✓ Compliant' : '✗ Overdue'}
+            <div className={`bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow`}>
+              <div className={`text-2xl font-bold mb-2 ${nessusStats.monthlyCompliance ? 'text-green-600' : 'text-red-600'}`}>
+                {nessusStats.monthlyCompliance ? '✓' : '✗'}
               </div>
+              <div className="text-sm font-medium text-muted-foreground">Monthly Status</div>
             </div>
-            <div className="summary-item">
-              <h4>Scans (30 days)</h4>
-              <div className="summary-value">{nessusStats.scansInLastMonth}</div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-blue-600 mb-2">{nessusStats.scansInLastMonth}</div>
+              <div className="text-sm font-medium text-muted-foreground">Recent Scans</div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Security Test Plans Summary */}
-      <div className="metrics-summary">
-        <div className="summary-section">
-          <h3>Security Test Plans</h3>
-          <div className="summary-grid">
-            <div className="summary-item">
-              <h4>Total Plans</h4>
-              <div className="summary-value">{testPlans.length}</div>
+        {/* Security Testing Analytics */}
+        <div className="bg-gradient-to-br from-card/50 to-card/30 border border-border/50 rounded-3xl p-8 shadow-xl">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="p-3 bg-green-500/10 rounded-2xl">
+              <div className="w-8 h-8 bg-green-500 rounded-xl"></div>
             </div>
-            <div className="summary-item">
-              <h4>Test Cases</h4>
-              <div className="summary-value">{testPlanStats.totalTestCases}</div>
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">Security Test Plans</h2>
+              <p className="text-muted-foreground">Test execution progress and results summary</p>
             </div>
-            <div className="summary-item success">
-              <h4>Passed Tests</h4>
-              <div className="summary-value">{testPlanStats.passedTests}</div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-blue-600 mb-2">{testPlans.length}</div>
+              <div className="text-sm font-medium text-muted-foreground">Total Plans</div>
             </div>
-            <div className="summary-item danger">
-              <h4>Failed Tests</h4>
-              <div className="summary-value">{testPlanStats.failedTests}</div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-gray-600 mb-2">{testPlanStats.totalTestCases}</div>
+              <div className="text-sm font-medium text-muted-foreground">Test Cases</div>
             </div>
-            <div className="summary-item">
-              <h4>Evidence Files</h4>
-              <div className="summary-value">{testPlanStats.totalEvidenceFiles}</div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-green-600 mb-2">{testPlanStats.passedTests}</div>
+              <div className="text-sm font-medium text-muted-foreground">Passed</div>
             </div>
-            <div className="summary-item">
-              <h4>Pass Rate</h4>
-              <div className="summary-value">
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-red-600 mb-2">{testPlanStats.failedTests}</div>
+              <div className="text-sm font-medium text-muted-foreground">Failed</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-purple-600 mb-2">{testPlanStats.totalEvidenceFiles}</div>
+              <div className="text-sm font-medium text-muted-foreground">Evidence Files</div>
+            </div>
+            <div className="bg-background/50 border border-border/30 rounded-2xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-3xl font-bold text-primary mb-2">
                 {testPlanStats.totalTestCases > 0 
                   ? `${Math.round((testPlanStats.passedTests / testPlanStats.totalTestCases) * 100)}%`
                   : '0%'
                 }
               </div>
+              <div className="text-sm font-medium text-muted-foreground">Pass Rate</div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="metrics-grid">
-        <div className="grid-item">
-          <NistAssociationSummary />
+      {/* Interactive Charts & Visualizations */}
+      <div className="p-8">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-foreground mb-3">Data Visualizations</h2>
+          <p className="text-muted-foreground text-lg">Interactive charts and graphs for deeper insights</p>
         </div>
-        <div className="grid-item grid-item-full">
-          <MilestoneProgressBars poams={poams} />
-        </div>
-        <div className="grid-item">
-          <StatusDistribution poams={poams} />
-        </div>
-        <div className="grid-item">
-          <MilestoneStatusDistribution poams={poams} />
-        </div>
-        <div className="grid-item">
-          <STIGComplianceChart 
-            compliantControls={stigStats.compliantControls}
-            nonCompliantControls={stigStats.nonCompliantControls}
-            notReviewedControls={stigStats.totalControls - stigStats.compliantControls - stigStats.nonCompliantControls}
-          />
-        </div>
-        <div className="grid-item">
-          <SecurityTestingChart testPlans={testPlans} />
-        </div>
-        <div className="grid-item">
-          <PriorityDistribution poams={poams} />
-        </div>
-        <div className="grid-item grid-item-full">
-          <NessusVulnerabilityChart scans={nessusScans} findings={nessusFindings} />
-        </div>
-        <div className="grid-item grid-item-full">
-          <CompletionTimeline poams={poams} />
+        
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+          {/* Chart Grid Items */}
+          <div className="bg-gradient-to-br from-card/80 to-card/40 border border-border/50 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
+            <NistAssociationSummary />
+          </div>
+          
+          <div className="lg:col-span-2 xl:col-span-3 bg-gradient-to-br from-card/80 to-card/40 border border-border/50 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
+            <MilestoneProgressBars poams={poams} />
+          </div>
+          
+          <div className="bg-gradient-to-br from-card/80 to-card/40 border border-border/50 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
+            <StatusDistribution poams={poams} />
+          </div>
+          
+          <div className="bg-gradient-to-br from-card/80 to-card/40 border border-border/50 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
+            <MilestoneStatusDistribution poams={poams} />
+          </div>
+          
+          <div className="bg-gradient-to-br from-card/80 to-card/40 border border-border/50 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
+            <STIGComplianceChart 
+              compliantControls={stigStats.compliantControls}
+              nonCompliantControls={stigStats.nonCompliantControls}
+              notReviewedControls={stigStats.totalControls - stigStats.compliantControls - stigStats.nonCompliantControls}
+            />
+          </div>
+          
+          <div className="bg-gradient-to-br from-card/80 to-card/40 border border-border/50 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
+            <SecurityTestingChart testPlans={testPlans} />
+          </div>
+          
+          <div className="bg-gradient-to-br from-card/80 to-card/40 border border-border/50 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
+            <PriorityDistribution poams={poams} />
+          </div>
+          
+          <div className="lg:col-span-2 xl:col-span-3 bg-gradient-to-br from-card/80 to-card/40 border border-border/50 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
+            <NessusVulnerabilityChart scans={nessusScans} findings={nessusFindings} />
+          </div>
+          
+          <div className="lg:col-span-2 xl:col-span-3 bg-gradient-to-br from-card/80 to-card/40 border border-border/50 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
+            <CompletionTimeline poams={poams} />
+          </div>
         </div>
       </div>
 
-      <div className="metrics-footer">
-        <p>Last updated: {new Date().toLocaleString()}</p>
+      {/* Footer */}
+      <div className="p-8 border-t border-border/50 bg-background/80">
+        <div className="flex items-center justify-between">
+          <div className="text-muted-foreground">
+            <p className="font-medium">Security Metrics Dashboard</p>
+            <p className="text-sm">Last updated: {new Date().toLocaleString()}</p>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Live Data</span>
+          </div>
+        </div>
       </div>
     </div>
   );
