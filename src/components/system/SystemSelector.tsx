@@ -18,11 +18,9 @@ import {
   X,
   Clock,
   User,
-  Tag,
   Shield,
-  Activity,
-  ArrowRight,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { BrandedLoader } from '../ui/BrandedLoader';
@@ -60,6 +58,10 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
   const [deletingSystemId, setDeletingSystemId] = useState<string | null>(null);
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(currentSystem?.id || null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isImportingGroup, setIsImportingGroup] = useState(false);
+  const [importProgress, setImportProgress] = useState<string | null>(null);
+  const [groupImportProgress, setGroupImportProgress] = useState<string | null>(null);
+
   
   // Group management state
   const [groups, setGroups] = useState<any[]>([]);
@@ -130,11 +132,37 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
 
   const handleUpdateSystem = async (systemData: any) => {
     try {
+      console.log('SystemSelector - handleUpdateSystem called with:', systemData);
+      
       const completeSystem = await invoke('get_system_by_id', { id: systemData.id }) as any;
+      console.log('SystemSelector - Retrieved complete system:', completeSystem);
       
       if (!completeSystem) {
         showToast('error', 'System not found');
         return;
+      }
+
+      // Check if the new name conflicts with existing systems (excluding the current one)
+      if (systemData.name !== completeSystem.name) {
+        console.log('SystemSelector - Name changed from', completeSystem.name, 'to', systemData.name);
+        console.log('SystemSelector - All systems in context:', systems.map(s => ({ id: s.id, name: s.name })));
+        console.log('SystemSelector - Current system ID being edited:', systemData.id);
+        
+        const existingSystem = systems.find(s => s.id !== systemData.id && s.name === systemData.name);
+        console.log('SystemSelector - Found conflicting system:', existingSystem);
+        
+        if (existingSystem) {
+          const suggestion = generateUniqueSystemName(systemData.name, systemData.id);
+          showToast('error', 
+            `A system with the name "${systemData.name}" already exists (ID: ${existingSystem.id}). ` +
+            `Try using "${suggestion}" instead.`
+          );
+          console.log('SystemSelector - Conflict detected, aborting update');
+          console.log('SystemSelector - Conflicting system details:', existingSystem);
+          console.log('SystemSelector - Suggested alternative name:', suggestion);
+          return;
+        }
+        console.log('SystemSelector - No name conflicts found, proceeding with update');
       }
 
       const updatedSystemData = {
@@ -144,10 +172,24 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
         owner: systemData.owner || null,
         classification: systemData.classification || null,
         tags: systemData.tags && systemData.tags.length > 0 ? systemData.tags : null,
+        updated_date: new Date().toISOString(),
+        // Ensure all required fields are present
+        group_id: completeSystem.group_id,
+        is_active: completeSystem.is_active ?? true,
+        poam_count: completeSystem.poam_count,
+        last_accessed: completeSystem.last_accessed,
+        created_date: completeSystem.created_date,
       };
 
+      console.log('SystemSelector - About to call updateSystem with:', updatedSystemData);
       await updateSystem(updatedSystemData);
+      console.log('SystemSelector - updateSystem completed, reloading systems...');
+      
       await loadSystems(); 
+      console.log('SystemSelector - loadSystems completed');
+      
+      await loadGroupsAndSystems();
+      console.log('SystemSelector - loadGroupsAndSystems completed');
       
       if (selectedSystemId === systemData.id) {
         const updatedSystem = systems.find(s => s.id === systemData.id);
@@ -161,7 +203,14 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
       setEditingSystem(null);
     } catch (error) {
       console.error('Failed to update system:', error);
-      showToast('error', 'Failed to update system');
+      
+      // Provide more specific error messages
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('UNIQUE constraint failed: systems.name')) {
+        showToast('error', 'A system with this name already exists. Please choose a different name.');
+      } else {
+        showToast('error', `Failed to update system: ${errorMessage}`);
+      }
     }
   };
 
@@ -185,6 +234,9 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
   const handleImportSystem = async () => {
     try {
       setIsImporting(true);
+      
+      setImportProgress('Selecting file...');
+      
       const selected = await open({
         filters: [{ name: 'System Backup', extensions: ['zip', 'json'] }]
       });
@@ -192,31 +244,118 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
       if (!selected) {
         showToast('info', 'System import cancelled');
         setIsImporting(false);
+        setImportProgress(null);
         return;
       }
       
+      setImportProgress('Processing backup file...');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay for UX
+      
+      setImportProgress('Importing system data...');
       const result = await invoke('import_system_backup', { filePath: selected }) as any;
       
+      setImportProgress('Updating system list...');
+      
+      // First refresh the context systems
       await loadSystems();
       
-      const importSummary = result.itemsImported 
-        ? Object.entries(result.itemsImported).map(([key, value]) => `${value} ${key}`).join(', ')
+      // Then force refresh the local groups and systems state
+      await loadGroupsAndSystems();
+      
+      setImportProgress('Connecting to imported system...');
+      
+      const importSummary = result.counts 
+        ? Object.entries(result.counts).map(([key, value]) => `${value} ${key}`).join(', ')
         : 'system data';
       
-      showToast('success', `System "${result.systemName || 'Unknown'}" imported with ${importSummary}`);
-      
+      // Find and auto-select the imported system
       if (result.systemId) {
-        const importedSystem = systems.find(s => s.id === result.systemId);
-        if (importedSystem) {
-          await handleSystemSelect(importedSystem);
+        try {
+          // Get the imported system directly from database to ensure we have the latest data
+          const importedSystem = await invoke<any>('get_system_by_id', { id: result.systemId });
+          
+          if (importedSystem) {
+            setSelectedSystemId(importedSystem.id);
+            await setCurrentSystem(importedSystem);
+            setImportProgress('Import completed successfully!');
+            showToast('success', `System "${result.systemName || 'Unknown'}" imported and connected! ${importSummary}`);
+          } else {
+            setImportProgress('Import completed successfully!');
+            showToast('success', `System "${result.systemName || 'Unknown'}" imported successfully with ${importSummary}`);
+          }
+        } catch (error) {
+          console.error('Failed to get imported system:', error);
+          setImportProgress('Import completed successfully!');
+          showToast('success', `System "${result.systemName || 'Unknown'}" imported successfully with ${importSummary}`);
         }
+      } else {
+        setImportProgress('Import completed successfully!');
+        showToast('success', `System imported successfully with ${importSummary}`);
       }
+      
+      await new Promise(resolve => setTimeout(resolve, 500)); // Show success state
       
     } catch (error) {
       console.error('System import error:', error);
       showToast('error', `System import failed: ${error}`);
     } finally {
-      setIsImporting(false);
+      // Clean up loading state after successful import or error
+      setTimeout(async () => {
+        setIsImporting(false);
+        setImportProgress(null);
+        
+        // Final refresh to make sure the UI shows the imported system
+        try {
+          await loadSystems();
+          await loadGroupsAndSystems();
+        } catch (error) {
+          console.error('Failed to refresh after import:', error);
+        }
+      }, 1500); // Brief delay to show final state
+    }
+  };
+
+  const handleImportGroup = async () => {
+    try {
+      setIsImportingGroup(true);
+      setGroupImportProgress('Selecting file...');
+      
+      const selected = await open({
+        filters: [{ name: 'Group Backup', extensions: ['zip'] }]
+      });
+      
+      if (!selected) {
+        showToast('info', 'Group import cancelled');
+        setIsImportingGroup(false);
+        setGroupImportProgress(null);
+        return;
+      }
+      
+      setGroupImportProgress('Extracting group backup...');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay for UX
+      
+      const result = await invoke('import_complete_group_backup', { 
+        importPath: selected 
+      }) as string;
+      
+      setGroupImportProgress('Updating groups and systems...');
+      await loadGroupsAndSystems();
+      await loadSystems();
+      
+      setGroupImportProgress('Group import completed successfully!');
+      await new Promise(resolve => setTimeout(resolve, 800)); // Show success state
+      
+      showToast('success', `Group backup imported successfully. ${result}`);
+      
+    } catch (error) {
+      console.error('Group import error:', error);
+      showToast('error', `Group import failed: ${error}`);
+    } finally {
+      // Clean up loading state after successful import or error
+      setTimeout(() => {
+        setIsImportingGroup(false);
+        setGroupImportProgress(null);
+      }, 1000); // Brief delay to show final state
     }
   };
 
@@ -294,6 +433,31 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
     setExpandedGroups(newExpanded);
   };
 
+
+
+  // Helper function to generate unique system name suggestions
+  const generateUniqueSystemName = (baseName: string, excludeId?: string): string => {
+    // Remove any existing (Imported X) suffix
+    const cleanName = baseName.replace(/\s*\(Imported\s+\d+\)\s*$/, '').trim();
+    
+    // Check if the clean name is available
+    if (!systems.find(s => s.id !== excludeId && s.name === cleanName)) {
+      return cleanName;
+    }
+    
+    // Generate suggestions with incrementing numbers
+    for (let i = 1; i <= 10; i++) {
+      const suggestion = `${cleanName} (${i})`;
+      if (!systems.find(s => s.id !== excludeId && s.name === suggestion)) {
+        return suggestion;
+      }
+    }
+    
+    // Fallback with timestamp
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '');
+    return `${cleanName} (${timestamp})`;
+  };
+
   const formatLastAccessed = (dateString?: string) => {
     if (!dateString) return 'Never';
     const date = new Date(dateString);
@@ -304,15 +468,6 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
     return date.toLocaleDateString();
-  };
-
-  const getSystemStats = (system: any) => {
-    const stats = [];
-    if (system.poam_count > 0) stats.push(`${system.poam_count} POAMs`);
-    if (system.notes_count > 0) stats.push(`${system.notes_count} Notes`);
-    if (system.stig_mappings_count > 0) stats.push(`${system.stig_mappings_count} STIG Mappings`);
-    if (system.test_plans_count > 0) stats.push(`${system.test_plans_count} Test Plans`);
-    return stats.length > 0 ? stats.join(' • ') : 'No data yet';
   };
 
   const getClassificationClasses = (classification: string) => {
@@ -364,13 +519,26 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
               <Button onClick={handleImportSystem} variant="outline" size="lg" className="shadow-lg hover:shadow-xl transition-all duration-200" disabled={isImporting}>
                 {isImporting ? (
                   <div className="flex items-center">
-                    <div className="w-4 h-4 border-2 border-transparent border-t-primary rounded-full animate-spin mr-2"></div>
-                    Importing...
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    <span className="animate-pulse">{importProgress || 'Importing System...'}</span>
                   </div>
                 ) : (
                   <>
                     <Icon icon={Upload} size="md" className="mr-2" />
                     Import System
+                  </>
+                )}
+              </Button>
+              <Button onClick={handleImportGroup} variant="outline" size="lg" className="shadow-lg hover:shadow-xl transition-all duration-200" disabled={isImportingGroup}>
+                {isImportingGroup ? (
+                  <div className="flex items-center">
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    <span className="animate-pulse">{groupImportProgress || 'Importing Group...'}</span>
+                  </div>
+                ) : (
+                  <>
+                    <Icon icon={Upload} size="md" className="mr-2" />
+                    Import Group
                   </>
                 )}
               </Button>
@@ -387,7 +555,10 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
           {groups.map((group) => (
             <div key={group.id} className="space-y-6">
               {/* Group Header */}
-              <div className="flex items-center justify-between">
+              <div 
+                className="flex items-center justify-between pl-4 py-3 rounded-lg border-l-4 bg-muted/20"
+                style={{ borderLeftColor: group.color }}
+              >
                 <div className="flex items-center gap-4">
                   <Button
                     variant="ghost"
@@ -402,17 +573,16 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
                     )}
                   </Button>
                   <div className="flex items-center gap-3">
-                    <div 
-                      className="w-3 h-3 rounded-full border border-gray-300 flex-shrink-0 shadow-sm"
-                      style={{ backgroundColor: group.color }}
-                    />
-                    <div>
+                    <div className="flex items-baseline gap-3">
                       <h2 className="text-2xl font-semibold text-foreground">{group.name}</h2>
                       {group.description && (
-                        <p className="text-muted-foreground mt-1">{group.description}</p>
+                        <p className="text-muted-foreground text-sm">{group.description}</p>
                       )}
                     </div>
-                    <div className="px-3 py-1 bg-muted rounded-full text-sm font-medium text-muted-foreground">
+                    <div 
+                      className="px-3 py-1 rounded-full text-sm font-medium text-white shadow-sm"
+                      style={{ backgroundColor: group.color }}
+                    >
                       {group.systems?.length || 0} systems
                     </div>
                   </div>
@@ -463,7 +633,6 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
                     onDeleteSystem={handleDeleteSystem}
                     onRemoveFromGroup={handleRemoveSystemFromGroup}
                     deletingSystemId={deletingSystemId}
-                    getSystemStats={getSystemStats}
                     getClassificationClasses={getClassificationClasses}
                     formatLastAccessed={formatLastAccessed}
                     showGroupActions={true}
@@ -513,7 +682,6 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
                     onDeleteSystem={handleDeleteSystem}
                     onAddToGroup={handleAddSystemToGroup}
                     deletingSystemId={deletingSystemId}
-                    getSystemStats={getSystemStats}
                     getClassificationClasses={getClassificationClasses}
                     formatLastAccessed={formatLastAccessed}
                     groups={groups}
@@ -541,9 +709,31 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
                       <Icon icon={Plus} size="md" className="mr-2" />
                       Create System
                     </Button>
-                    <Button onClick={handleImportSystem} variant="outline" size="lg">
-                      <Icon icon={Upload} size="md" className="mr-2" />
-                      Import System
+                    <Button onClick={handleImportSystem} variant="outline" size="lg" disabled={isImporting}>
+                      {isImporting ? (
+                        <div className="flex items-center">
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          <span className="animate-pulse">{importProgress || 'Importing...'}</span>
+                        </div>
+                      ) : (
+                        <>
+                          <Icon icon={Upload} size="md" className="mr-2" />
+                          Import System
+                        </>
+                      )}
+                    </Button>
+                    <Button onClick={handleImportGroup} variant="outline" size="lg" disabled={isImportingGroup}>
+                      {isImportingGroup ? (
+                        <div className="flex items-center">
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          <span className="animate-pulse">{groupImportProgress || 'Importing...'}</span>
+                        </div>
+                      ) : (
+                        <>
+                          <Icon icon={Upload} size="md" className="mr-2" />
+                          Import Group
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -553,6 +743,43 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
         </div>
       </div>
       
+      {/* Import Loading Overlay */}
+      {(isImporting || isImportingGroup) && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-card rounded-lg border shadow-xl p-8 max-w-md w-full mx-4">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="relative">
+                {((isImporting && importProgress?.includes('completed')) || 
+                  (isImportingGroup && groupImportProgress?.includes('completed'))) ? (
+                  <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
+                    <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400 animate-pulse" />
+                  </div>
+                ) : (
+                  <>
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    <div className="absolute inset-0 rounded-full border-2 border-primary/20 animate-pulse"></div>
+                  </>
+                )}
+              </div>
+              <div className="text-center space-y-2">
+                <h3 className="text-lg font-semibold">
+                  {isImporting ? 'Importing System' : 'Importing Group'}
+                </h3>
+                <p className="text-sm text-muted-foreground animate-pulse">
+                  {isImporting ? importProgress : groupImportProgress}
+                </p>
+                <div className="text-xs text-muted-foreground">
+                  {((isImporting && importProgress?.includes('completed')) || 
+                    (isImportingGroup && groupImportProgress?.includes('completed'))) 
+                    ? 'Import completed! The page will update automatically.' 
+                    : 'Please wait while we process your import...'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="border-t border-border bg-card/50">
         <div className="container-responsive py-8 text-center">
@@ -594,7 +821,7 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
   );
 }
 
-// SystemsGrid component for modern card layout
+// SystemsGrid component for clean table layout
 interface SystemsGridProps {
   systems: any[];
   selectedSystemId: string | null;
@@ -604,7 +831,6 @@ interface SystemsGridProps {
   onRemoveFromGroup?: (systemId: string) => void;
   onAddToGroup?: (groupId: string, systemId: string) => void;
   deletingSystemId: string | null;
-  getSystemStats: (system: any) => string;
   getClassificationClasses: (classification: string) => string;
   formatLastAccessed: (dateString?: string) => string;
   groups?: any[];
@@ -620,7 +846,6 @@ function SystemsGrid({
   onRemoveFromGroup,
   onAddToGroup,
   deletingSystemId,
-  getSystemStats,
   getClassificationClasses,
   formatLastAccessed,
   groups,
@@ -628,43 +853,56 @@ function SystemsGrid({
 }: SystemsGridProps) {
   if (systems.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="p-8 bg-card border border-border rounded-2xl shadow-sm">
-          <div className="p-4 bg-muted rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-            <Icon icon={Building} size="xl" className="text-muted-foreground" />
-          </div>
-          <p className="text-muted-foreground">No systems found in this group.</p>
+      <div className="text-center py-8">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <Icon icon={Building} size="lg" />
+          <p>No systems found in this group.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {systems.map((system) => (
-        <SystemCard
-          key={system.id}
-          system={system}
-          selectedSystemId={selectedSystemId}
-          onSystemSelect={onSystemSelect}
-          onEditSystem={onEditSystem}
-          onDeleteSystem={onDeleteSystem}
-          onRemoveFromGroup={onRemoveFromGroup}
-          onAddToGroup={onAddToGroup}
-          deletingSystemId={deletingSystemId}
-          getSystemStats={getSystemStats}
-          getClassificationClasses={getClassificationClasses}
-          formatLastAccessed={formatLastAccessed}
-          groups={groups}
-          showGroupActions={showGroupActions}
-        />
-      ))}
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-muted/50 border-b border-border">
+            <tr>
+              <th className="text-left p-4 font-medium text-sm text-muted-foreground">System</th>
+              <th className="text-left p-4 font-medium text-sm text-muted-foreground">Classification</th>
+              <th className="text-left p-4 font-medium text-sm text-muted-foreground">Owner</th>
+              <th className="text-left p-4 font-medium text-sm text-muted-foreground">Last Access</th>
+              <th className="text-left p-4 font-medium text-sm text-muted-foreground">Status</th>
+              <th className="text-right p-4 font-medium text-sm text-muted-foreground">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {systems.map((system) => (
+              <SystemTableRow
+                key={system.id}
+                system={system}
+                selectedSystemId={selectedSystemId}
+                onSystemSelect={onSystemSelect}
+                onEditSystem={onEditSystem}
+                onDeleteSystem={onDeleteSystem}
+                onRemoveFromGroup={onRemoveFromGroup}
+                onAddToGroup={onAddToGroup}
+                deletingSystemId={deletingSystemId}
+                getClassificationClasses={getClassificationClasses}
+                formatLastAccessed={formatLastAccessed}
+                groups={groups}
+                showGroupActions={showGroupActions}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
-// Individual System Card Component
-interface SystemCardProps {
+// Individual System Table Row Component
+interface SystemTableRowProps {
   system: any;
   selectedSystemId: string | null;
   onSystemSelect: (system: any) => void;
@@ -673,14 +911,13 @@ interface SystemCardProps {
   onRemoveFromGroup?: (systemId: string) => void;
   onAddToGroup?: (groupId: string, systemId: string) => void;
   deletingSystemId: string | null;
-  getSystemStats: (system: any) => string;
   getClassificationClasses: (classification: string) => string;
   formatLastAccessed: (dateString?: string) => string;
   groups?: any[];
   showGroupActions: boolean;
 }
 
-function SystemCard({
+function SystemTableRow({
   system,
   selectedSystemId,
   onSystemSelect,
@@ -689,36 +926,99 @@ function SystemCard({
   onRemoveFromGroup,
   onAddToGroup,
   deletingSystemId,
-  getSystemStats,
   getClassificationClasses,
   formatLastAccessed,
   groups,
   showGroupActions
-}: SystemCardProps) {
+}: SystemTableRowProps) {
   const isSelected = selectedSystemId === system.id;
   const isDeleting = deletingSystemId === system.id;
 
   return (
-    <div className={`
-      group relative bg-card border border-border rounded-2xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden
-      ${isSelected ? 'ring-2 ring-primary/20 border-primary/30 bg-primary/5' : 'hover:border-border/60'}
+    <tr className={`
+      border-b border-border hover:bg-muted/30 transition-colors
+      ${isSelected ? 'bg-primary/5 border-primary/20' : ''}
       ${isDeleting ? 'opacity-50 pointer-events-none' : ''}
     `}>
-      {/* Header */}
-      <div className="p-6 border-b border-border/50">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="p-2.5 bg-primary/10 rounded-xl flex-shrink-0">
-              <Icon icon={Building} size="md" className="text-primary" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-foreground truncate">{system.name || 'Unnamed System'}</h3>
-              <p className="text-xs text-muted-foreground font-mono">ID: {system.id}</p>
-            </div>
+      {/* System Name & Description */}
+      <td className="p-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg flex-shrink-0">
+            <Icon icon={Building} size="sm" className="text-primary" />
           </div>
+          <div className="min-w-0">
+            <div className="font-medium text-foreground truncate">{system.name || 'Unnamed System'}</div>
+            {system.description && (
+              <div className="text-sm text-muted-foreground truncate max-w-xs">{system.description}</div>
+            )}
+            <div className="text-xs text-muted-foreground font-mono">ID: {system.id}</div>
+          </div>
+        </div>
+      </td>
+
+      {/* Classification */}
+      <td className="p-4">
+        {system.classification ? (
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${getClassificationClasses(system.classification)}`}>
+            <Icon icon={Shield} size="xs" />
+            {system.classification}
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
+        )}
+      </td>
+
+      {/* Owner */}
+      <td className="p-4">
+        <div className="flex items-center gap-2">
+          {system.owner ? (
+            <>
+              <Icon icon={User} size="sm" className="text-muted-foreground" />
+              <span className="text-sm font-medium">{system.owner}</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground text-sm">-</span>
+          )}
+        </div>
+      </td>
+
+      {/* Last Access */}
+      <td className="p-4">
+        <div className="flex items-center gap-2">
+          <Icon icon={Clock} size="sm" className="text-muted-foreground" />
+          <span className="text-sm">{formatLastAccessed(system.last_accessed)}</span>
+        </div>
+      </td>
+
+      {/* Status */}
+      <td className="p-4">
+        <div className="flex items-center gap-2">
+          {isSelected ? (
+            <>
+              <Icon icon={CheckCircle2} size="sm" className="text-success" />
+              <span className="text-sm font-medium text-success">Connected</span>
+            </>
+          ) : (
+            <span className="text-sm text-muted-foreground">Ready</span>
+          )}
+        </div>
+      </td>
+
+      {/* Actions */}
+      <td className="p-4">
+        <div className="flex items-center justify-end gap-2">
+          <Button 
+            size="sm" 
+            onClick={() => onSystemSelect(system)} 
+            variant={isSelected ? 'default' : 'outline'}
+            disabled={isDeleting}
+          >
+            {isSelected ? 'Connected' : 'Connect'}
+          </Button>
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button variant="ghost" size="icon" className="h-8 w-8">
                 <Icon icon={MoreVertical} size="sm" />
               </Button>
             </DropdownMenuTrigger>
@@ -759,102 +1059,7 @@ function SystemCard({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-
-        {/* Description */}
-        {system.description && (
-          <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-            {system.description}
-          </p>
-        )}
-
-        {/* Classification Badge */}
-        {system.classification && (
-          <div className="mb-4">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full ${getClassificationClasses(system.classification)}`}>
-              <Icon icon={Shield} size="xs" />
-              {system.classification}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="p-6 space-y-4">
-        {/* Owner */}
-        {system.owner && (
-          <div className="flex items-center gap-2 text-sm">
-            <Icon icon={User} size="sm" className="text-muted-foreground" />
-            <span className="text-muted-foreground">Owner:</span>
-            <span className="font-medium text-foreground">{system.owner}</span>
-          </div>
-        )}
-
-        {/* Tags */}
-        {system.tags && system.tags.length > 0 && (
-          <div className="flex items-start gap-2 text-sm">
-            <Icon icon={Tag} size="sm" className="text-muted-foreground mt-0.5" />
-            <div className="flex flex-wrap gap-1">
-              {system.tags.slice(0, 3).map((tag: string) => (
-                <span key={tag} className="px-2 py-1 text-xs font-medium bg-secondary text-secondary-foreground rounded-md">
-                  {tag}
-                </span>
-              ))}
-              {system.tags.length > 3 && (
-                <span className="px-2 py-1 text-xs text-muted-foreground">
-                  +{system.tags.length - 3} more
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Statistics */}
-        <div className="flex items-center gap-2 text-sm">
-          <Icon icon={Activity} size="sm" className="text-muted-foreground" />
-          <span className="text-muted-foreground">Stats:</span>
-          <span className="font-medium text-foreground">{getSystemStats(system)}</span>
-        </div>
-
-        {/* Last Access */}
-        <div className="flex items-center gap-2 text-sm">
-          <Icon icon={Clock} size="sm" className="text-muted-foreground" />
-          <span className="text-muted-foreground">Last access:</span>
-          <span className="font-medium text-foreground">{formatLastAccessed(system.last_accessed)}</span>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="p-6 border-t border-border/50 bg-muted/20">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {isSelected && (
-              <Icon icon={CheckCircle2} size="sm" className="text-success" />
-            )}
-            <span className="text-xs text-muted-foreground">
-              {isSelected ? 'Currently connected' : 'Ready to connect'}
-            </span>
-          </div>
-          <Button 
-            size="sm" 
-            onClick={() => onSystemSelect(system)} 
-            variant={isSelected ? 'default' : 'outline'}
-            className="shadow-sm"
-            disabled={isDeleting}
-          >
-            {isSelected ? (
-              <>
-                <Icon icon={CheckCircle2} size="sm" className="mr-1.5" />
-                Connected
-              </>
-            ) : (
-              <>
-                Connect
-                <Icon icon={ArrowRight} size="sm" className="ml-1.5" />
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }

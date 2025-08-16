@@ -187,7 +187,7 @@ export default function CalendarModal({
         <div className="grid grid-cols-7 gap-1 mb-4">
           {calendarDays.map((day, index) => {
             if (day === null) {
-              return <div key={index} className="h-8" />;
+              return <div key={`empty-${index}`} className="h-8" />;
             }
 
             const disabled = isDateDisabled(currentYear, currentMonthIndex, day);
@@ -198,7 +198,7 @@ export default function CalendarModal({
 
             return (
               <button
-                key={day}
+                key={`${currentYear}-${currentMonthIndex}-${day}`}
                 onClick={() => handleDateClick(day)}
                 onMouseEnter={() => setHoveredDate(dateStr)}
                 onMouseLeave={() => setHoveredDate(null)}

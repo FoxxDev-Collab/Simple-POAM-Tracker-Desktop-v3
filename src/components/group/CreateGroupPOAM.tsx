@@ -10,7 +10,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Target, Users, Shield, CheckCircle, Plus } from 'lucide-react';
 
 interface GroupPOAM {
-  id?: number;
+  id: number;
   title: string;
   description: string;
   start_date: string;
@@ -163,6 +163,7 @@ export default function CreateGroupPOAM({
 
     try {
       const groupPOAM: GroupPOAM = {
+        id: Date.now(), // Generate unique ID using timestamp
         title,
         description,
         start_date: startDate,

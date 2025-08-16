@@ -14,6 +14,8 @@ import {
   Bell,
   RefreshCw,
   Shuffle,
+  StickyNote,
+  HardDrive,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTheme } from '../../context/ThemeContext';
@@ -36,12 +38,14 @@ interface NavItemDef {
 }
 
 const groupNavigation: NavItemDef[] = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'group-poams', label: 'Group POAMs', icon: Target },
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },  
   { id: 'group-nist-controls', label: 'NIST Controls', icon: Shield },
-  { id: 'group-milestones', label: 'Milestones', icon: Milestone },
-  { id: 'group-stps', label: 'Test Plans', icon: ClipboardCheck },
-  { id: 'group-metrics', label: 'Metrics', icon: BarChart3 },
+  { id: 'group-poams', label: 'Group POAMs', icon: Target },
+  { id: 'group-milestones', label: 'GroupMilestones', icon: Milestone },
+  { id: 'group-stps', label: 'Group Test Plans', icon: ClipboardCheck },
+  { id: 'group-notes', label: 'Group Notes', icon: StickyNote },
+  { id: 'group-metrics', label: 'Group Metrics', icon: BarChart3 },
+  { id: 'group-export-import', label: 'Export/Import', icon: HardDrive },
 ];
 
 export default function GroupSidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse, onExit }: GroupSidebarProps) {

@@ -3,6 +3,11 @@ import GroupSidebar from './GroupSidebar';
 import EnhancedGroupOverview from './EnhancedGroupOverview';
 import GroupPOAMTracker from './GroupPOAMTracker';
 import GroupNistControls from './GroupNistControls';
+import GroupMilestones from './GroupMilestones';
+import GroupSTPs from './GroupSTPs';
+import GroupNotes from './GroupNotes';
+import GroupMetrics from './GroupMetrics';
+import GroupExportImport from './GroupExportImport';
 import * as api from '../../utils/tauriApi';
 import { BrandedLoader } from '../ui/BrandedLoader';
 
@@ -18,7 +23,9 @@ type GroupTab =
   | 'group-nist-controls'
   | 'group-milestones'
   | 'group-stps'
-  | 'group-metrics';
+  | 'group-notes'
+  | 'group-metrics'
+  | 'group-export-import';
 
 export default function GroupPackage({ groupId, onExit, onSwitchToSystem }: GroupPackageProps) {
   const [activeTab, setActiveTab] = useState<GroupTab>('overview');
@@ -73,11 +80,44 @@ export default function GroupPackage({ groupId, onExit, onSwitchToSystem }: Grou
           />
         );
       case 'group-milestones':
-        return <div className="text-muted-foreground">Group Milestones (coming soon)</div>;
+        return (
+          <GroupMilestones 
+            groupId={groupId} 
+            systems={systems}
+          />
+        );
       case 'group-stps':
-        return <div className="text-muted-foreground">Group Security Test Plans (coming soon)</div>;
+        return (
+          <GroupSTPs 
+            groupId={groupId} 
+            systems={systems}
+            onSwitchToSystem={onSwitchToSystem}
+          />
+        );
+      case 'group-notes':
+        return (
+          <GroupNotes 
+            groupId={groupId} 
+            systems={systems}
+            onSwitchToSystem={onSwitchToSystem}
+          />
+        );
       case 'group-metrics':
-        return <div className="text-muted-foreground">Group Metrics (coming soon)</div>;
+        return (
+          <GroupMetrics 
+            groupId={groupId} 
+            systems={systems}
+            onSwitchToSystem={onSwitchToSystem}
+          />
+        );
+      case 'group-export-import':
+        return (
+          <GroupExportImport
+            groupId={groupId}
+            groupName={group?.name || 'Unknown Group'}
+            systems={systems}
+          />
+        );
       default:
         return null;
     }
