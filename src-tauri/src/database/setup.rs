@@ -435,7 +435,7 @@ impl<'a> DatabaseSetup<'a> {
         // List of enhanced fields to add
         let enhanced_fields = [
             "resources",
-            "source_identifying_vulnerability", 
+            "source_identifying_vulnerability",
             "raw_severity",
             "severity",
             "relevance_of_threat",
@@ -443,7 +443,9 @@ impl<'a> DatabaseSetup<'a> {
             "impact",
             "residual_risk",
             "mitigations",
-            "devices_affected"
+            "devices_affected",
+            "source_stig_mapping_id",
+            "selected_vulnerabilities"
         ];
 
         for field in &enhanced_fields {

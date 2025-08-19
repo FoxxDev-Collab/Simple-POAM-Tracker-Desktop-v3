@@ -102,7 +102,7 @@ pub struct CCIMapping {
     pub nist_control: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct STIGInfo {
     pub title: String,
     pub version: String,
@@ -111,7 +111,7 @@ pub struct STIGInfo {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AssetInfo {
     pub asset_type: String,
     pub host_name: Option<String>,
@@ -121,14 +121,14 @@ pub struct AssetInfo {
     pub target_comment: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct STIGMappingResult {
     pub total_vulnerabilities: i32,
     pub mapped_controls: Vec<MappedControl>,
     pub summary: MappingSummary,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct MappedControl {
     pub nist_control: String,
     pub ccis: Vec<String>,
@@ -138,7 +138,7 @@ pub struct MappedControl {
     pub findings_count: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct STIGVulnerability {
     pub vuln_num: String,
     pub severity: String,
@@ -158,7 +158,7 @@ pub struct STIGVulnerability {
     pub stig_id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct MappingSummary {
     pub total_controls: i32,
     pub compliant_controls: i32,
@@ -299,8 +299,8 @@ pub struct SystemExportData {
     pub prep_lists: Option<Vec<StpPrepList>>,
     pub baseline_controls: Option<Vec<BaselineControl>>,
     pub poam_control_associations: Option<Vec<ControlPOAMAssociation>>,
-    pub export_date: String,
-    pub export_version: String,
+    pub export_date: Option<String>,
+    pub export_version: Option<String>,
 }
 
 // System Group Data Structures
@@ -348,8 +348,8 @@ pub struct GroupSummary {
 pub struct GroupExportData {
     pub group: SystemGroup,
     pub systems: Vec<SystemExportData>,
-    pub export_date: String,
-    pub export_version: String,
+    pub export_date: Option<String>,
+    pub export_version: Option<String>,
 }
 
 // Group-level POAM structure for cross-system POAMs

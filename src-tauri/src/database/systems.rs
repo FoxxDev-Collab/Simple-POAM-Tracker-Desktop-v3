@@ -222,7 +222,195 @@ impl<'a> SystemOperations<'a> {
     }
 }
 
+use crate::models::{SystemExportData, POAM, Note, STIGMappingData, SecurityTestPlan, StpPrepList, BaselineControl, ControlPOAMAssociation};
+use rusqlite::Row;
+
+// Helper TryFrom implementations for models
+impl<'r> TryFrom<&'r Row<'r>> for POAM {
+    type Error = rusqlite::Error;
+    fn try_from(row: &'r Row<'r>) -> Result<Self, Self::Error> {
+        // This is a placeholder. You need to implement the actual conversion from a rusqlite Row to your POAM struct.
+        // This will depend on the columns in your 'poams' table.
+        // For now, let's assume a simple mapping.
+        Ok(POAM {
+            id: row.get("id")?,
+            title: row.get("title")?,
+            description: row.get("description")?,
+            start_date: row.get("start_date")?,
+            end_date: row.get("end_date")?,
+            status: row.get("status")?,
+            priority: row.get("priority")?,
+            risk_level: row.get("risk_level")?,
+            milestones: serde_json::from_str(&row.get::<_, String>("milestones")?).unwrap_or_default(),
+            resources: row.get("resources")?,
+            source_identifying_vulnerability: row.get("source_identifying_vulnerability")?,
+            raw_severity: row.get("raw_severity")?,
+            severity: row.get("severity")?,
+            relevance_of_threat: row.get("relevance_of_threat")?,
+            likelihood: row.get("likelihood")?,
+            impact: row.get("impact")?,
+            residual_risk: row.get("residual_risk")?,
+            mitigations: row.get("mitigations")?,
+            devices_affected: row.get("devices_affected")?,
+            source_stig_mapping_id: row.get("source_stig_mapping_id")?,
+            selected_vulnerabilities: serde_json::from_str(&row.get::<_, String>("selected_vulnerabilities")?).unwrap_or_default(),
+        })
+    }
+}
+
+impl<'r> TryFrom<&'r Row<'r>> for Note {
+    type Error = rusqlite::Error;
+    fn try_from(row: &'r Row<'r>) -> Result<Self, Self::Error> {
+        Ok(Note {
+            id: row.get("id")?,
+            title: row.get("title")?,
+            content: row.get("content")?,
+            date: row.get("date")?,
+            poam_ids: serde_json::from_str(&row.get::<_, String>("poam_ids")?).unwrap_or_default(),
+            poam_titles: serde_json::from_str(&row.get::<_, String>("poam_titles")?).unwrap_or_default(),
+            folder: row.get("folder")?,
+            tags: serde_json::from_str(&row.get::<_, String>("tags")?).unwrap_or_default(),
+        })
+    }
+}
+
+impl<'r> TryFrom<&'r Row<'r>> for STIGMappingData {
+    type Error = rusqlite::Error;
+    fn try_from(row: &'r Row<'r>) -> Result<Self, Self::Error> {
+        Ok(STIGMappingData {
+            id: row.get("id")?,
+            name: row.get("name")?,
+            description: row.get("description")?,
+            created_date: row.get("created_date")?,
+            updated_date: row.get("updated_date")?,
+            stig_info: serde_json::from_str(&row.get::<_, String>("stig_info")?).unwrap_or_default(),
+            asset_info: serde_json::from_str(&row.get::<_, String>("asset_info")?).unwrap_or_default(),
+            mapping_result: serde_json::from_str(&row.get::<_, String>("mapping_result")?).unwrap_or_default(),
+            cci_mappings: serde_json::from_str(&row.get::<_, String>("cci_mappings")?).unwrap_or_default(),
+        })
+    }
+}
+
+impl<'r> TryFrom<&'r Row<'r>> for SecurityTestPlan {
+    type Error = rusqlite::Error;
+    fn try_from(row: &'r Row<'r>) -> Result<Self, Self::Error> {
+        Ok(SecurityTestPlan {
+            id: row.get("id")?,
+            name: row.get("name")?,
+            description: row.get("description")?,
+            created_date: row.get("created_date")?,
+            updated_date: row.get("updated_date")?,
+            status: row.get("status")?,
+            poam_id: row.get("poam_id")?,
+            stig_mapping_id: row.get("stig_mapping_id")?,
+            test_cases: serde_json::from_str(&row.get::<_, String>("test_cases")?).unwrap_or_default(),
+            overall_score: row.get("overall_score")?,
+        })
+    }
+}
+
+impl<'r> TryFrom<&'r Row<'r>> for StpPrepList {
+    type Error = rusqlite::Error;
+    fn try_from(row: &'r Row<'r>) -> Result<Self, Self::Error> {
+        Ok(StpPrepList {
+            id: row.get("id")?,
+            name: row.get("name")?,
+            description: row.get("description")?,
+            created_date: row.get("created_date")?,
+            updated_date: row.get("updated_date")?,
+            source_mapping_id: row.get("source_mapping_id")?,
+            stig_info: serde_json::from_str(&row.get::<_, String>("stig_info")?).unwrap_or_default(),
+            asset_info: serde_json::from_str(&row.get::<_, String>("asset_info")?).unwrap_or_default(),
+            prep_status: row.get("prep_status")?,
+            selected_controls: serde_json::from_str(&row.get::<_, String>("selected_controls")?).unwrap_or_default(),
+            control_count: row.get("control_count")?,
+        })
+    }
+}
+
+impl<'r> TryFrom<&'r Row<'r>> for BaselineControl {
+    type Error = rusqlite::Error;
+    fn try_from(row: &'r Row<'r>) -> Result<Self, Self::Error> {
+        Ok(BaselineControl {
+            id: row.get("id")?,
+            family: row.get("family")?,
+            title: row.get("title")?,
+            implementation_status: row.get("implementation_status")?,
+            date_added: row.get("date_added")?,
+            responsible_party: row.get("responsible_party")?,
+            notes: row.get("notes")?,
+            system_id: row.get("system_id")?,
+        })
+    }
+}
+
+impl<'r> TryFrom<&'r Row<'r>> for ControlPOAMAssociation {
+    type Error = rusqlite::Error;
+    fn try_from(row: &'r Row<'r>) -> Result<Self, Self::Error> {
+        Ok(ControlPOAMAssociation {
+            id: row.get("id")?,
+            control_id: row.get("control_id")?,
+            poam_id: row.get("poam_id")?,
+            association_date: row.get("association_date")?,
+            created_by: row.get("created_by")?,
+            notes: row.get("notes")?,
+        })
+    }
+}
+
 impl<'a> SystemQueries<'a> {
+    pub fn get_system_export_data(&self, system_id: &str) -> Result<SystemExportData, DatabaseError> {
+        let system = self.get_system_by_id(system_id)?
+            .ok_or_else(|| DatabaseError::NotFound(format!("System with id {} not found", system_id)))?;
+
+        let poams: Vec<POAM> = self.conn.prepare("SELECT * FROM poams WHERE system_id = ?1")?
+            .query_map(params![system_id], |row| POAM::try_from(row))?
+            .filter_map(Result::ok)
+            .collect();
+
+        let notes: Vec<Note> = self.conn.prepare("SELECT * FROM notes WHERE system_id = ?1")?
+            .query_map(params![system_id], |row| Note::try_from(row))?
+            .filter_map(Result::ok)
+            .collect();
+
+        let stig_mappings: Vec<STIGMappingData> = self.conn.prepare("SELECT * FROM stig_mappings WHERE system_id = ?1")?
+            .query_map(params![system_id], |row| STIGMappingData::try_from(row))?
+            .filter_map(Result::ok)
+            .collect();
+
+        let test_plans: Vec<SecurityTestPlan> = self.conn.prepare("SELECT * FROM security_test_plans WHERE system_id = ?1")?
+            .query_map(params![system_id], |row| SecurityTestPlan::try_from(row))?
+            .filter_map(Result::ok)
+            .collect();
+
+        let prep_lists: Vec<StpPrepList> = self.conn.prepare("SELECT * FROM stp_prep_lists WHERE system_id = ?1")?
+            .query_map(params![system_id], |row| StpPrepList::try_from(row))?
+            .filter_map(Result::ok)
+            .collect();
+
+        let baseline_controls: Vec<BaselineControl> = self.conn.prepare("SELECT * FROM baseline_controls WHERE system_id = ?1")?
+            .query_map(params![system_id], |row| BaselineControl::try_from(row))?
+            .filter_map(Result::ok)
+            .collect();
+
+        let poam_control_associations: Vec<ControlPOAMAssociation> = self.conn.prepare("SELECT * FROM control_poam_associations WHERE system_id = ?1")?
+            .query_map(params![system_id], |row| ControlPOAMAssociation::try_from(row))?
+            .filter_map(Result::ok)
+            .collect();
+
+        Ok(SystemExportData {
+            system,
+            poams,
+            notes,
+            stig_mappings: Some(stig_mappings),
+            test_plans: Some(test_plans),
+            prep_lists: Some(prep_lists),
+            baseline_controls: Some(baseline_controls),
+            poam_control_associations: Some(poam_control_associations),
+            export_date: None,
+            export_version: None,
+        })
+    }
     pub fn new(conn: &'a Connection) -> Self {
         Self { conn }
     }

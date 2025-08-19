@@ -162,7 +162,7 @@ async fn import_nessus_files(app_handle: AppHandle, file_paths: Vec<String>, sys
 
 #[tauri::command]
 async fn get_nessus_scans(app_handle: AppHandle, system_id: String) -> Result<Vec<database::nessus::NessusScanMeta>, Error> {
-    let mut db = database::get_database(&app_handle)?;
+    let db = database::get_database(&app_handle)?;
     let scans = db.get_nessus_scans(&system_id)?;
     Ok(scans)
 }
@@ -585,7 +585,7 @@ async fn get_control_associations_by_poam(app_handle: AppHandle, poam_id: i64, s
 #[tauri::command]
 async fn get_baseline_controls(app_handle: AppHandle, system_id: String) -> Result<Vec<models::BaselineControl>, Error> {
     println!("Fetching baseline controls for system: {}", system_id);
-    let mut db = database::get_database(&app_handle)?;
+    let db = database::get_database(&app_handle)?;
     let controls = db.get_baseline_controls(&system_id)?;
     Ok(controls)
 }
@@ -760,6 +760,36 @@ async fn delete_evidence_file(
         println!("Deleted evidence file: {}", file_path.display());
     }
     
+    Ok(())
+}
+
+#[tauri::command]
+async fn export_group_report(
+    app_handle: AppHandle,
+    export_path: String,
+    group_id: String,
+) -> Result<(), Error> {
+    println!("Exporting group report for group: {}", group_id);
+
+    use std::io::Write;
+    use zip::write::FileOptions;
+
+    let db = database::get_database(&app_handle)?;
+    let group_export_data = db.get_group_export_data(&group_id)?;
+
+    let file = fs::File::create(&export_path)?;
+    let mut zip = zip::ZipWriter::new(file);
+
+    // Add group data JSON to zip
+    let group_json = serde_json::to_string_pretty(&group_export_data)?;
+    zip.start_file(format!("{}_report.json", group_export_data.group.name), FileOptions::default())?;
+    zip.write_all(group_json.as_bytes())?;
+
+    // TODO: Add more report formats like Markdown or PDF in the future.
+
+    zip.finish()?;
+
+    println!("Successfully exported group report to: {}", export_path);
     Ok(())
 }
 
@@ -1252,7 +1282,7 @@ async fn export_complete_system_backup(app_handle: AppHandle, export_path: Strin
     
     println!("Creating complete system backup for system: {}", system_id);
     
-    let mut db = database::get_database(&app_handle)?;
+    let db = database::get_database(&app_handle)?;
     let app_data_dir = app_handle.path().app_data_dir()
         .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
     
@@ -1283,8 +1313,8 @@ async fn export_complete_system_backup(app_handle: AppHandle, export_path: Strin
         prep_lists: if prep_lists.is_empty() { None } else { Some(prep_lists) },
         baseline_controls: if baseline_controls.is_empty() { None } else { Some(baseline_controls) },
         poam_control_associations: if poam_control_associations.is_empty() { None } else { Some(poam_control_associations) },
-        export_date: chrono::Utc::now().to_rfc3339(),
-        export_version: "2.1".to_string(), // Updated version to indicate ZIP format with files
+        export_date: Some(chrono::Utc::now().to_rfc3339()),
+        export_version: Some("2.1".to_string()), // Updated version to indicate ZIP format with files
     };
     
     // Create ZIP file
@@ -2038,6 +2068,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            export_group_report,
             import_json_file,
             get_all_poams,
             get_poams,
@@ -2581,8 +2612,8 @@ async fn export_complete_group_backup(app_handle: AppHandle, export_path: String
             prep_lists: if prep_lists.is_empty() { None } else { Some(prep_lists) },
             baseline_controls: if baseline_controls.is_empty() { None } else { Some(baseline_controls) },
             poam_control_associations: if poam_control_associations.is_empty() { None } else { Some(poam_control_associations) },
-            export_date: chrono::Utc::now().to_rfc3339(),
-            export_version: "2.1".to_string(),
+            export_date: Some(chrono::Utc::now().to_rfc3339()),
+            export_version: Some("2.1".to_string()),
         };
         
         system_exports.push(system_export);
@@ -2595,8 +2626,8 @@ async fn export_complete_group_backup(app_handle: AppHandle, export_path: String
     let group_export_data = models::GroupExportData {
         group: group.clone(),
         systems: system_exports,
-        export_date: chrono::Utc::now().to_rfc3339(),
-        export_version: "3.0".to_string(), // New version for group exports
+        export_date: Some(chrono::Utc::now().to_rfc3339()),
+        export_version: Some("3.0".to_string()), // New version for group exports
     };
     
     // Create ZIP file

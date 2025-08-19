@@ -8,44 +8,13 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Checkbox } from '../ui/checkbox';
 import { Target, Users, Shield, CheckCircle, Plus } from 'lucide-react';
-
-interface GroupPOAM {
-  id: number;
-  title: string;
-  description: string;
-  start_date: string;
-  end_date: string;
-  status: string;
-  priority: string;
-  risk_level: string;
-  group_id: string;
-  affected_systems: string[];
-  milestones: Milestone[];
-  // Enhanced fields
-  resources?: string;
-  source_identifying_vulnerability?: string;
-  raw_severity?: string;
-  severity?: string;
-  relevance_of_threat?: string;
-  likelihood?: string;
-  impact?: string;
-  residual_risk?: string;
-  mitigations?: string;
-  devices_affected?: string;
-}
-
-interface Milestone {
-  id: string;
-  title: string;
-  due_date: string;
-  status: string;
-  description: string;
-}
+import { GroupPOAM, Milestone } from '../../types/group';
 
 interface CreateGroupPOAMProps {
   groupId: string;
   systems: any[];
   preSelectedVulnerabilities?: any[];
+  existingPOAM?: GroupPOAM | null;
   onCancel: () => void;
   onSuccess: () => void;
 }
@@ -54,6 +23,7 @@ export default function CreateGroupPOAM({
   groupId, 
   systems, 
   preSelectedVulnerabilities = [], 
+  existingPOAM = null,
   onCancel, 
   onSuccess 
 }: CreateGroupPOAMProps) {
@@ -93,6 +63,33 @@ export default function CreateGroupPOAM({
   const [activeTab, setActiveTab] = useState('basic-details');
   
   const { showToast } = useToast();
+
+  // Initialize with existing POAM data if editing
+  useEffect(() => {
+    if (existingPOAM) {
+      setTitle(existingPOAM.title);
+      setDescription(existingPOAM.description);
+      setStartDate(existingPOAM.start_date);
+      setEndDate(existingPOAM.end_date);
+      setStatus(existingPOAM.status);
+      setPriority(existingPOAM.priority);
+      setRiskLevel(existingPOAM.risk_level);
+      setSelectedSystemIds(existingPOAM.affected_systems || []);
+      setMilestones(existingPOAM.milestones || []);
+      
+      // Set enhanced fields if they exist
+      setResources(existingPOAM.resources || '');
+      setSourceIdentifyingVulnerability(existingPOAM.source_identifying_vulnerability || '');
+      setRawSeverity(existingPOAM.raw_severity || '');
+      setSeverity(existingPOAM.severity || '');
+      setRelevanceOfThreat(existingPOAM.relevance_of_threat || '');
+      setLikelihood(existingPOAM.likelihood || '');
+      setImpact(existingPOAM.impact || '');
+      setResidualRisk(existingPOAM.residual_risk || '');
+      setMitigations(existingPOAM.mitigations || '');
+      setDevicesAffected(existingPOAM.devices_affected || '');
+    }
+  }, [existingPOAM]);
 
   // Initialize with pre-selected vulnerabilities if provided
   useEffect(() => {
@@ -134,7 +131,7 @@ export default function CreateGroupPOAM({
     const newMilestone: Milestone = {
       id: `milestone-${Date.now()}`,
       title: '',
-      due_date: '',
+      dueDate: '',
       status: 'Pending',
       description: ''
     };
@@ -163,7 +160,7 @@ export default function CreateGroupPOAM({
 
     try {
       const groupPOAM: GroupPOAM = {
-        id: Date.now(), // Generate unique ID using timestamp
+        id: existingPOAM ? existingPOAM.id : Date.now(), // Use existing ID or generate new one
         title,
         description,
         start_date: startDate,
@@ -186,15 +183,22 @@ export default function CreateGroupPOAM({
         devices_affected: devicesAffected || undefined,
       };
 
-      await invoke('create_group_poam', { poam: groupPOAM });
+      if (existingPOAM) {
+        // Update existing POAM
+        await invoke('update_group_poam', { poam: groupPOAM });
+        showToast('success', 'Group POAM updated successfully');
+      } else {
+        // Create new POAM
+        await invoke('create_group_poam', { poam: groupPOAM });
+        showToast('success', 'Group POAM created successfully');
+      }
 
       // Associations with NIST controls are managed separately in Group NIST Catalog
 
-      showToast('success', 'Group POAM created successfully');
       onSuccess();
     } catch (error) {
-      console.error('Failed to create Group POAM:', error);
-      showToast('error', 'Failed to create Group POAM');
+      console.error(existingPOAM ? 'Failed to update Group POAM:' : 'Failed to create Group POAM:', error);
+      showToast('error', existingPOAM ? 'Failed to update Group POAM' : 'Failed to create Group POAM');
     } finally {
       setIsSubmitting(false);
     }
@@ -211,10 +215,13 @@ export default function CreateGroupPOAM({
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <Target className="w-6 h-6" />
-            Create Group POAM
+            {existingPOAM ? 'Edit Group POAM' : 'Create Group POAM'}
           </h2>
           <p className="text-muted-foreground">
-            Create a security action item that spans multiple systems in the group
+            {existingPOAM 
+              ? 'Modify the security action item that spans multiple systems in the group'
+              : 'Create a security action item that spans multiple systems in the group'
+            }
           </p>
         </div>
         
@@ -227,7 +234,10 @@ export default function CreateGroupPOAM({
             form="create-group-poam-form"
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Creating...' : 'Create Group POAM'}
+            {isSubmitting 
+              ? (existingPOAM ? 'Updating...' : 'Creating...') 
+              : (existingPOAM ? 'Update Group POAM' : 'Create Group POAM')
+            }
           </Button>
         </div>
       </div>
@@ -751,8 +761,8 @@ export default function CreateGroupPOAM({
                               </Button>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-foreground mb-2">
                                   Milestone Title <span className="text-destructive">*</span>
                                 </label>
@@ -764,30 +774,29 @@ export default function CreateGroupPOAM({
                                   className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
                                 />
                               </div>
-                              
                               <div>
                                 <label className="block text-sm font-medium text-foreground mb-2">
                                   Due Date <span className="text-destructive">*</span>
                                 </label>
                                 <SimpleDateInput
-                                  value={milestone.due_date}
-                                  onChange={(value) => updateMilestone(index, 'due_date', value)}
+                                  value={milestone.dueDate}
+                                  onChange={(value) => updateMilestone(index, 'dueDate', value)}
                                   className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                                  required
                                 />
                               </div>
-                            </div>
-                            
-                            <div>
-                              <label className="block text-sm font-medium text-foreground mb-2">
-                                Description
-                              </label>
-                              <textarea
-                                value={milestone.description}
-                                onChange={(e) => updateMilestone(index, 'description', e.target.value)}
-                                rows={3}
-                                placeholder="Describe what needs to be accomplished for this milestone across all affected systems"
-                                className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-vertical"
-                              />
+                              <div className="md:col-span-3">
+                                <label className="block text-sm font-medium text-foreground mb-2">
+                                  Description
+                                </label>
+                                <textarea
+                                  value={milestone.description}
+                                  onChange={(e) => updateMilestone(index, 'description', e.target.value)}
+                                  rows={3}
+                                  placeholder="Describe what needs to be accomplished for this milestone across all affected systems"
+                                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-vertical"
+                                />
+                              </div>
                             </div>
                           </div>
                         ))

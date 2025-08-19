@@ -55,12 +55,12 @@ impl Database {
 
     // System Operations (mutable)
     pub fn create_system(&mut self, system: &System) -> Result<(), DatabaseError> {
-        let mut system_ops = SystemOperations::new(&mut self.conn);
+        let system_ops = SystemOperations::new(&mut self.conn);
         system_ops.create_system(system)
     }
 
     pub fn update_system(&mut self, system: &System) -> Result<(), DatabaseError> {
-        let mut system_ops = SystemOperations::new(&mut self.conn);
+        let system_ops = SystemOperations::new(&mut self.conn);
         system_ops.update_system(system)
     }
 
@@ -87,12 +87,12 @@ impl Database {
 
     // Group Operations (mutable)
     pub fn create_group(&mut self, group: &SystemGroup) -> Result<(), DatabaseError> {
-        let mut group_ops = GroupOperations::new(&mut self.conn);
+        let group_ops = GroupOperations::new(&mut self.conn);
         group_ops.create_group(group)
     }
 
     pub fn update_group(&mut self, group: &SystemGroup) -> Result<(), DatabaseError> {
-        let mut group_ops = GroupOperations::new(&mut self.conn);
+        let group_ops = GroupOperations::new(&mut self.conn);
         group_ops.update_group(group)
     }
 
@@ -102,12 +102,12 @@ impl Database {
     }
 
     pub fn add_system_to_group(&mut self, group_id: &str, system_id: &str, added_by: Option<&str>) -> Result<(), DatabaseError> {
-        let mut group_ops = GroupOperations::new(&mut self.conn);
+        let group_ops = GroupOperations::new(&mut self.conn);
         group_ops.add_system_to_group(group_id, system_id, added_by)
     }
 
     pub fn remove_system_from_group(&mut self, system_id: &str) -> Result<(), DatabaseError> {
-        let mut group_ops = GroupOperations::new(&mut self.conn);
+        let group_ops = GroupOperations::new(&mut self.conn);
         group_ops.remove_system_from_group(system_id)
     }
 
@@ -130,6 +130,11 @@ impl Database {
     pub fn get_group_poams(&self, group_id: &str) -> Result<Vec<GroupPOAM>, DatabaseError> {
         let group_queries = GroupQueries::new(&self.conn);
         group_queries.get_group_poams(group_id)
+    }
+
+    pub fn get_group_export_data(&self, group_id: &str) -> Result<crate::models::GroupExportData, DatabaseError> {
+        let group_queries = GroupQueries::new(&self.conn);
+        group_queries.get_group_export_data(group_id)
     }
 
     pub fn get_group_poam_by_id(&self, id: i64) -> Result<Option<GroupPOAM>, DatabaseError> {

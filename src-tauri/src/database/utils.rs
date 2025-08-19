@@ -1,5 +1,4 @@
 use crate::date_utils;
-use once_cell::sync::Lazy;
 use rusqlite;
 use std::sync::Mutex;
 use tauri::AppHandle;
@@ -17,6 +16,9 @@ pub enum DatabaseError {
     
     #[error("Failed to clear database: {0}")]
     ClearDatabase(String),
+
+    #[error("Not Found: {0}")]
+    NotFound(String),
 }
 
 // Function to normalize date formats for storage

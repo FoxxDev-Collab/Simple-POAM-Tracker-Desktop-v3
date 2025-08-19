@@ -57,6 +57,7 @@ interface SystemStats {
   noteCount: number;
   stigMappingCount: number;
   testPlanCount: number;
+  nessusScans: any[];
   lastAccessed?: string;
   riskScore: number;
   complianceScore: number;
@@ -166,39 +167,137 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
     }
   }, [systems]);
 
-  const calculateRiskScore = (poams: any[]): number => {
-    if (poams.length === 0) return 100;
+  const calculateComprehensiveRiskScore = (
+    poams: any[], 
+    stigMappings: any[], 
+    testPlans: any[], 
+    nessusScans?: any[]
+  ): number => {
+    let riskFactors = 0;
+    let maxRiskFactors = 0;
     
-    let totalWeight = 0;
-    let totalRisk = 0;
+    // 1. POAM Risk Assessment (40% weight)
+    let poamRisk = 0;
+    let poamWeight = 40;
     
-    poams.forEach(poam => {
-      let weight = 1;
-      let risk = 0;
+    if (poams.length > 0) {
+      const openPoams = poams.filter(p => p.status !== 'Closed' && p.status !== 'Completed');
+      const criticalPoams = openPoams.filter(p => p.priority === 'Critical').length;
+      const highPoams = openPoams.filter(p => p.priority === 'High').length;
+      const mediumPoams = openPoams.filter(p => p.priority === 'Medium').length;
+      const lowPoams = openPoams.filter(p => p.priority === 'Low').length;
       
-      // Weight by priority
-      switch (poam.priority?.toLowerCase()) {
-        case 'critical': weight = 4; risk = 90; break;
-        case 'high': weight = 3; risk = 70; break;
-        case 'medium': weight = 2; risk = 50; break;
-        case 'low': weight = 1; risk = 30; break;
-        default: weight = 1; risk = 50; break;
-      }
+      // Calculate overdue POAMs
+      const now = new Date();
+      const overduePoams = openPoams.filter(p => {
+        const endDate = new Date(p.endDate || p.end_date);
+        return endDate < now;
+      }).length;
       
-      // Increase risk if overdue
-      if (poam.status !== 'Closed' && poam.status !== 'Completed') {
-        const endDate = new Date(poam.endDate || poam.end_date);
-        const now = new Date();
-        if (endDate < now) {
-          risk += 20;
+      // Risk scoring based on POAM severity and status
+      poamRisk = (criticalPoams * 25) + (highPoams * 15) + (mediumPoams * 8) + (lowPoams * 3) + (overduePoams * 10);
+      poamRisk = Math.min(poamRisk, 100); // Cap at 100
+    }
+    
+    // 2. STIG Compliance Risk Assessment (30% weight)
+    let stigRisk = 0;
+    let stigWeight = 30;
+    
+    if (stigMappings.length > 0) {
+      let totalFindings = 0;
+      let highSevFindings = 0;
+      let mediumSevFindings = 0;
+      let lowSevFindings = 0;
+      
+      stigMappings.forEach(mapping => {
+        if (mapping.mapping_result?.mapped_controls) {
+          mapping.mapping_result.mapped_controls.forEach((control: any) => {
+            if (control.stigs) {
+              control.stigs.forEach((stig: any) => {
+                totalFindings++;
+                switch (stig.severity?.toLowerCase()) {
+                  case 'high':
+                  case 'cat i':
+                    highSevFindings++;
+                    break;
+                  case 'medium':
+                  case 'cat ii':
+                    mediumSevFindings++;
+                    break;
+                  case 'low':
+                  case 'cat iii':
+                    lowSevFindings++;
+                    break;
+                }
+              });
+            }
+          });
         }
-      }
+      });
       
-      totalWeight += weight;
-      totalRisk += risk * weight;
-    });
+      if (totalFindings > 0) {
+        stigRisk = ((highSevFindings * 20) + (mediumSevFindings * 10) + (lowSevFindings * 3)) / totalFindings * 100;
+        stigRisk = Math.min(stigRisk, 100);
+      }
+    }
     
-    return Math.max(0, 100 - (totalRisk / totalWeight));
+    // 3. Security Testing Coverage Risk (20% weight)
+    let testingRisk = 0;
+    let testingWeight = 20;
+    
+    if (testPlans.length > 0) {
+      let totalTests = 0;
+      let failedTests = 0;
+      let passedTests = 0;
+      
+      testPlans.forEach(plan => {
+        if (plan.test_cases) {
+          plan.test_cases.forEach((testCase: any) => {
+            totalTests++;
+            if (testCase.status === 'Failed') {
+              failedTests++;
+            } else if (testCase.status === 'Passed') {
+              passedTests++;
+            }
+          });
+        }
+      });
+      
+      if (totalTests > 0) {
+        const failureRate = failedTests / totalTests;
+        const testCoverage = passedTests / totalTests;
+        testingRisk = (failureRate * 70) + ((1 - testCoverage) * 30); // Emphasize failures
+        testingRisk = Math.min(testingRisk * 100, 100);
+      } else {
+        testingRisk = 50; // No testing data = moderate risk
+      }
+    } else {
+      testingRisk = 60; // No test plans = higher risk
+    }
+    
+    // 4. Nessus Vulnerability Risk (10% weight) - if available
+    let nessusRisk = 0;
+    let nessusWeight = 10;
+    
+    if (nessusScans && nessusScans.length > 0) {
+      // This would require actual Nessus data analysis
+      // For now, assume some risk if scans exist but no remediation
+      nessusRisk = 30; // Placeholder - would need actual vulnerability data
+    }
+    
+    // Calculate weighted risk score
+    const totalWeight = poamWeight + stigWeight + testingWeight + nessusWeight;
+    const weightedRisk = (
+      (poamRisk * poamWeight) + 
+      (stigRisk * stigWeight) + 
+      (testingRisk * testingWeight) + 
+      (nessusRisk * nessusWeight)
+    ) / totalWeight;
+    
+    // Convert to security score (inverse of risk)
+    const securityScore = Math.max(0, Math.min(100, 100 - weightedRisk));
+    
+    return Math.round(securityScore);
   };
 
   const calculateSecurityHealth = (riskScore: number, overdueCount: number, criticalCount: number): SystemStats['securityHealth'] => {
@@ -209,7 +308,7 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
     return 'excellent';
   };
 
-  const getTopVulnerabilities = (poams: any[], stigMappings: any[]): VulnerabilityIssue[] => {
+  const getTopVulnerabilities = (poams: any[], stigMappings: any[], testPlans: any[]): VulnerabilityIssue[] => {
     const vulnerabilities: VulnerabilityIssue[] = [];
     const now = new Date();
     
@@ -230,19 +329,49 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
             });
           });
     
-    // Add high-risk STIG findings
-    stigMappings.slice(0, 2).forEach((mapping, index) => {
-      vulnerabilities.push({
-        id: `stig-${index}`,
-        title: `STIG Compliance Gap: ${mapping.name}`,
-        severity: 'High',
-        type: 'STIG',
-        daysOpen: 30, // Placeholder
-        source: 'STIG Mapping'
-      });
+    // Add high-severity STIG findings
+    stigMappings.forEach(mapping => {
+      if (mapping.mapping_result?.mapped_controls) {
+        mapping.mapping_result.mapped_controls.forEach((control: any) => {
+          if (control.stigs && control.compliance_status !== 'Compliant') {
+            control.stigs.forEach((stig: any) => {
+              if (['high', 'cat i'].includes(stig.severity?.toLowerCase())) {
+                vulnerabilities.push({
+                  id: `stig-${stig.vuln_num}`,
+                  title: `${stig.group_title} (${stig.vuln_num})`,
+                  severity: stig.severity === 'Cat I' ? 'Critical' : 'High',
+                  type: 'STIG',
+                  daysOpen: 60, // Estimate based on typical remediation timeframes
+                  source: `STIG ${mapping.name}`
+                });
+              }
+            });
+          }
+        });
+      }
     });
     
-    return vulnerabilities.slice(0, 5);
+    // Add failed security tests
+    testPlans.forEach(plan => {
+      if (plan.test_cases) {
+        plan.test_cases.filter((tc: any) => tc.status === 'Failed').slice(0, 2).forEach((testCase: any) => {
+          vulnerabilities.push({
+            id: `test-${testCase.id}`,
+            title: `Failed Test: ${testCase.name}`,
+            severity: testCase.risk_level || 'Medium',
+            type: 'Test',
+            daysOpen: testCase.last_tested ? Math.floor((now.getTime() - new Date(testCase.last_tested).getTime()) / (1000 * 60 * 60 * 24)) : 30,
+            source: `Test Plan: ${plan.name}`
+          });
+        });
+      }
+    });
+    
+    // Sort by severity and limit to top 5
+    const severityOrder = { 'Critical': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
+    return vulnerabilities
+      .sort((a, b) => (severityOrder[b.severity] || 0) - (severityOrder[a.severity] || 0))
+      .slice(0, 5);
   };
 
   const loadSystemsStats = async () => {
@@ -250,12 +379,13 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
     try {
       const statsPromises = systems.map(async (system) => {
         try {
-          // Load comprehensive data for each system
-          const [poams, notes, stigMappings, testPlans] = await Promise.all([
+          // Load comprehensive data for each system including Nessus scans
+          const [poams, notes, stigMappings, testPlans, nessusScans] = await Promise.all([
             invoke<any[]>('get_all_poams', { systemId: system.id }),
             invoke<any[]>('get_all_notes', { systemId: system.id }),
             invoke<any[]>('get_all_stig_mappings', { systemId: system.id }),
-            invoke<any[]>('get_all_security_test_plans', { systemId: system.id })
+            invoke<any[]>('get_all_security_test_plans', { systemId: system.id }),
+            invoke<any[]>('get_nessus_scans', { systemId: system.id }).catch(() => [])
           ]);
 
           const now = new Date();
@@ -273,10 +403,31 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
           const mediumPoams = poams.filter(p => p.priority === 'Medium' && p.status !== 'Closed' && p.status !== 'Completed').length;
           const lowPoams = poams.filter(p => p.priority === 'Low' && p.status !== 'Closed' && p.status !== 'Completed').length;
 
-          const riskScore = calculateRiskScore(poams);
-          const complianceScore = stigMappings.length > 0 ? Math.min(100, (stigMappings.length * 10)) : 0;
+          // Use comprehensive risk calculation
+          const riskScore = calculateComprehensiveRiskScore(poams, stigMappings, testPlans, nessusScans);
+          
+          // Calculate STIG compliance score based on actual findings
+          let complianceScore = 0;
+          if (stigMappings.length > 0) {
+            let totalControls = 0;
+            let compliantControls = 0;
+            
+            stigMappings.forEach(mapping => {
+              if (mapping.mapping_result?.mapped_controls) {
+                mapping.mapping_result.mapped_controls.forEach((control: any) => {
+                  totalControls++;
+                  if (control.compliance_status === 'Compliant') {
+                    compliantControls++;
+                  }
+                });
+              }
+            });
+            
+            complianceScore = totalControls > 0 ? Math.round((compliantControls / totalControls) * 100) : 0;
+          }
+          
           const securityHealth = calculateSecurityHealth(riskScore, overduePoams, criticalPoams);
-          const topVulnerabilities = getTopVulnerabilities(poams, stigMappings);
+          const topVulnerabilities = getTopVulnerabilities(poams, stigMappings, testPlans);
 
           // Generate recent activity (simplified for demo)
           const recentActivity: ActivityItem[] = [
@@ -312,6 +463,7 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
             noteCount: notes.length,
             stigMappingCount: stigMappings.length,
             testPlanCount: testPlans.length,
+            nessusScans: nessusScans || [],
             lastAccessed: system.last_accessed,
             riskScore,
             complianceScore,
@@ -339,12 +491,13 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
             noteCount: 0,
             stigMappingCount: 0,
             testPlanCount: 0,
+            nessusScans: [],
             lastAccessed: system.last_accessed,
-            riskScore: 100,
+            riskScore: 20, // Low score for systems with errors
             complianceScore: 0,
             topVulnerabilities: [],
             recentActivity: [],
-            securityHealth: 'excellent' as const,
+            securityHealth: 'critical' as const,
           };
         }
       });
@@ -435,6 +588,12 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
     return 'text-red-600';
   };
 
+  const getGroupSecurityScoreColor = (systems: SystemStats[]) => {
+    if (systems.length === 0) return 'text-gray-500';
+    const avgScore = systems.reduce((sum, s) => sum + s.riskScore, 0) / systems.length;
+    return getRiskScoreColor(avgScore);
+  };
+
   // Filter and sort systems
   const filteredAndSortedSystems = systemStats
     .filter(system => {
@@ -499,7 +658,7 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
         </div>
       </div>
 
-      {/* Enhanced Stats Cards */}
+      {/* Enhanced Stats Cards with Better Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -511,7 +670,9 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
             <p className="text-xs text-muted-foreground">Active systems in group</p>
             <div className="flex items-center mt-2 text-xs">
               <Activity className="h-3 w-3 mr-1 text-green-500" />
-              <span className="text-green-600">All systems operational</span>
+              <span className="text-green-600">
+                {systemStats.filter(s => s.poamCount > 0 || s.stigMappingCount > 0).length} systems with data
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -552,33 +713,44 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
           <CardContent>
             <div className="text-2xl font-bold text-destructive">{aggregatedStats.totalOverduePoams}</div>
             <p className="text-xs text-muted-foreground">Overdue POAMs requiring attention</p>
-            {aggregatedStats.totalOverduePoams > 0 && (
-              <div className="flex items-center mt-2 text-xs">
-                <Zap className="h-3 w-3 mr-1 text-red-500" />
-                <span className="text-red-600">Immediate action required</span>
-              </div>
-            )}
+            <div className="flex items-center mt-2 text-xs">
+              {aggregatedStats.totalOverduePoams > 0 ? (
+                <>
+                  <Zap className="h-3 w-3 mr-1 text-red-500" />
+                  <span className="text-red-600">Immediate action required</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-3 w-3 mr-1 text-green-500" />
+                  <span className="text-green-600">No overdue items</span>
+                </>
+              )}
+            </div>
           </CardContent>
         </Card>
 
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Compliance</CardTitle>
+            <CardTitle className="text-sm font-medium">Security Score</CardTitle>
             <Shield className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{aggregatedStats.totalStigMappings}</div>
-            <p className="text-xs text-muted-foreground">STIG mappings across systems</p>
+            <div className={`text-2xl font-bold ${
+              systemStats.length > 0 ? getGroupSecurityScoreColor(systemStats) : 'text-gray-500'
+            }`}>
+              {systemStats.length > 0 ? Math.round(systemStats.reduce((sum, s) => sum + s.riskScore, 0) / systemStats.length) : 0}%
+            </div>
+            <p className="text-xs text-muted-foreground">Average across all systems</p>
             <div className="flex items-center mt-2 text-xs">
               <CheckCircle className="h-3 w-3 mr-1 text-green-500" />
-              <span className="text-green-600">Compliance tracking active</span>
+              <span className="text-green-600">{aggregatedStats.totalStigMappings} STIG mappings</span>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Secondary Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Secondary Metrics with Real Vulnerability Data */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Documentation</CardTitle>
@@ -592,26 +764,44 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Test Plans</CardTitle>
-            <Database className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">STIG Findings</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{aggregatedStats.totalTestPlans}</div>
-            <p className="text-xs text-muted-foreground">Security test plans</p>
+            <div className="text-2xl font-bold text-orange-600">
+              {systemStats.reduce((total, system) => {
+                return total + (system.topVulnerabilities.filter(v => v.type === 'STIG').length);
+              }, 0)}
+            </div>
+            <p className="text-xs text-muted-foreground">High/Critical STIG issues</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Group Health</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Test Coverage</CardTitle>
+            <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {aggregatedStats.totalOverduePoams === 0 ? 'Excellent' : 
-               aggregatedStats.totalOverduePoams < 5 ? 'Good' : 'Needs Attention'}
+            <div className="text-2xl font-bold">{aggregatedStats.totalTestPlans}</div>
+            <p className="text-xs text-muted-foreground">
+              {systemStats.reduce((total, system) => total + system.testPlanCount, 0)} total plans
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Vulnerability Scans</CardTitle>
+            <Shield className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {systemStats.reduce((total, system) => total + (system.nessusScans?.length || 0), 0)}
             </div>
-            <p className="text-xs text-muted-foreground">Overall group status</p>
+            <p className="text-xs text-muted-foreground">
+              Nessus scans across {systemStats.filter(s => s.nessusScans?.length > 0).length} systems
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -776,20 +966,28 @@ export default function EnhancedGroupOverview({ group, systems, onExit, onSwitch
                           </div>
                           <div className="space-y-2">
                             <div className="flex justify-between text-sm">
-                              <span>Risk Score:</span>
+                              <span>Security Score:</span>
                               <span className={getRiskScoreColor(system.riskScore)}>{system.riskScore}%</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                              <span>Compliance:</span>
-                              <span className="text-blue-600">{system.complianceScore}%</span>
+                              <span>STIG Compliance:</span>
+                              <span className={system.complianceScore >= 80 ? 'text-green-600' : system.complianceScore >= 60 ? 'text-yellow-600' : 'text-red-600'}>
+                                {system.complianceScore}%
+                              </span>
                             </div>
                             <div className="flex justify-between text-sm">
-                              <span>STIG Maps:</span>
+                              <span>STIG Mappings:</span>
                               <span>{system.stigMappingCount}</span>
                             </div>
                             <div className="flex justify-between text-sm">
                               <span>Test Plans:</span>
                               <span>{system.testPlanCount}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Nessus Scans:</span>
+                              <span className={system.nessusScans?.length > 0 ? 'text-green-600' : 'text-orange-600'}>
+                                {system.nessusScans?.length || 0}
+                              </span>
                             </div>
                           </div>
                         </div>

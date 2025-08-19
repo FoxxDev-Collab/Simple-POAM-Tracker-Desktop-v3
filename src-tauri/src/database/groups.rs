@@ -1,4 +1,4 @@
-use crate::models::{SystemGroup, GroupSummary, SystemSummary, GroupPOAM, Milestone};
+use crate::models::{SystemGroup, GroupSummary, SystemSummary, GroupPOAM, Milestone, GroupExportData};
 use rusqlite::{params, Connection};
 use serde_json;
 use super::utils::DatabaseError;
@@ -578,6 +578,26 @@ impl<'a> GroupQueries<'a> {
         Ok(poams)
     }
 
+        pub fn get_group_export_data(&self, group_id: &str) -> Result<GroupExportData, DatabaseError> {
+        let group = self.get_group_by_id(group_id)?
+            .ok_or_else(|| DatabaseError::NotFound(format!("Group with id {} not found", group_id)))?;
+
+        let systems_in_group = self.get_systems_in_group(group_id)?;
+        let system_queries = super::systems::SystemQueries::new(self.conn);
+
+        let system_exports: Result<Vec<_>, _> = systems_in_group
+            .iter()
+            .map(|s| system_queries.get_system_export_data(&s.id))
+            .collect();
+
+        Ok(GroupExportData {
+            group,
+            systems: system_exports?,
+            export_date: Some(chrono::Utc::now().to_rfc3339()),
+            export_version: Some("1.0".to_string()),
+        })
+    }
+
     pub fn get_group_poam_by_id(&self, id: i64) -> Result<Option<GroupPOAM>, DatabaseError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, title, description, start_date, end_date, status, priority, risk_level,
@@ -631,5 +651,107 @@ impl<'a> GroupQueries<'a> {
         poam.milestones = milestones;
 
         Ok(Some(poam))
+    }
+
+    pub fn get_systems_in_group(&self, group_id: &str) -> Result<Vec<SystemSummary>, DatabaseError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT s.id, s.name, s.description, s.owner, s.classification, s.tags, s.created_date, s.last_accessed, s.group_id,
+                    COUNT(DISTINCT p.id) as poam_count,
+                    COUNT(DISTINCT n.id) as notes_count,
+                    COUNT(DISTINCT sm.id) as stig_mappings_count,
+                    COUNT(DISTINCT stp.id) as test_plans_count,
+                    gsa.display_order
+             FROM systems s
+             JOIN group_system_associations gsa ON s.id = gsa.system_id
+             LEFT JOIN poams p ON s.id = p.system_id
+             LEFT JOIN notes n ON s.id = n.system_id
+             LEFT JOIN stig_mappings sm ON s.id = sm.system_id
+             LEFT JOIN security_test_plans stp ON s.id = stp.system_id
+             WHERE gsa.group_id = ?1 AND s.is_active = 1
+             GROUP BY s.id, s.name, s.description, s.owner, s.classification, s.tags, s.created_date, s.last_accessed, s.group_id, gsa.display_order
+             ORDER BY gsa.display_order, s.name"
+        )?;
+
+        let system_iter = stmt.query_map(params![group_id], |row| {
+            let tags_str: Option<String> = row.get(5)?;
+            let tags = if let Some(json_str) = tags_str {
+                serde_json::from_str(&json_str).unwrap_or_default()
+            } else {
+                None
+            };
+
+            Ok(SystemSummary {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                owner: row.get(3)?,
+                classification: row.get(4)?,
+                tags,
+                created_date: row.get(6)?,
+                last_accessed: row.get(7)?,
+                group_id: row.get(8)?,
+                poam_count: row.get(9).unwrap_or(0),
+                notes_count: row.get(10).unwrap_or(0),
+                stig_mappings_count: row.get(11).unwrap_or(0),
+                test_plans_count: row.get(12).unwrap_or(0),
+            })
+        })?;
+
+        let mut systems = Vec::new();
+        for system in system_iter {
+            systems.push(system?);
+        }
+
+        Ok(systems)
+    }
+
+    pub fn get_ungrouped_systems(&self) -> Result<Vec<SystemSummary>, DatabaseError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT s.id, s.name, s.description, s.owner, s.classification, s.tags, s.created_date, s.last_accessed, s.group_id,
+                    COUNT(DISTINCT p.id) as poam_count,
+                    COUNT(DISTINCT n.id) as notes_count,
+                    COUNT(DISTINCT sm.id) as stig_mappings_count,
+                    COUNT(DISTINCT stp.id) as test_plans_count
+             FROM systems s
+             LEFT JOIN poams p ON s.id = p.system_id
+             LEFT JOIN notes n ON s.id = n.system_id
+             LEFT JOIN stig_mappings sm ON s.id = sm.system_id
+             LEFT JOIN security_test_plans stp ON s.id = stp.system_id
+             WHERE s.group_id IS NULL AND s.is_active = 1
+             GROUP BY s.id, s.name, s.description, s.owner, s.classification, s.tags, s.created_date, s.last_accessed, s.group_id
+             ORDER BY s.last_accessed DESC, s.created_date DESC"
+        )?;
+
+        let system_iter = stmt.query_map(params![], |row| {
+            let tags_str: Option<String> = row.get(5)?;
+            let tags = if let Some(json_str) = tags_str {
+                serde_json::from_str(&json_str).unwrap_or_default()
+            } else {
+                None
+            };
+
+            Ok(SystemSummary {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                owner: row.get(3)?,
+                classification: row.get(4)?,
+                tags,
+                created_date: row.get(6)?,
+                last_accessed: row.get(7)?,
+                group_id: row.get(8)?,
+                poam_count: row.get(9).unwrap_or(0),
+                notes_count: row.get(10).unwrap_or(0),
+                stig_mappings_count: row.get(11).unwrap_or(0),
+                test_plans_count: row.get(12).unwrap_or(0),
+            })
+        })?;
+
+        let mut systems = Vec::new();
+        for system in system_iter {
+            systems.push(system?);
+        }
+
+        Ok(systems)
     }
 }
