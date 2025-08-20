@@ -2,6 +2,35 @@ import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { useToast } from '../../context/ToastContext';
+
+// Import TestCase interface
+interface TestCase {
+  id: string;
+  nist_control: string;
+  cci_ref: string;
+  stig_vuln_id: string;
+  test_description: string;
+  test_procedure: string;
+  expected_result: string;
+  actual_result?: string;
+  status: 'Not Started' | 'In Progress' | 'Passed' | 'Failed' | 'Not Applicable';
+  stig_compliance_status?: 'Open' | 'NotAFinding' | 'Not_Applicable' | 'Not_Reviewed';
+  notes?: string;
+  evidence_files?: string[];
+  tested_by?: string;
+  tested_date?: string;
+  risk_rating: 'Low' | 'Medium' | 'High' | 'Critical';
+}
+
+// POAM interface
+interface POAM {
+  id: number;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  [key: string]: any; // Allow for additional properties
+}
 import { 
   Download,
   Upload,
@@ -442,18 +471,18 @@ export default function GroupExportImport({ groupId, groupName, systems }: Group
     allTestPlans.forEach(plan => {
       if (plan.test_cases) {
         totalTestCases += plan.test_cases.length;
-        passedTests += plan.test_cases.filter(tc => tc.status === 'Passed').length;
-        failedTests += plan.test_cases.filter(tc => tc.status === 'Failed').length;
-        evidenceCollected += plan.test_cases.filter(tc => tc.evidence_files && tc.evidence_files.length > 0).length;
+        passedTests += plan.test_cases.filter((tc: TestCase) => tc.status === 'Passed').length;
+        failedTests += plan.test_cases.filter((tc: TestCase) => tc.status === 'Failed').length;
+        evidenceCollected += plan.test_cases.filter((tc: TestCase) => tc.evidence_files && tc.evidence_files.length > 0).length;
       }
     });
 
     // Calculate group security scores
     const systemScores = systemsData.map(sd => {
       const systemPoams = sd.poams;
-      const openPoams = systemPoams.filter(p => p.status !== 'Completed' && p.status !== 'Closed');
-      const criticalPoams = openPoams.filter(p => p.priority === 'Critical').length;
-      const highPoams = openPoams.filter(p => p.priority === 'High').length;
+      const openPoams = systemPoams.filter((p: POAM) => p.status !== 'Completed' && p.status !== 'Closed');
+      const criticalPoams = openPoams.filter((p: POAM) => p.priority === 'Critical').length;
+      const highPoams = openPoams.filter((p: POAM) => p.priority === 'High').length;
       
       let score = 100;
       score -= (criticalPoams * 15) + (highPoams * 10) + (openPoams.length * 2);
