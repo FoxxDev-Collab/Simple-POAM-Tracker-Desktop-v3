@@ -63,11 +63,13 @@ export default function CreatePOAM() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Wizard state
   const [currentStep, setCurrentStep] = useState(0);
-  const steps = ['Select STP(s)', 'Basic Details', 'Schedule', 'Risk & Info', 'Review'];
+  const steps = ['Select STP(s)', 'Basic Details', 'Schedule', 'Risk & Info', 'Milestones', 'Review'];
   // Associations (NIST control association is managed in the NIST Catalog, not during creation)
   const [stps, setStps] = useState<Array<{ id: string; name: string; poam_id?: number | null }>>([]);
   const [selectedStpIds, setSelectedStpIds] = useState<string[]>([]);
   const [generatedMilestones, setGeneratedMilestones] = useState<Milestone[]>([]);
+  const [editingMilestones, setEditingMilestones] = useState<Milestone[]>([]);
+  const [selectedMilestoneIds, setSelectedMilestoneIds] = useState<string[]>([]);
   const { showToast } = useToast();
   const { currentSystem } = useSystem();
   const { notifyPOAMCreated, notifySystemEvent } = useNotificationGenerator();
@@ -100,11 +102,50 @@ export default function CreatePOAM() {
   // Helper to map risk ratings to an overall
   const riskOrder: Record<string, number> = { 'Low': 1, 'Moderate': 2, 'Medium': 2, 'High': 3, 'Critical': 4 };
 
+  // Calculate reasonable milestone due dates and suggest end date adjustments
+  const calculateMilestoneDueDates = (milestones: Milestone[]): Milestone[] => {
+    if (milestones.length === 0) return milestones;
+
+    const today = new Date();
+    const startDateObj = startDate ? new Date(startDate) : today;
+    const endDateObj = endDate ? new Date(endDate) : new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000); // Default 90 days
+
+    // Calculate minimum reasonable timeframe based on milestone count and complexity
+    const baseWeeksPerMilestone = 2; // Assume 2 weeks per milestone for security work
+    const minimumWeeks = Math.max(4, milestones.length * baseWeeksPerMilestone); // At least 4 weeks
+    const suggestedEndDate = new Date(startDateObj.getTime() + minimumWeeks * 7 * 24 * 60 * 60 * 1000);
+
+    // Check if current end date is unreasonable
+    const currentDurationWeeks = endDate ? Math.floor((endDateObj.getTime() - startDateObj.getTime()) / (7 * 24 * 60 * 60 * 1000)) : 0;
+    
+    if (!endDate || currentDurationWeeks < minimumWeeks) {
+      const suggestedEndDateStr = suggestedEndDate.toISOString().split('T')[0];
+      setEndDate(suggestedEndDateStr);
+      showToast('info', `Suggested end date adjusted to ${suggestedEndDateStr} (${minimumWeeks} weeks) based on ${milestones.length} milestones`);
+    }
+
+    // Use the better end date for calculations
+    const finalEndDate = !endDate || currentDurationWeeks < minimumWeeks ? suggestedEndDate : endDateObj;
+    
+    // Distribute milestones evenly across the timeframe
+    const totalDuration = finalEndDate.getTime() - startDateObj.getTime();
+    const milestoneInterval = totalDuration / milestones.length;
+
+    return milestones.map((milestone, index) => {
+      const milestoneDate = new Date(startDateObj.getTime() + (milestoneInterval * (index + 1)));
+      return {
+        ...milestone,
+        dueDate: milestoneDate.toISOString().split('T')[0]
+      };
+    });
+  };
+
   const canProceedFromStep = (stepIndex: number) => {
     if (stepIndex === 0) return selectedStpIds.length > 0;
     if (stepIndex === 1) return !!title && !!description;
     if (stepIndex === 2) return !!startDate && !!endDate;
     if (stepIndex === 3) return true;
+    if (stepIndex === 4) return editingMilestones.length > 0;
     return true;
   };
 
@@ -121,10 +162,10 @@ export default function CreatePOAM() {
           for (const tc of plan.test_cases) {
             const ms: Milestone = {
               id: `stp-${plan.id}-tc-${tc.id}`,
-              title: tc.test_description || `Test ${tc.id}`,
+              title: tc.stig_vuln_id || `Test ${tc.id}`,
               dueDate: '',
               status: 'Not Started',
-              description: tc.test_procedure || ''
+              description: tc.test_description || tc.test_procedure || ''
             };
             milestones.push(ms);
             const tcRisk = (tc.risk_rating || 'Low');
@@ -134,6 +175,9 @@ export default function CreatePOAM() {
           }
         }
       }
+
+      // Calculate milestone due dates and suggest end date if needed
+      const milestonesWithDates = calculateMilestoneDueDates(milestones);
 
       // Prefill title/description if empty
       if (!title) {
@@ -154,14 +198,78 @@ export default function CreatePOAM() {
       if (!severity) setSeverity(highestRisk);
       if (!rawSeverity) setRawSeverity(highestRisk);
 
-      setGeneratedMilestones(milestones);
-      showToast('info', `Generated ${milestones.length} milestone(s) from selected STP test cases`);
+      setGeneratedMilestones(milestonesWithDates);
+      setEditingMilestones([...milestonesWithDates]);
+      showToast('info', `Generated ${milestonesWithDates.length} milestone(s) from selected STP test cases`);
     } catch (error) {
       console.error('Failed generating from STPs', error);
       showToast('error', 'Failed to generate milestones from selected STPs');
     }
   };
 
+  // Milestone management functions
+  const updateMilestone = (id: string, updates: Partial<Milestone>) => {
+    setEditingMilestones(prev => 
+      prev.map(m => m.id === id ? { ...m, ...updates } : m)
+    );
+  };
+
+  const deleteMilestone = (id: string) => {
+    setEditingMilestones(prev => prev.filter(m => m.id !== id));
+    setSelectedMilestoneIds(prev => prev.filter(mId => mId !== id));
+  };
+
+  const addMilestone = () => {
+    const newMilestone: Milestone = {
+      id: `manual-${Date.now()}`,
+      title: 'New Milestone',
+      dueDate: '',
+      status: 'Not Started',
+      description: ''
+    };
+    setEditingMilestones(prev => [...prev, newMilestone]);
+  };
+
+  const combineMilestones = () => {
+    if (selectedMilestoneIds.length < 2) {
+      showToast('warning', 'Select at least 2 milestones to combine');
+      return;
+    }
+
+    const selectedMilestones = editingMilestones.filter(m => selectedMilestoneIds.includes(m.id));
+    const combinedTitle = selectedMilestones.map(m => m.title).join(' + ');
+    const combinedDescription = selectedMilestones.map(m => m.description).filter(Boolean).join('\n\n');
+    
+    const combinedMilestone: Milestone = {
+      id: `combined-${Date.now()}`,
+      title: combinedTitle,
+      dueDate: '',
+      status: 'Not Started',
+      description: combinedDescription
+    };
+
+    // Find the position of the first selected milestone
+    const firstSelectedIndex = editingMilestones.findIndex(m => selectedMilestoneIds.includes(m.id));
+    
+    // Create new array with combined milestone at the first selected position
+    setEditingMilestones(prev => {
+      const filtered = prev.filter(m => !selectedMilestoneIds.includes(m.id));
+      return [
+        ...filtered.slice(0, firstSelectedIndex),
+        combinedMilestone,
+        ...filtered.slice(firstSelectedIndex)
+      ];
+    });
+    
+    setSelectedMilestoneIds([]);
+    showToast('success', `Combined ${selectedMilestones.length} milestones`);
+  };
+
+  const toggleMilestoneSelection = (id: string) => {
+    setSelectedMilestoneIds(prev => 
+      prev.includes(id) ? prev.filter(mId => mId !== id) : [...prev, id]
+    );
+  };
 
   // Check if system is selected
   if (!currentSystem) {
@@ -199,7 +307,7 @@ export default function CreatePOAM() {
         status,
         priority,
         riskLevel,
-        milestones: generatedMilestones,
+        milestones: editingMilestones,
         // Enhanced fields
         resources,
         sourceIdentifyingVulnerability,
@@ -321,6 +429,11 @@ export default function CreatePOAM() {
                 }
                 if (currentStep === 0) {
                   await generateFromSelectedSTPs();
+                } else if (currentStep === 3) {
+                  // Moving to milestone step - ensure we have milestones to edit
+                  if (editingMilestones.length === 0 && generatedMilestones.length > 0) {
+                    setEditingMilestones([...generatedMilestones]);
+                  }
                 }
                 setCurrentStep((s) => s + 1);
               }}
@@ -629,8 +742,100 @@ export default function CreatePOAM() {
           <div className="container-responsive p-6 space-y-8">
             <div className="bg-muted/30 rounded-lg p-6 space-y-6">
               <div className="border-b border-border pb-3">
+                <h3 className="text-lg font-semibold text-foreground">Milestone Management</h3>
+                <p className="text-sm text-muted-foreground">Review, edit, combine, or add new milestones before creating the POAM.</p>
+              </div>
+              
+              <div className="flex gap-2 flex-wrap">
+                <Button type="button" onClick={addMilestone} variant="outline" size="sm">
+                  Add Milestone
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={combineMilestones} 
+                  variant="outline" 
+                  size="sm"
+                  disabled={selectedMilestoneIds.length < 2}
+                >
+                  Combine Selected ({selectedMilestoneIds.length})
+                </Button>
+              </div>
+              
+              <div className="space-y-4 max-h-96 overflow-y-auto custom-scrollbar">
+                {editingMilestones.length === 0 ? (
+                  <div className="text-center p-8 text-muted-foreground">
+                    <p>No milestones available. Go back to select STPs or add a milestone manually.</p>
+                  </div>
+                ) : (
+                  editingMilestones.map((milestone, index) => (
+                    <div key={milestone.id} className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedMilestoneIds.includes(milestone.id)}
+                          onChange={() => toggleMilestoneSelection(milestone.id)}
+                          className="rounded"
+                        />
+                        <span className="text-sm text-muted-foreground">#{index + 1}</span>
+                        <Button
+                          type="button"
+                          onClick={() => deleteMilestone(milestone.id)}
+                          variant="outline"
+                          size="sm"
+                          className="ml-auto text-destructive hover:text-destructive"
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-1">Title</label>
+                          <input
+                            type="text"
+                            value={milestone.title}
+                            onChange={(e) => updateMilestone(milestone.id, { title: e.target.value })}
+                            className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                            placeholder="Milestone title"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-1">Due Date</label>
+                          <SimpleDateInput
+                            value={milestone.dueDate}
+                            onChange={(date) => updateMilestone(milestone.id, { dueDate: date })}
+                            min={startDate}
+                            max={endDate}
+                            className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Description</label>
+                        <textarea
+                          value={milestone.description}
+                          onChange={(e) => updateMilestone(milestone.id, { description: e.target.value })}
+                          rows={2}
+                          className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 resize-vertical"
+                          placeholder="Milestone description or procedure"
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentStep === 5 && (
+          <div className="container-responsive p-6 space-y-8">
+            <div className="bg-muted/30 rounded-lg p-6 space-y-6">
+              <div className="border-b border-border pb-3">
                 <h3 className="text-lg font-semibold text-foreground">Review & Confirm</h3>
-                <p className="text-sm text-muted-foreground">Milestones will be created from {generatedMilestones.length} test case(s).</p>
+                <p className="text-sm text-muted-foreground">Final review of POAM with {editingMilestones.length} milestone(s).</p>
               </div>
               <ul className="text-sm space-y-1">
                 <li><strong>Title:</strong> {title}</li>
@@ -639,13 +844,14 @@ export default function CreatePOAM() {
                 <li><strong>STPs:</strong> {selectedStpIds.length}</li>
               </ul>
               <div className="max-h-64 overflow-auto border rounded p-2">
-                {generatedMilestones.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No milestones generated yet.</p>
+                {editingMilestones.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No milestones available.</p>
                 ) : (
-                  generatedMilestones.map((m, idx) => (
+                  editingMilestones.map((m, idx) => (
                     <div key={m.id} className="py-1 text-sm">
                       <span className="text-muted-foreground mr-2">{idx + 1}.</span>
                       <span className="font-medium">{m.title}</span>
+                      {m.dueDate && <span className="text-muted-foreground ml-2">({m.dueDate})</span>}
                     </div>
                   ))
                 )}
