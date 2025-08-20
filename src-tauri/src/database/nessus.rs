@@ -120,6 +120,21 @@ impl<'a> NessusOperations<'a> {
         tx.commit()?;
         Ok(())
     }
+
+    pub fn delete_scan(&mut self, scan_id: &str, system_id: &str) -> Result<(), DatabaseError> {
+        // Remove a single scan and its findings for the given system
+        let tx = self.conn.transaction()?;
+        tx.execute(
+            "DELETE FROM nessus_findings WHERE scan_id = ?1 AND system_id = ?2",
+            params![scan_id, system_id],
+        )?;
+        tx.execute(
+            "DELETE FROM nessus_scans WHERE id = ?1 AND system_id = ?2",
+            params![scan_id, system_id],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
 }
 
 impl<'a> NessusQueries<'a> {

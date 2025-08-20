@@ -468,6 +468,11 @@ impl Database {
         ops.clear_scans_and_findings_for_system(system_id)
     }
 
+    pub fn delete_nessus_scan(&mut self, scan_id: &str, system_id: &str) -> Result<(), DatabaseError> {
+        let mut ops = nessus::NessusOperations::new(&mut self.conn);
+        ops.delete_scan(scan_id, system_id)
+    }
+
     // Database file management
     pub fn delete_database_file(app_handle: &AppHandle) -> Result<(), DatabaseError> {
         POAMOperations::delete_database_file(app_handle)

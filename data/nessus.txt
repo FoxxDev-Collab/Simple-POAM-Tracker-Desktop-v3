@@ -1,0 +1,1142 @@
+use std::path::PathBuf;
+use std::collections::HashMap;
+
+use anyhow::{Context, Result};
+use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
+use serde_json;
+use tauri::{path::BaseDirectory, Manager};
+use quick_xml::de::from_str;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct NessusReport {
+  pub id: i64,
+  pub filename: String,
+  pub scan_name: String,
+  pub scan_date: String,
+  pub total_hosts: i32,
+  pub total_vulnerabilities: i32,
+  pub created_at: String,
+  pub scan_metadata: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NessusHost {
+  pub id: i64,
+  pub report_id: i64,
+  pub hostname: String,
+  pub ip_address: String,
+  pub mac_address: Option<String>,
+  pub os_info: Option<String>,
+  pub total_vulnerabilities: i32,
+  pub critical_count: i32,
+  pub high_count: i32,
+  pub medium_count: i32,
+  pub low_count: i32,
+  pub info_count: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct NessusVulnerability {
+    pub id: i64,
+    pub report_id: i64,
+    pub host_id: i64,
+    pub plugin_id: i32,
+    pub plugin_name: String,
+    pub plugin_family: String,
+    pub severity: i32,
+    pub port: Option<String>,
+    pub protocol: Option<String>,
+    pub service: Option<String>,
+    pub description: Option<String>,
+    pub solution: Option<String>,
+    pub cve: Option<String>,
+    pub cvss_score: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportItem {
+    pub id: i64,
+    pub report_id: i64,
+    pub host_id: i64,
+    pub hostname: String,
+    pub ip_address: String,
+    pub mac_address: Option<String>,
+    pub plugin_id: i32,
+    pub plugin_name: String,
+    pub plugin_family: String,
+    pub severity: i32,
+    pub port: Option<String>,
+    pub protocol: Option<String>,
+    pub service: Option<String>,
+    pub description: Option<String>,
+    pub solution: Option<String>,
+    pub synopsis: Option<String>,
+    pub cve: Option<String>,
+    pub cvss_score: Option<f64>,
+    pub plugin_output: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComparisonResult {
+  pub report1: NessusReport,
+  pub report2: NessusReport,
+  pub report3: Option<NessusReport>,
+  pub common_vulnerabilities: Vec<NessusVulnerability>,
+  pub unique_to_report1: Vec<NessusVulnerability>,
+  pub unique_to_report2: Vec<NessusVulnerability>,
+  pub unique_to_report3: Vec<NessusVulnerability>,
+  pub summary: ComparisonSummary,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComparisonSummary {
+  pub total_common: i32,
+  pub total_unique_1: i32,
+  pub total_unique_2: i32,
+  pub total_unique_3: i32,
+  pub critical_common: i32,
+  pub high_common: i32,
+  pub medium_common: i32,
+  pub low_common: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseStats {
+  pub total_reports: i32,
+  pub total_hosts: i32,
+  pub total_vulnerabilities: i32,
+  pub database_size: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NessusClientData {
+    #[serde(rename = "Policy", skip_serializing_if = "Option::is_none")]
+    policy: Option<serde_json::Value>,
+    #[serde(rename = "Preferences", skip_serializing_if = "Option::is_none")]
+    preferences: Option<serde_json::Value>,
+    #[serde(rename = "Report")]
+    report: NessusXmlReportContent,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NessusXmlReportContent {
+    #[serde(rename = "@name", skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(rename = "ReportHost", default)]
+    report_hosts: Vec<NessusXmlReportHost>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NessusXmlReportHost {
+    #[serde(rename = "@name")]
+    name: String,
+    #[serde(rename = "HostProperties")]
+    host_properties: Option<NessusXmlHostProperties>,
+    #[serde(rename = "ReportItem", default)]
+    report_items: Vec<NessusXmlReportItem>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NessusXmlHostProperties {
+    #[serde(rename = "tag", default)]
+    tags: Vec<NessusXmlTag>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NessusXmlTag {
+    #[serde(rename = "@name")]
+    name: String,
+    #[serde(rename = "$text")]
+    value: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NessusXmlReportItem {
+    #[serde(rename = "@port")]
+    port: Option<String>,
+    #[serde(rename = "@svc_name")]
+    svc_name: Option<String>,
+    #[serde(rename = "@protocol")]
+    protocol: Option<String>,
+    #[serde(rename = "@severity")]
+    severity: Option<String>,
+    #[serde(rename = "@pluginID")]
+    plugin_id: Option<String>,
+    #[serde(rename = "@pluginName")]
+    plugin_name: Option<String>,
+    #[serde(rename = "@pluginFamily")]
+    plugin_family: Option<String>,
+    #[serde(rename = "description")]
+    description: Option<String>,
+    #[serde(rename = "solution")]
+    solution: Option<String>,
+    #[serde(rename = "cve", default)]
+    cve: Vec<String>,
+    #[serde(rename = "cvss_base_score")]
+    cvss_base_score: Option<String>,
+    #[serde(rename = "synopsis")]
+    synopsis: Option<String>,
+    #[serde(rename = "plugin_output")]
+    plugin_output: Option<String>,
+}
+
+fn get_db_path(app: &tauri::AppHandle) -> Result<PathBuf> {
+  let dir = app
+    .path()
+    .resolve("db", BaseDirectory::AppLocalData)
+    .context("resolve app data dir failed")?;
+  std::fs::create_dir_all(&dir).ok();
+  Ok(dir.join("nessus_compare.sqlite"))
+}
+
+fn open_and_migrate(path: &PathBuf) -> Result<Connection> {
+  let conn = Connection::open(path).context("open sqlite failed")?;
+  
+  // Enable foreign keys
+  conn.execute("PRAGMA foreign_keys = ON", [])?;
+  
+  // Create tables
+  conn.execute_batch(
+    r#"
+    CREATE TABLE IF NOT EXISTS nessus_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filename TEXT NOT NULL,
+      scan_name TEXT NOT NULL,
+      scan_date TEXT NOT NULL,
+      total_hosts INTEGER NOT NULL DEFAULT 0,
+      total_vulnerabilities INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      scan_metadata TEXT
+    );
+    CREATE TABLE IF NOT EXISTS nessus_hosts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      report_id INTEGER NOT NULL REFERENCES nessus_reports(id) ON DELETE CASCADE,
+      hostname TEXT NOT NULL,
+      ip_address TEXT NOT NULL,
+      os_info TEXT,
+      total_vulnerabilities INTEGER NOT NULL DEFAULT 0,
+      critical_count INTEGER NOT NULL DEFAULT 0,
+      high_count INTEGER NOT NULL DEFAULT 0,
+      medium_count INTEGER NOT NULL DEFAULT 0,
+      low_count INTEGER NOT NULL DEFAULT 0,
+      info_count INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS nessus_vulnerabilities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      report_id INTEGER NOT NULL REFERENCES nessus_reports(id) ON DELETE CASCADE,
+      host_id INTEGER NOT NULL REFERENCES nessus_hosts(id) ON DELETE CASCADE,
+      plugin_id INTEGER NOT NULL,
+      plugin_name TEXT NOT NULL,
+      plugin_family TEXT NOT NULL,
+      severity INTEGER NOT NULL,
+      port TEXT,
+      protocol TEXT,
+      service TEXT,
+      description TEXT,
+      solution TEXT,
+      cve TEXT,
+      cvss_score REAL
+    );
+    CREATE INDEX IF NOT EXISTS idx_vuln_plugin_id ON nessus_vulnerabilities(plugin_id);
+    CREATE INDEX IF NOT EXISTS idx_vuln_severity ON nessus_vulnerabilities(severity);
+    CREATE INDEX IF NOT EXISTS idx_host_report ON nessus_hosts(report_id);
+    CREATE INDEX IF NOT EXISTS idx_vuln_report ON nessus_vulnerabilities(report_id);
+  "#,
+  )?;
+  
+  // Add mac_address column if it doesn't exist (migration)
+  let mut has_mac_address = false;
+  {
+    let mut stmt = conn.prepare("PRAGMA table_info(nessus_hosts)")?;
+    let column_names: Result<Vec<String>, _> = stmt.query_map([], |row| {
+      let column_name: String = row.get(1)?;
+      Ok(column_name)
+    })?.collect();
+    
+    if let Ok(names) = column_names {
+      has_mac_address = names.iter().any(|name| name == "mac_address");
+    }
+  }
+  
+  if !has_mac_address {
+    conn.execute("ALTER TABLE nessus_hosts ADD COLUMN mac_address TEXT", [])?;
+  }
+
+  // Add scan_metadata column if it doesn't exist (migration)
+  let mut has_scan_metadata = false;
+  {
+    let mut stmt = conn.prepare("PRAGMA table_info(nessus_reports)")?;
+    let column_names: Result<Vec<String>, _> = stmt.query_map([], |row| {
+      let column_name: String = row.get(1)?;
+      Ok(column_name)
+    })?.collect();
+    
+    if let Ok(names) = column_names {
+      has_scan_metadata = names.iter().any(|name| name == "scan_metadata");
+    }
+  }
+  
+  if !has_scan_metadata {
+    conn.execute("ALTER TABLE nessus_reports ADD COLUMN scan_metadata TEXT", [])?;
+  }
+
+  // Add synopsis and plugin_output columns if they don't exist (migration)
+  let mut has_synopsis = false;
+  let mut has_plugin_output = false;
+  {
+    let mut stmt = conn.prepare("PRAGMA table_info(nessus_vulnerabilities)")?;
+    let column_names: Result<Vec<String>, _> = stmt.query_map([], |row| {
+      let column_name: String = row.get(1)?;
+      Ok(column_name)
+    })?.collect();
+    
+    if let Ok(names) = column_names {
+      has_synopsis = names.iter().any(|name| name == "synopsis");
+      has_plugin_output = names.iter().any(|name| name == "plugin_output");
+    }
+  }
+  
+  if !has_synopsis {
+    conn.execute("ALTER TABLE nessus_vulnerabilities ADD COLUMN synopsis TEXT", [])?;
+  }
+  
+  if !has_plugin_output {
+    conn.execute("ALTER TABLE nessus_vulnerabilities ADD COLUMN plugin_output TEXT", [])?;
+  }
+  
+  Ok(conn)
+}
+
+fn extract_scan_metadata(xml_content: &str) -> Option<String> {
+  let mut metadata = HashMap::new();
+  
+  // Extract scan information from plugin_output sections
+  if let Some(info_start) = xml_content.find("Information about this scan") {
+    if let Some(info_end) = xml_content[info_start..].find("</plugin_output>") {
+      let info_section = &xml_content[info_start..info_start + info_end];
+      
+      // Parse key-value pairs
+      for line in info_section.lines() {
+        let line = line.trim();
+        if line.contains(" : ") {
+          let parts: Vec<&str> = line.splitn(2, " : ").collect();
+          if parts.len() == 2 {
+            let key = parts[0].trim();
+            let value = parts[1].trim();
+            
+            match key {
+              "Nessus version" => metadata.insert("nessusVersion".to_string(), value.to_string()),
+              "Nessus build" => metadata.insert("nessusBuild".to_string(), value.to_string()),
+              "Plugin feed version" => metadata.insert("pluginFeedVersion".to_string(), value.to_string()),
+              "Scanner edition used" => metadata.insert("scannerEdition".to_string(), value.to_string()),
+              "Scanner OS" => metadata.insert("scannerOS".to_string(), value.to_string()),
+              "Scanner distribution" => metadata.insert("scannerDistribution".to_string(), value.to_string()),
+              "Scan type" => metadata.insert("scanType".to_string(), value.to_string()),
+              "Scan name" => metadata.insert("scanName".to_string(), value.to_string()),
+              "Scan policy used" => metadata.insert("scanPolicy".to_string(), value.to_string()),
+              "Scanner IP" => metadata.insert("scannerIP".to_string(), value.to_string()),
+              "Port range" => metadata.insert("portRange".to_string(), value.to_string()),
+              "Ping RTT" => metadata.insert("pingRTT".to_string(), value.to_string()),
+              "Thorough tests" => metadata.insert("thoroughTests".to_string(), value.to_string()),
+              "Experimental tests" => metadata.insert("experimentalTests".to_string(), value.to_string()),
+              "Scan for Unpatched Vulnerabilities" => metadata.insert("scanUnpatched".to_string(), value.to_string()),
+              "Paranoia level" => metadata.insert("paranoidLevel".to_string(), value.to_string()),
+              "Report verbosity" => metadata.insert("reportVerbosity".to_string(), value.to_string()),
+              "Safe checks" => metadata.insert("safeChecks".to_string(), value.to_string()),
+              "Optimize the test" => metadata.insert("optimizeTest".to_string(), value.to_string()),
+              "Credentialed checks" => metadata.insert("credentialedChecks".to_string(), value.to_string()),
+              "Max hosts" => metadata.insert("maxHosts".to_string(), value.to_string()),
+              "Max checks" => metadata.insert("maxChecks".to_string(), value.to_string()),
+              "Recv timeout" => metadata.insert("recvTimeout".to_string(), value.to_string()),
+              "Scan Start Date" => metadata.insert("scanStartDate".to_string(), value.to_string()),
+              "Scan duration" => metadata.insert("scanDuration".to_string(), value.to_string()),
+              _ => None,
+            };
+          }
+        } else if line.starts_with("WARNING") {
+          // Extract warnings
+          let warnings = metadata.entry("warnings".to_string())
+            .or_insert_with(|| "[]".to_string());
+          if warnings == "[]" {
+            *warnings = format!("[\"{}\"]", line.replace("\"", "\\\""));
+          } else {
+            let mut warning_list: Vec<String> = serde_json::from_str(warnings).unwrap_or_default();
+            warning_list.push(line.to_string());
+            *warnings = serde_json::to_string(&warning_list).unwrap_or_default();
+          }
+        }
+      }
+    }
+  }
+  
+  if metadata.is_empty() {
+    None
+  } else {
+    serde_json::to_string(&metadata).ok()
+  }
+}
+
+#[tauri::command]
+fn list_reports(app: tauri::AppHandle) -> Result<Vec<NessusReport>, String> {
+  (|| -> Result<Vec<NessusReport>> {
+    let db = get_db_path(&app)?;
+    let conn = open_and_migrate(&db)?;
+    let mut stmt = conn.prepare(
+      "SELECT id, filename, scan_name, scan_date, total_hosts, total_vulnerabilities, created_at, scan_metadata 
+       FROM nessus_reports ORDER BY created_at DESC"
+    )?;
+    let rows = stmt
+      .query_map([], |r| Ok(NessusReport {
+        id: r.get(0)?,
+        filename: r.get(1)?,
+        scan_name: r.get(2)?,
+        scan_date: r.get(3)?,
+        total_hosts: r.get(4)?,
+        total_vulnerabilities: r.get(5)?,
+        created_at: r.get(6)?,
+        scan_metadata: r.get(7)?,
+      }))?
+      .collect::<std::result::Result<Vec<_>, _>>()?;
+    Ok(rows)
+  })()
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_report_details(app: tauri::AppHandle, report_id: i64) -> Result<(NessusReport, Vec<NessusHost>), String> {
+  (|| -> Result<(NessusReport, Vec<NessusHost>)> {
+    let db = get_db_path(&app)?;
+    let conn = open_and_migrate(&db)?;
+    
+    // Get report
+    let mut report_stmt = conn.prepare(
+      "SELECT id, filename, scan_name, scan_date, total_hosts, total_vulnerabilities, created_at, scan_metadata 
+       FROM nessus_reports WHERE id = ?1"
+    )?;
+    let report: NessusReport = report_stmt.query_row([report_id], |r| Ok(NessusReport {
+      id: r.get(0)?,
+      filename: r.get(1)?,
+      scan_name: r.get(2)?,
+      scan_date: r.get(3)?,
+      total_hosts: r.get(4)?,
+      total_vulnerabilities: r.get(5)?,
+      created_at: r.get(6)?,
+      scan_metadata: r.get(7)?,
+    }))?;
+    
+    // Get hosts
+    let mut hosts_stmt = conn.prepare(
+      "SELECT id, report_id, hostname, ip_address, mac_address, os_info, total_vulnerabilities, 
+              critical_count, high_count, medium_count, low_count, info_count
+       FROM nessus_hosts WHERE report_id = ?1 ORDER BY ip_address"
+    )?;
+    let hosts = hosts_stmt
+      .query_map([report_id], |r| Ok(NessusHost {
+        id: r.get(0)?,
+        report_id: r.get(1)?,
+        hostname: r.get(2)?,
+        ip_address: r.get(3)?,
+        mac_address: r.get(4)?,
+        os_info: r.get(5)?,
+        total_vulnerabilities: r.get(6)?,
+        critical_count: r.get(7)?,
+        high_count: r.get(8)?,
+        medium_count: r.get(9)?,
+        low_count: r.get(10)?,
+        info_count: r.get(11)?,
+      }))?
+      .collect::<std::result::Result<Vec<_>, _>>()?;
+    
+    Ok((report, hosts))
+  })()
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_host_vulnerabilities(app: tauri::AppHandle, host_id: i64) -> Result<Vec<NessusVulnerability>, String> {
+  (|| -> Result<Vec<NessusVulnerability>> {
+    let db = get_db_path(&app)?;
+    let conn = open_and_migrate(&db)?;
+    let mut stmt = conn.prepare(
+      "SELECT id, report_id, host_id, plugin_id, plugin_name, plugin_family, severity,
+              port, protocol, service, description, solution, cve, cvss_score
+       FROM nessus_vulnerabilities WHERE host_id = ?1 ORDER BY severity DESC, plugin_name"
+    )?;
+    let rows = stmt
+      .query_map([host_id], |r| Ok(NessusVulnerability {
+        id: r.get(0)?,
+        report_id: r.get(1)?,
+        host_id: r.get(2)?,
+        plugin_id: r.get(3)?,
+        plugin_name: r.get(4)?,
+        plugin_family: r.get(5)?,
+        severity: r.get(6)?,
+        port: r.get(7)?,
+        protocol: r.get(8)?,
+        service: r.get(9)?,
+        description: r.get(10)?,
+        solution: r.get(11)?,
+        cve: r.get(12)?,
+        cvss_score: r.get(13)?,
+      }))?
+      .collect::<std::result::Result<Vec<_>, _>>()?;
+    Ok(rows)
+  })()
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_report_vulnerabilities(app: tauri::AppHandle, report_id: i64) -> Result<Vec<NessusVulnerability>, String> {
+  (|| -> Result<Vec<NessusVulnerability>> {
+    let db = get_db_path(&app)?;
+    let conn = open_and_migrate(&db)?;
+    let mut stmt = conn.prepare(
+      "SELECT id, report_id, host_id, plugin_id, plugin_name, plugin_family, severity,
+              port, protocol, service, description, solution, cve, cvss_score
+       FROM nessus_vulnerabilities WHERE report_id = ?1 ORDER BY severity DESC, plugin_name"
+    )?;
+    let rows = stmt
+      .query_map([report_id], |r| Ok(NessusVulnerability {
+        id: r.get(0)?,
+        report_id: r.get(1)?,
+        host_id: r.get(2)?,
+        plugin_id: r.get(3)?,
+        plugin_name: r.get(4)?,
+        plugin_family: r.get(5)?,
+        severity: r.get(6)?,
+        port: r.get(7)?,
+        protocol: r.get(8)?,
+        service: r.get(9)?,
+        description: r.get(10)?,
+        solution: r.get(11)?,
+        cve: r.get(12)?,
+        cvss_score: r.get(13)?,
+      }))?
+      .collect::<std::result::Result<Vec<_>, _>>()?;
+    Ok(rows)
+  })()
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn compare_reports(app: tauri::AppHandle, report1_id: i64, report2_id: i64, report3_id: Option<i64>) -> Result<ComparisonResult, String> {
+  (|| -> Result<ComparisonResult> {
+    let db = get_db_path(&app)?;
+    let conn = open_and_migrate(&db)?;
+    
+    // Get reports
+    let mut report_stmt = conn.prepare(
+      "SELECT id, filename, scan_name, scan_date, total_hosts, total_vulnerabilities, created_at, scan_metadata 
+       FROM nessus_reports WHERE id = ?1"
+    )?;
+    
+    let report1: NessusReport = report_stmt.query_row([report1_id], |r| Ok(NessusReport {
+      id: r.get(0)?,
+      filename: r.get(1)?,
+      scan_name: r.get(2)?,
+      scan_date: r.get(3)?,
+      total_hosts: r.get(4)?,
+      total_vulnerabilities: r.get(5)?,
+      created_at: r.get(6)?,
+      scan_metadata: r.get(7)?,
+    }))?;
+    
+    let report2: NessusReport = report_stmt.query_row([report2_id], |r| Ok(NessusReport {
+      id: r.get(0)?,
+      filename: r.get(1)?,
+      scan_name: r.get(2)?,
+      scan_date: r.get(3)?,
+      total_hosts: r.get(4)?,
+      total_vulnerabilities: r.get(5)?,
+      created_at: r.get(6)?,
+      scan_metadata: r.get(7)?,
+    }))?;
+    
+    let report3 = if let Some(id) = report3_id {
+      Some(report_stmt.query_row([id], |r| Ok(NessusReport {
+        id: r.get(0)?,
+        filename: r.get(1)?,
+        scan_name: r.get(2)?,
+        scan_date: r.get(3)?,
+        total_hosts: r.get(4)?,
+        total_vulnerabilities: r.get(5)?,
+        created_at: r.get(6)?,
+        scan_metadata: r.get(7)?,
+      }))?)
+    } else {
+      None
+    };
+    
+    // Get vulnerabilities for comparison
+    let mut vuln_stmt = conn.prepare(
+      "SELECT id, report_id, host_id, plugin_id, plugin_name, plugin_family, severity,
+              port, protocol, service, description, solution, cve, cvss_score
+       FROM nessus_vulnerabilities WHERE report_id = ?1"
+    )?;
+    
+    let vulns1: Vec<NessusVulnerability> = vuln_stmt
+      .query_map([report1_id], |r| Ok(NessusVulnerability {
+        id: r.get(0)?,
+        report_id: r.get(1)?,
+        host_id: r.get(2)?,
+        plugin_id: r.get(3)?,
+        plugin_name: r.get(4)?,
+        plugin_family: r.get(5)?,
+        severity: r.get(6)?,
+        port: r.get(7)?,
+        protocol: r.get(8)?,
+        service: r.get(9)?,
+        description: r.get(10)?,
+        solution: r.get(11)?,
+        cve: r.get(12)?,
+        cvss_score: r.get(13)?,
+      }))?
+      .collect::<std::result::Result<Vec<_>, _>>()?;
+    
+    let vulns2: Vec<NessusVulnerability> = vuln_stmt
+      .query_map([report2_id], |r| Ok(NessusVulnerability {
+        id: r.get(0)?,
+        report_id: r.get(1)?,
+        host_id: r.get(2)?,
+        plugin_id: r.get(3)?,
+        plugin_name: r.get(4)?,
+        plugin_family: r.get(5)?,
+        severity: r.get(6)?,
+        port: r.get(7)?,
+        protocol: r.get(8)?,
+        service: r.get(9)?,
+        description: r.get(10)?,
+        solution: r.get(11)?,
+        cve: r.get(12)?,
+        cvss_score: r.get(13)?,
+      }))?
+      .collect::<std::result::Result<Vec<_>, _>>()?;
+    
+    let vulns3 = if let Some(id) = report3_id {
+      Some(vuln_stmt
+        .query_map([id], |r| Ok(NessusVulnerability {
+          id: r.get(0)?,
+          report_id: r.get(1)?,
+          host_id: r.get(2)?,
+          plugin_id: r.get(3)?,
+          plugin_name: r.get(4)?,
+          plugin_family: r.get(5)?,
+          severity: r.get(6)?,
+          port: r.get(7)?,
+          protocol: r.get(8)?,
+          service: r.get(9)?,
+          description: r.get(10)?,
+          solution: r.get(11)?,
+          cve: r.get(12)?,
+          cvss_score: r.get(13)?,
+        }))?
+        .collect::<std::result::Result<Vec<_>, _>>()?)
+    } else {
+      None
+    };
+    
+    // Compare vulnerabilities
+    let mut common_vulns = Vec::new();
+    let mut unique_to_1 = Vec::new();
+    let mut unique_to_2 = Vec::new();
+    let mut unique_to_3 = Vec::new();
+    
+    // Create sets for comparison
+    let set1: std::collections::HashSet<i32> = vulns1.iter().map(|v| v.plugin_id).collect();
+    let set2: std::collections::HashSet<i32> = vulns2.iter().map(|v| v.plugin_id).collect();
+    let set3: std::collections::HashSet<i32> = vulns3.as_ref().map(|v| v.iter().map(|v| v.plugin_id).collect()).unwrap_or_default();
+    
+    // Find common vulnerabilities
+    let common_plugin_ids: std::collections::HashSet<i32> = if vulns3.is_some() {
+      set1.intersection(&set2).cloned().collect::<std::collections::HashSet<i32>>()
+        .intersection(&set3).cloned().collect()
+    } else {
+      set1.intersection(&set2).cloned().collect()
+    };
+    
+    // Categorize vulnerabilities
+    for vuln in &vulns1 {
+      if common_plugin_ids.contains(&vuln.plugin_id) {
+        common_vulns.push(vuln.clone());
+      } else {
+        unique_to_1.push(vuln.clone());
+      }
+    }
+    
+    for vuln in &vulns2 {
+      if !common_plugin_ids.contains(&vuln.plugin_id) {
+        unique_to_2.push(vuln.clone());
+      }
+    }
+    
+    if let Some(ref v3) = vulns3 {
+      for vuln in v3 {
+        if !common_plugin_ids.contains(&vuln.plugin_id) {
+          unique_to_3.push(vuln.clone());
+        }
+      }
+    }
+    
+    // Create summary
+    let summary = ComparisonSummary {
+      total_common: common_vulns.len() as i32,
+      total_unique_1: unique_to_1.len() as i32,
+      total_unique_2: unique_to_2.len() as i32,
+      total_unique_3: unique_to_3.len() as i32,
+      critical_common: common_vulns.iter().filter(|v| v.severity == 4).count() as i32,
+      high_common: common_vulns.iter().filter(|v| v.severity == 3).count() as i32,
+      medium_common: common_vulns.iter().filter(|v| v.severity == 2).count() as i32,
+      low_common: common_vulns.iter().filter(|v| v.severity == 1).count() as i32,
+    };
+    
+    Ok(ComparisonResult {
+      report1,
+      report2,
+      report3,
+      common_vulnerabilities: common_vulns,
+      unique_to_report1: unique_to_1,
+      unique_to_report2: unique_to_2,
+      unique_to_report3: unique_to_3,
+      summary,
+    })
+  })()
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_report(app: tauri::AppHandle, report_id: i64) -> Result<(), String> {
+  (|| -> Result<()> {
+    let db = get_db_path(&app)?;
+    let conn = open_and_migrate(&db)?;
+    
+    conn.execute("DELETE FROM nessus_reports WHERE id = ?1", params![report_id])?;
+    Ok(())
+  })()
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn import_nessus_file(app: tauri::AppHandle, file_path: String, filename: String) -> Result<NessusReport, String> {
+  (|| -> Result<NessusReport> {
+    let db = get_db_path(&app)?;
+    let conn = open_and_migrate(&db)?;
+    
+    // Read and parse the XML file
+    let xml_content = std::fs::read_to_string(&file_path)
+      .context("failed to read file")?;
+    
+    // Extract scan metadata
+    let scan_metadata = extract_scan_metadata(&xml_content);
+    
+    // Parse as NessusClientData_v2 format with fallback
+    let report_content = match from_str::<NessusClientData>(&xml_content) {
+      Ok(client_data) => client_data.report,
+      Err(e) => {
+        log::warn!("Failed to parse full XML structure: {}", e);
+        // Try to extract just the Report section and parse it directly
+        if let Some(report_start) = xml_content.find("<Report") {
+          if let Some(report_end) = xml_content.rfind("</Report>") {
+            let report_xml = &xml_content[report_start..report_end + 9]; // +9 for "</Report>"
+            from_str::<NessusXmlReportContent>(report_xml)
+              .map_err(|e2| anyhow::anyhow!("Failed to parse Report section: {}", e2))?
+          } else {
+            return Err(anyhow::anyhow!("Could not find Report section in XML"));
+          }
+        } else {
+          return Err(anyhow::anyhow!("Failed to parse Nessus XML: {}", e));
+        }
+      }
+    };
+    
+    // Extract scan information (we'll use filename for now, could be enhanced)
+    let scan_name = filename.clone();
+    let scan_date = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    
+    // Insert report
+    conn.execute(
+      "INSERT INTO nessus_reports (filename, scan_name, scan_date, total_hosts, total_vulnerabilities, scan_metadata) 
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+      params![filename, scan_name, scan_date, report_content.report_hosts.len() as i32, 0, scan_metadata],
+    )?;
+    let report_id = conn.last_insert_rowid();
+    
+    let mut total_vulnerabilities = 0;
+    
+    // Process each host
+    for host in report_content.report_hosts {
+      let hostname = host.name.clone();
+      let ip_address = host.name;
+      
+      // Extract OS info and MAC address from host properties
+      let (os_info, mac_address) = host.host_properties
+        .as_ref()
+        .map(|props| {
+          let os_info = props.tags.iter()
+            .find(|tag| tag.name == "operating-system")
+            .and_then(|tag| tag.value.clone());
+          
+          let mac_address = props.tags.iter()
+            .find(|tag| tag.name == "mac-address")
+            .and_then(|tag| tag.value.clone());
+          
+          (os_info, mac_address)
+        })
+        .unwrap_or((None, None));
+      
+      // Count vulnerabilities by severity
+      let mut critical_count = 0;
+      let mut high_count = 0;
+      let mut medium_count = 0;
+      let mut low_count = 0;
+      let mut info_count = 0;
+      
+      for item in &host.report_items {
+        match item.severity.as_deref() {
+          Some("4") => critical_count += 1,
+          Some("3") => high_count += 1,
+          Some("2") => medium_count += 1,
+          Some("1") => low_count += 1,
+          Some("0") => info_count += 1,
+          _ => {}
+        }
+      }
+      
+      let host_vuln_count = host.report_items.len() as i32;
+      total_vulnerabilities += host_vuln_count;
+      
+      // Insert host
+      conn.execute(
+        "INSERT INTO nessus_hosts (report_id, hostname, ip_address, mac_address, os_info, total_vulnerabilities, 
+                                  critical_count, high_count, medium_count, low_count, info_count) 
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        params![report_id, hostname, ip_address, mac_address, os_info, host_vuln_count, 
+                critical_count, high_count, medium_count, low_count, info_count],
+      )?;
+      let host_id = conn.last_insert_rowid();
+      
+      // Insert vulnerabilities
+      for item in host.report_items {
+        let plugin_id = item.plugin_id
+          .and_then(|id| id.parse::<i32>().ok())
+          .unwrap_or(0);
+        
+        let severity = item.severity
+          .and_then(|sev| sev.parse::<i32>().ok())
+          .unwrap_or(0);
+        
+        let cvss_score = item.cvss_base_score
+          .and_then(|score| score.parse::<f64>().ok());
+        
+        // Join multiple CVE entries with commas
+        let cve_string = if item.cve.is_empty() {
+          None
+        } else {
+          Some(item.cve.join(", "))
+        };
+        
+        conn.execute(
+          "INSERT INTO nessus_vulnerabilities (report_id, host_id, plugin_id, plugin_name, plugin_family, 
+                                              severity, port, protocol, service, description, solution, cve, cvss_score, synopsis, plugin_output) 
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+          params![
+            report_id, host_id, plugin_id,
+            item.plugin_name.unwrap_or_default(),
+            item.plugin_family.unwrap_or_default(),
+            severity,
+            item.port,
+            item.protocol,
+            item.svc_name,
+            item.description,
+            item.solution,
+            cve_string,
+            cvss_score,
+            item.synopsis,
+            item.plugin_output,
+          ],
+        )?;
+      }
+    }
+    
+    // Update total vulnerabilities count
+    conn.execute(
+      "UPDATE nessus_reports SET total_vulnerabilities = ?1 WHERE id = ?2",
+      params![total_vulnerabilities, report_id],
+    )?;
+    
+    // Return the created report
+    let mut stmt = conn.prepare(
+      "SELECT id, filename, scan_name, scan_date, total_hosts, total_vulnerabilities, created_at, scan_metadata 
+       FROM nessus_reports WHERE id = ?1"
+    )?;
+    let report = stmt.query_row(params![report_id], |r| Ok(NessusReport {
+      id: r.get(0)?,
+      filename: r.get(1)?,
+      scan_name: r.get(2)?,
+      scan_date: r.get(3)?,
+      total_hosts: r.get(4)?,
+      total_vulnerabilities: r.get(5)?,
+      created_at: r.get(6)?,
+      scan_metadata: r.get(7)?,
+    }))?;
+    
+    Ok(report)
+  })()
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_scan_metadata(app: tauri::AppHandle, report_id: i64) -> Result<Option<String>, String> {
+  (|| -> Result<Option<String>> {
+    let db = get_db_path(&app)?;
+    let conn = open_and_migrate(&db)?;
+    
+    let mut stmt = conn.prepare(
+      "SELECT scan_metadata FROM nessus_reports WHERE id = ?1"
+    )?;
+    
+    let metadata: Option<String> = stmt.query_row([report_id], |r| {
+      Ok(r.get(0)?)
+    })?;
+    
+    Ok(metadata)
+  })()
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_all_report_items(app: tauri::AppHandle, report_id: i64) -> Result<Vec<ReportItem>, String> {
+  (|| -> Result<Vec<ReportItem>> {
+    let db = get_db_path(&app)?;
+    let conn = open_and_migrate(&db)?;
+
+    // Get all vulnerabilities with host information for the report
+    let mut stmt = conn.prepare("
+      SELECT 
+        v.id, v.report_id, v.host_id, h.hostname, h.ip_address, h.mac_address,
+        v.plugin_id, v.plugin_name, v.plugin_family, v.severity,
+        v.port, v.protocol, v.service, v.description, v.solution,
+        v.synopsis, v.cve, v.cvss_score, v.plugin_output
+      FROM nessus_vulnerabilities v
+      JOIN nessus_hosts h ON v.host_id = h.id
+      WHERE v.report_id = ?1
+      ORDER BY v.severity DESC, v.plugin_id ASC, h.ip_address ASC
+    ")?;
+
+    let rows = stmt.query_map([report_id], |r| {
+      Ok(ReportItem {
+        id: r.get(0)?,
+        report_id: r.get(1)?,
+        host_id: r.get(2)?,
+        hostname: r.get(3)?,
+        ip_address: r.get(4)?,
+        mac_address: r.get(5)?,
+        plugin_id: r.get(6)?,
+        plugin_name: r.get(7)?,
+        plugin_family: r.get(8)?,
+        severity: r.get(9)?,
+        port: r.get(10)?,
+        protocol: r.get(11)?,
+        service: r.get(12)?,
+        description: r.get(13)?,
+        solution: r.get(14)?,
+        synopsis: r.get(15)?,
+        cve: r.get(16)?,
+        cvss_score: r.get(17)?,
+        plugin_output: r.get(18)?,
+      })
+    })?.collect::<std::result::Result<Vec<_>, _>>()?;
+
+    Ok(rows)
+  })()
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_database_stats(app: tauri::AppHandle) -> Result<DatabaseStats, String> {
+  (|| -> Result<DatabaseStats> {
+    let db_path = get_db_path(&app)?;
+    let conn = open_and_migrate(&db_path)?;
+    
+    // Get report count
+    let total_reports: i32 = conn.query_row(
+      "SELECT COUNT(*) FROM nessus_reports",
+      [],
+      |row| row.get(0)
+    )?;
+    
+    // Get host count
+    let total_hosts: i32 = conn.query_row(
+      "SELECT COUNT(*) FROM nessus_hosts",
+      [],
+      |row| row.get(0)
+    )?;
+    
+    // Get vulnerability count
+    let total_vulnerabilities: i32 = conn.query_row(
+      "SELECT COUNT(*) FROM nessus_vulnerabilities",
+      [],
+      |row| row.get(0)
+    )?;
+    
+    // Get database file size
+    let database_size = match std::fs::metadata(&db_path) {
+      Ok(metadata) => {
+        let size_bytes = metadata.len();
+        if size_bytes < 1024 {
+          format!("{} B", size_bytes)
+        } else if size_bytes < 1024 * 1024 {
+          format!("{:.1} KB", size_bytes as f64 / 1024.0)
+        } else if size_bytes < 1024 * 1024 * 1024 {
+          format!("{:.1} MB", size_bytes as f64 / (1024.0 * 1024.0))
+        } else {
+          format!("{:.1} GB", size_bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+        }
+      },
+      Err(_) => "Unknown".to_string(),
+    };
+    
+    Ok(DatabaseStats {
+      total_reports,
+      total_hosts,
+      total_vulnerabilities,
+      database_size,
+    })
+  })()
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_all_data(app: tauri::AppHandle) -> Result<(), String> {
+  (|| -> Result<()> {
+    let db = get_db_path(&app)?;
+    let conn = open_and_migrate(&db)?;
+    
+    // Delete all data (cascade will handle related records)
+    conn.execute("DELETE FROM nessus_reports", [])?;
+    
+    // Reset auto-increment counters
+    conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('nessus_reports', 'nessus_hosts', 'nessus_vulnerabilities')", [])?;
+    
+    // Vacuum the database to reclaim space
+    conn.execute("VACUUM", [])?;
+    
+    Ok(())
+  })()
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn optimize_database(app: tauri::AppHandle) -> Result<(), String> {
+  (|| -> Result<()> {
+    let db = get_db_path(&app)?;
+    let conn = open_and_migrate(&db)?;
+    
+    // Analyze tables to update statistics
+    conn.execute("ANALYZE", [])?;
+    
+    // Rebuild indexes
+    conn.execute("REINDEX", [])?;
+    
+    // Vacuum to optimize storage
+    conn.execute("VACUUM", [])?;
+    
+    Ok(())
+  })()
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn read_file_content(app: tauri::AppHandle, file_path: String) -> Result<String, String> {
+    use std::path::PathBuf;
+
+    // 1) Try bundled resources (works in production and after rebuilds)
+    if let Ok(resource_path) = app
+        .path()
+        .resolve(&file_path, tauri::path::BaseDirectory::Resource)
+    {
+        if resource_path.exists() {
+            return std::fs::read_to_string(resource_path).map_err(|e| e.to_string());
+        }
+    }
+
+    // 2) Try as given, relative to current working directory
+    let as_given = PathBuf::from(&file_path);
+    if as_given.exists() {
+        return std::fs::read_to_string(as_given).map_err(|e| e.to_string());
+    }
+
+    // 3) Dev fallbacks: check common project-relative locations
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let candidates = [
+        // when file_path is just "globals.css"
+        cwd.join("app").join("globals.css"),
+        // when running from src-tauri, project root is parent
+        cwd.join("..").join("app").join("globals.css"),
+        // original provided path
+        cwd.join(&file_path),
+    ];
+
+    for p in candidates.iter() {
+        if p.exists() {
+            return std::fs::read_to_string(p).map_err(|e| e.to_string());
+        }
+    }
+
+    Err(format!(
+        "Failed to locate file: {}. Tried resource dir and dev fallbacks.",
+        file_path
+    ))
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+  tauri::Builder::default()
+    .plugin(tauri_plugin_fs::init())
+    .plugin(tauri_plugin_dialog::init())
+    .setup(|app| {
+      if cfg!(debug_assertions) {
+        app
+          .handle()
+          .plugin(tauri_plugin_log::Builder::default().level(log::LevelFilter::Info).build())?;
+      }
+      // Persist and restore window size/position/state
+      app
+        .handle()
+        .plugin(tauri_plugin_window_state::Builder::default().build())?;
+      // Add dialog and filesystem plugins
+      app
+        .handle()
+        .plugin(tauri_plugin_dialog::init())?;
+      app
+        .handle()
+        .plugin(tauri_plugin_fs::init())?;
+      // ensure DB created
+      let _ = get_db_path(&app.handle());
+      Ok(())
+    })
+    .invoke_handler(tauri::generate_handler![
+      list_reports, 
+      get_report_details, 
+      get_host_vulnerabilities,
+      get_report_vulnerabilities,
+      compare_reports,
+      read_file_content,
+      import_nessus_file,
+      delete_report,
+      get_scan_metadata,
+      get_all_report_items,
+      get_database_stats,
+      delete_all_data,
+      optimize_database
+    ])
+    .run(tauri::generate_context!())
+    .expect("error while running tauri application");
+}

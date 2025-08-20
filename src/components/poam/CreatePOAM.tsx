@@ -739,7 +739,7 @@ export default function CreatePOAM() {
         )}
 
         {currentStep === 4 && (
-          <div className="container-responsive p-6 space-y-8">
+          <div className="container-responsive p-10 space-y-12">
             <div className="bg-muted/30 rounded-lg p-6 space-y-6">
               <div className="border-b border-border pb-3">
                 <h3 className="text-lg font-semibold text-foreground">Milestone Management</h3>

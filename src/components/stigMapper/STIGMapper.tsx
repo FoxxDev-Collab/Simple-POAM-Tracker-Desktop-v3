@@ -589,15 +589,24 @@ export default function STIGMapper() {
         stig_info: mappingResult.checklist?.stig_info || {},
         asset_info: mappingResult.checklist?.asset || {},
         prep_status: 'ready',
-        selected_controls: controlsToPrep.map(control => ({
-          nist_control: control.nist_control,
-          ccis: control.ccis || [],
-          stigs: control.stigs || [],
-          compliance_status: control.compliance_status,
-          risk_level: control.risk_level,
-          notes: `Prepped from STIG mapping: ${mappingResult.checklist?.stig_info?.title || 'Unknown'}`,
-          selected_for_stp: true
-        })),
+        selected_controls: controlsToPrep.map(control => {
+          // Filter STIGs to only include those that are not reviewed or open
+          const filteredStigs = (control.stigs || []).filter(stig => 
+            stig.status === 'Not_Reviewed' || stig.status === 'Open'
+          );
+          
+          return {
+            nist_control: control.nist_control,
+            ccis: control.ccis || [],
+            stigs: filteredStigs,
+            compliance_status: control.compliance_status,
+            risk_level: control.risk_level,
+            notes: `Prepped from STIG mapping: ${mappingResult.checklist?.stig_info?.title || 'Unknown'}`,
+            selected_for_stp: true
+          };
+        }),
+        // Add a note that compliant and not-applicable STIGs were filtered out
+        notes: "STIGs with status 'NotAFinding' or 'Not_Applicable' have been automatically excluded from this prep list.",
         control_count: controlsToPrep.length
       };
 

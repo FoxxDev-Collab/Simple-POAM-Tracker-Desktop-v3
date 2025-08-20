@@ -83,7 +83,7 @@ async fn import_nessus_files(app_handle: AppHandle, file_paths: Vec<String>, sys
                         }
                         "ReportItem" => {
                             findings_count += 1;
-                            // Capture a few attributes
+                            // Capture attributes first
                             let mut plugin_id: Option<i64> = None;
                             let mut port: Option<i64> = None;
                             let mut protocol: Option<String> = None;
@@ -102,23 +102,94 @@ async fn import_nessus_files(app_handle: AppHandle, file_paths: Vec<String>, sys
                                 }
                             }
 
-                            // We will not parse inner text deeply now; store raw for future enrichment
+                            // Parse inner children to extract CVEs and other details
+                            let mut cves: Vec<String> = Vec::new();
+                            let mut risk_factor: Option<String> = None;
+                            let mut synopsis: Option<String> = None;
+                            let mut description: Option<String> = None;
+                            let mut solution: Option<String> = None;
+                            let mut cvss_base_score: Option<f64> = None;
+                            let mut plugin_output: Option<String> = None;
+
+                            // We need a nested buffer for inner parsing
+                            let mut inner_buf: Vec<u8> = Vec::new();
+                            loop {
+                                match reader.read_event_into(&mut inner_buf) {
+                                    Ok(Event::Start(e2)) => {
+                                        let tag = String::from_utf8_lossy(e2.name().as_ref()).to_string();
+                                        match tag.as_str() {
+                                            "cve" => {
+                                                let text = reader.read_text(e2.name()).unwrap_or_default();
+                                                let t = text.trim();
+                                                if !t.is_empty() { cves.push(t.to_string()); }
+                                            }
+                                            "risk_factor" => {
+                                                let text = reader.read_text(e2.name()).unwrap_or_default();
+                                                let t = text.trim();
+                                                if !t.is_empty() { risk_factor = Some(t.to_string()); }
+                                            }
+                                            "synopsis" => {
+                                                let text = reader.read_text(e2.name()).unwrap_or_default();
+                                                let t = text.trim();
+                                                if !t.is_empty() { synopsis = Some(t.to_string()); }
+                                            }
+                                            "description" => {
+                                                let text = reader.read_text(e2.name()).unwrap_or_default();
+                                                let t = text.trim();
+                                                if !t.is_empty() { description = Some(t.to_string()); }
+                                            }
+                                            "solution" => {
+                                                let text = reader.read_text(e2.name()).unwrap_or_default();
+                                                let t = text.trim();
+                                                if !t.is_empty() { solution = Some(t.to_string()); }
+                                            }
+                                            "cvss_base_score" => {
+                                                let text = reader.read_text(e2.name()).unwrap_or_default();
+                                                if let Ok(v) = text.trim().parse::<f64>() { cvss_base_score = Some(v); }
+                                            }
+                                            "plugin_output" => {
+                                                let text = reader.read_text(e2.name()).unwrap_or_default();
+                                                let t = text.trim();
+                                                if !t.is_empty() { plugin_output = Some(t.to_string()); }
+                                            }
+                                            _ => {
+                                                // skip other tags
+                                            }
+                                        }
+                                    }
+                                    Ok(Event::End(e2)) => {
+                                        // End of this ReportItem
+                                        if e2.name().as_ref() == b"ReportItem" { break; }
+                                    }
+                                    Ok(Event::Eof) => break,
+                                    Err(e) => return Err(Error::Nessus(format!("Error parsing Nessus ReportItem: {}", e))),
+                                    _ => {}
+                                }
+                                inner_buf.clear();
+                            }
+
+                            let cve_joined = if cves.is_empty() { None } else { Some(cves.join(", ")) };
+                            let raw_json = json!({
+                                "cves": cves,
+                                "plugin_output": plugin_output
+                            });
+
                             let finding = database::nessus::NessusFinding {
                                 id: Uuid::new_v4().to_string(),
                                 scan_id: String::new(), // set after scan id is known
                                 plugin_id,
                                 plugin_name,
                                 severity,
-                                risk_factor: None,
-                                cve: None,
-                                cvss_base_score: None,
+                                risk_factor,
+                                cve: cve_joined,
+                                cvss_base_score,
                                 host: current_host.clone(),
                                 port,
                                 protocol,
-                                synopsis: None,
-                                description: None,
-                                solution: None,
-                                raw_json: json!({}),
+                                synopsis,
+                                description,
+                                solution,
+                                raw_json,
                             };
                             findings.push(finding);
                         }
