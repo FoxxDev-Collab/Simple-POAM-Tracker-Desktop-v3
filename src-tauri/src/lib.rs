@@ -537,7 +537,7 @@ async fn is_app_lock_configured(app_handle: AppHandle) -> Result<bool, Error> {
 }
 
 #[tauri::command]
-async fn upload_cci_list_file(app_handle: AppHandle, file_path: String) -> Result<(), Error> {
+async fn upload_cci_list_file(_app_handle: AppHandle, file_path: String) -> Result<(), Error> {
     println!("Uploading CCI list file: {}", file_path);
     let mappings = stig::parse_cci_list(file_path)?;
     println!("Successfully parsed {} CCI mappings", mappings.len());
@@ -608,6 +608,168 @@ async fn upload_cci_list(app_handle: AppHandle, file_path: String, group_id: Str
     
     println!("{}", result_message);
     Ok(result_message)
+}
+
+#[derive(serde::Serialize)]
+struct ControlImplementationStatus {
+    control_id: String,
+    implementation_status: String,
+    compliance_percentage: f64,
+    total_findings: usize,
+    open_findings: usize,
+    not_applicable_findings: usize,
+    compliant_findings: usize,
+    mapped_ccis: Vec<String>,
+    affected_systems: Vec<String>,
+    last_assessed: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct ControlComplianceAnalysis {
+    group_id: String,
+    total_controls: usize,
+    controls_with_mappings: usize,
+    fully_compliant: usize,
+    partially_compliant: usize,
+    non_compliant: usize,
+    not_assessed: usize,
+    control_statuses: Vec<ControlImplementationStatus>,
+}
+
+#[tauri::command]
+async fn analyze_control_compliance(app_handle: AppHandle, group_id: String) -> Result<ControlComplianceAnalysis, Error> {
+    println!("Analyzing control compliance for group: {}", group_id);
+    
+    let mut db = database::get_database(&app_handle)?;
+    
+    // Get all systems in the group
+    let systems = db.get_systems_in_group(&group_id)?;
+    println!("Found {} systems in group", systems.len());
+    
+    // Get CCI mappings for this group
+    let cci_mappings: Vec<(String, String)> = db.conn.prepare(
+        "SELECT cci_id, nist_control FROM group_cci_mappings WHERE group_id = ?1"
+    ).map_err(database::DatabaseError::Sqlite)?
+    .query_map(rusqlite::params![group_id], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    }).map_err(database::DatabaseError::Sqlite)?
+    .collect::<Result<Vec<_>, _>>().map_err(database::DatabaseError::Sqlite)?;
+    
+    if cci_mappings.is_empty() {
+        return Err(Error::Database(database::DatabaseError::NotFound("No CCI mappings found for this group".to_string())));
+    }
+    
+    // Build a map from CCI to NIST controls
+    let mut cci_to_nist: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    for (cci_id, nist_control) in &cci_mappings {
+        cci_to_nist.entry(cci_id.clone()).or_insert_with(Vec::new).push(nist_control.clone());
+    }
+    
+    // Build a map from NIST control to CCIs
+    let mut nist_to_ccis: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    for (cci_id, nist_control) in &cci_mappings {
+        nist_to_ccis.entry(nist_control.clone()).or_insert_with(Vec::new).push(cci_id.clone());
+    }
+    
+    // Get all STIG mappings for systems in the group
+    let mut control_findings: std::collections::HashMap<String, Vec<(String, String, Vec<String>)>> = std::collections::HashMap::new();
+    
+    for system in &systems {
+        let stig_mappings = db.get_all_stig_mappings(&system.id)?;
+        
+        for mapping in stig_mappings {
+            let result = &mapping.mapping_result;
+            // Process mapped controls and their STIG vulnerabilities
+            for mapped_control in &result.mapped_controls {
+                for stig_vuln in &mapped_control.stigs {
+                    for cci_ref in &stig_vuln.cci_refs {
+                        if let Some(nist_controls) = cci_to_nist.get(cci_ref as &str) {
+                            for nist_control in nist_controls {
+                                control_findings.entry(nist_control.clone())
+                                    .or_insert_with(Vec::new)
+                                    .push((system.name.clone(), stig_vuln.status.clone(), vec![cci_ref.clone()]));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Calculate implementation status for each control
+    let mut control_statuses = Vec::new();
+    let mut controls_with_mappings = 0;
+    let mut fully_compliant = 0;
+    let mut partially_compliant = 0;
+    let mut non_compliant = 0;
+    let mut not_assessed = 0;
+    
+    for (control_id, findings) in &control_findings {
+        controls_with_mappings += 1;
+        
+        let total_findings = findings.len();
+        let open_findings = findings.iter().filter(|(_, status, _)| status == "Open").count();
+        let compliant_findings = findings.iter().filter(|(_, status, _)| status == "NotAFinding" || status == "Not_Applicable").count();
+        let not_applicable_findings = findings.iter().filter(|(_, status, _)| status == "Not_Applicable").count();
+        
+        let compliance_percentage = if total_findings > 0 {
+            (compliant_findings as f64 / total_findings as f64) * 100.0
+        } else {
+            0.0
+        };
+        
+        let implementation_status = if compliance_percentage >= 100.0 {
+            fully_compliant += 1;
+            "Implemented".to_string()
+        } else if compliance_percentage >= 50.0 {
+            partially_compliant += 1;
+            "Partially Implemented".to_string()
+        } else if total_findings > 0 {
+            non_compliant += 1;
+            "Not Implemented".to_string()
+        } else {
+            not_assessed += 1;
+            "Not Assessed".to_string()
+        };
+        
+        let affected_systems: Vec<String> = findings.iter()
+            .map(|(system, _, _)| system.clone())
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+        
+        let mapped_ccis = nist_to_ccis.get(control_id).cloned().unwrap_or_default();
+        
+        control_statuses.push(ControlImplementationStatus {
+            control_id: control_id.clone(),
+            implementation_status,
+            compliance_percentage,
+            total_findings,
+            open_findings,
+            not_applicable_findings,
+            compliant_findings,
+            mapped_ccis,
+            affected_systems,
+            last_assessed: Some(chrono::Utc::now().to_rfc3339()),
+        });
+    }
+    
+    // Sort by control ID
+    control_statuses.sort_by(|a, b| a.control_id.cmp(&b.control_id));
+    
+    let analysis = ControlComplianceAnalysis {
+        group_id,
+        total_controls: control_statuses.len(),
+        controls_with_mappings,
+        fully_compliant,
+        partially_compliant,
+        non_compliant,
+        not_assessed,
+        control_statuses,
+    };
+    
+    println!("Analysis complete: {} controls analyzed", analysis.total_controls);
+    Ok(analysis)
 }
 
 // STIG Processing Commands
@@ -2239,6 +2401,7 @@ pub fn run() {
             is_app_lock_configured,
             upload_cci_list_file,
             upload_cci_list,
+            analyze_control_compliance,
             parse_cci_list_file,
             parse_stig_checklist_file,
             create_stig_mapping,
@@ -2548,32 +2711,6 @@ async fn analyze_group_vulnerabilities(app_handle: AppHandle, group_id: String) 
 }
 
 // CCI Mapping and Control Status Commands
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ControlImplementationStatus {
-    pub control_id: String,
-    pub implementation_status: String,
-    pub compliance_percentage: f64,
-    pub total_findings: i32,
-    pub open_findings: i32,
-    pub not_applicable_findings: i32,
-    pub compliant_findings: i32,
-    pub mapped_ccis: Vec<String>,
-    pub affected_systems: Vec<String>,
-    pub last_assessed: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ControlComplianceAnalysis {
-    pub group_id: String,
-    pub total_controls: i32,
-    pub controls_with_mappings: i32,
-    pub fully_compliant: i32,
-    pub partially_compliant: i32,
-    pub non_compliant: i32,
-    pub not_assessed: i32,
-    pub control_statuses: Vec<ControlImplementationStatus>,
-}
 
 // Enhanced Group Vulnerability Analysis with NIST Control Mapping
 
