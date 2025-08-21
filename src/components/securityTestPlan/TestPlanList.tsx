@@ -134,7 +134,7 @@ export default function TestPlanList({
             <p className="text-sm text-muted-foreground mt-2 mb-4">
               You need to create and save STIG mappings before creating test plans.
               <br />
-              Go to <strong>STIG Mapper</strong> to create your first mapping.
+              Go to <strong>STIG Center</strong> to create your first mapping.
             </p>
             <p className="text-sm text-muted-foreground mb-4">
               <strong>Or</strong> import a complete evidence package if you have one:

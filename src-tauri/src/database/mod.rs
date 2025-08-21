@@ -10,6 +10,7 @@ pub mod control_poam_associations;
 pub mod baseline_controls;
 pub mod group_baseline_controls;
 pub mod nessus;
+pub mod stig_files;
 
 pub use utils::{DatabaseError, get_database};
 pub use systems::{SystemOperations, SystemQueries};
@@ -23,7 +24,7 @@ pub use control_poam_associations::{ControlPOAMAssociationOperations, ControlPOA
 pub use baseline_controls::{BaselineControlOperations, BaselineControlQueries};
 pub use group_baseline_controls::{GroupBaselineControlOperations, GroupBaselineControlQueries, GroupControlPOAMAssociationOperations, GroupControlPOAMAssociationQueries, GroupBaselineControl, GroupControlPOAMAssociation};
 
-use crate::models::{POAM, POAMData, Note, STIGMappingData, SecurityTestPlan, StpPrepList, System, SystemSummary, ControlPOAMAssociation, BaselineControl, SystemGroup, GroupSummary, GroupPOAM};
+use crate::models::{POAM, POAMData, Note, STIGMappingData, SecurityTestPlan, StpPrepList, System, SystemSummary, ControlPOAMAssociation, BaselineControl, SystemGroup, GroupSummary, GroupPOAM, STIGFileRecord};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
@@ -471,6 +472,47 @@ impl Database {
     pub fn delete_nessus_scan(&mut self, scan_id: &str, system_id: &str) -> Result<(), DatabaseError> {
         let mut ops = nessus::NessusOperations::new(&mut self.conn);
         ops.delete_scan(scan_id, system_id)
+    }
+
+    // STIG File Management Operations
+    pub fn save_stig_file(&mut self, file_record: &STIGFileRecord, checklist: &serde_json::Value, system_id: &str) -> Result<(), DatabaseError> {
+        let mut stig_file_ops = stig_files::STIGFileOperations::new(&mut self.conn);
+        stig_file_ops.save_stig_file(file_record, checklist, system_id)
+    }
+
+    pub fn get_all_stig_files(&self, system_id: &str) -> Result<Vec<STIGFileRecord>, DatabaseError> {
+        let stig_file_queries = stig_files::STIGFileQueries::new(&self.conn);
+        stig_file_queries.get_all_stig_files(system_id)
+    }
+
+    pub fn get_stig_file_by_id(&self, id: &str, system_id: &str) -> Result<Option<STIGFileRecord>, DatabaseError> {
+        let stig_file_queries = stig_files::STIGFileQueries::new(&self.conn);
+        stig_file_queries.get_stig_file_by_id(id, system_id)
+    }
+
+    pub fn get_stig_file_content(&self, id: &str, system_id: &str) -> Result<Option<serde_json::Value>, DatabaseError> {
+        let stig_file_queries = stig_files::STIGFileQueries::new(&self.conn);
+        stig_file_queries.get_stig_file_content(id, system_id)
+    }
+
+    pub fn update_stig_file(&mut self, file_record: &STIGFileRecord, system_id: &str) -> Result<(), DatabaseError> {
+        let mut stig_file_ops = stig_files::STIGFileOperations::new(&mut self.conn);
+        stig_file_ops.update_stig_file(file_record, system_id)
+    }
+
+    pub fn delete_stig_file(&mut self, id: &str, system_id: &str) -> Result<(), DatabaseError> {
+        let mut stig_file_ops = stig_files::STIGFileOperations::new(&mut self.conn);
+        stig_file_ops.delete_stig_file(id, system_id)
+    }
+
+    pub fn update_stig_file_compliance(&mut self, id: &str, compliance_summary: &serde_json::Value, system_id: &str) -> Result<(), DatabaseError> {
+        let mut stig_file_ops = stig_files::STIGFileOperations::new(&mut self.conn);
+        stig_file_ops.update_compliance(id, compliance_summary, system_id)
+    }
+
+    pub fn update_stig_file_progress(&mut self, id: &str, remediation_progress: &serde_json::Value, system_id: &str) -> Result<(), DatabaseError> {
+        let mut stig_file_ops = stig_files::STIGFileOperations::new(&mut self.conn);
+        stig_file_ops.update_progress(id, remediation_progress, system_id)
     }
 
     // Database file management

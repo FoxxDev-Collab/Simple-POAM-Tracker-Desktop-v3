@@ -106,7 +106,7 @@ export default function TestCaseModal({
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">NIST Control</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">STIG ID</label>
                   <input
                     type="text"
                     value={editingTestCase.nist_control}
@@ -127,7 +127,7 @@ export default function TestCaseModal({
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">STIG ID</label>
+                  <label className="block text-sm font-medium text-foreground mb-2">Vulnerability ID</label>
                   <input
                     type="text"
                     value={editingTestCase.stig_vuln_id}

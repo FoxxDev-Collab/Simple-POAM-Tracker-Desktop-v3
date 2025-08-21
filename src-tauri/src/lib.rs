@@ -536,6 +536,14 @@ async fn is_app_lock_configured(app_handle: AppHandle) -> Result<bool, Error> {
     Ok(security.is_app_lock_configured())
 }
 
+#[tauri::command]
+async fn upload_cci_list_file(app_handle: AppHandle, file_path: String) -> Result<(), Error> {
+    println!("Uploading CCI list file: {}", file_path);
+    let mappings = stig::parse_cci_list(file_path)?;
+    println!("Successfully parsed {} CCI mappings", mappings.len());
+    Ok(())
+}
+
 // STIG Processing Commands
 
 #[tauri::command]
@@ -2163,6 +2171,7 @@ pub fn run() {
             verify_app_lock,
             remove_app_lock,
             is_app_lock_configured,
+            upload_cci_list_file,
             parse_cci_list_file,
             parse_stig_checklist_file,
             create_stig_mapping,
@@ -2239,6 +2248,7 @@ pub fn run() {
             update_group_poam,
             delete_group_poam,
             analyze_group_vulnerabilities,
+            analyze_group_vulnerabilities_with_controls,
             // Group NIST Controls commands
             get_group_baseline_controls,
             add_group_baseline_control,
@@ -2247,7 +2257,17 @@ pub fn run() {
             associate_group_poam_with_control,
             remove_group_poam_control_association,
             get_group_poam_associations_by_control,
-            get_group_control_associations_by_poam
+            get_group_control_associations_by_poam,
+            // STIG File Management commands
+            save_stig_file,
+            get_all_stig_files,
+            get_stig_file_by_id,
+            get_stig_file_content,
+            update_stig_file,
+            delete_stig_file,
+            download_stig_file,
+            update_stig_file_compliance,
+            update_stig_file_progress
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -2310,7 +2330,7 @@ pub struct GroupVulnerabilityAnalysis {
     pub system_summaries: Vec<SystemVulnerabilitySummary>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CrossSystemVulnerability {
     pub vulnerability_id: String,
     pub severity: String,
@@ -2458,6 +2478,390 @@ async fn analyze_group_vulnerabilities(app_handle: AppHandle, group_id: String) 
              group_id, total_vulnerabilities, analysis.cross_system_vulnerabilities.len());
     
     Ok(analysis)
+}
+
+// CCI Mapping and Control Status Commands
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ControlImplementationStatus {
+    pub control_id: String,
+    pub implementation_status: String,
+    pub compliance_percentage: f64,
+    pub total_findings: i32,
+    pub open_findings: i32,
+    pub not_applicable_findings: i32,
+    pub compliant_findings: i32,
+    pub mapped_ccis: Vec<String>,
+    pub affected_systems: Vec<String>,
+    pub last_assessed: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ControlComplianceAnalysis {
+    pub group_id: String,
+    pub total_controls: i32,
+    pub controls_with_mappings: i32,
+    pub fully_compliant: i32,
+    pub partially_compliant: i32,
+    pub non_compliant: i32,
+    pub not_assessed: i32,
+    pub control_statuses: Vec<ControlImplementationStatus>,
+}
+
+// Enhanced Group Vulnerability Analysis with NIST Control Mapping
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ControlGap {
+    pub control_id: String,
+    pub control_title: String,
+    pub implementation_status: String,
+    pub affected_vulnerabilities: Vec<CrossSystemVulnerability>,
+    pub gap_severity: String,
+    pub remediation_priority: i32,
+    pub affected_systems: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VulnerabilityControlMapping {
+    pub vulnerability_id: String,
+    pub control_id: String,
+    pub mapping_confidence: i32,
+    pub mapping_rationale: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EnhancedGroupVulnerabilityAnalysis {
+    pub group_id: String,
+    pub total_systems: i32,
+    pub total_vulnerabilities: i32,
+    pub critical_vulnerabilities: i32,
+    pub high_vulnerabilities: i32,
+    pub medium_vulnerabilities: i32,
+    pub low_vulnerabilities: i32,
+    pub cross_system_vulnerabilities: Vec<CrossSystemVulnerability>,
+    pub control_gaps: Vec<ControlGap>,
+    pub vulnerability_control_mappings: Vec<VulnerabilityControlMapping>,
+}
+
+#[tauri::command]
+async fn analyze_group_vulnerabilities_with_controls(app_handle: AppHandle, group_id: String) -> Result<EnhancedGroupVulnerabilityAnalysis, Error> {
+    println!("Analyzing vulnerabilities with NIST control mapping for group: {}", group_id);
+    
+    let mut db = database::get_database(&app_handle)?;
+    let _systems = db.get_systems_in_group(&group_id)?;
+    
+    // Get basic vulnerability analysis first
+    let basic_analysis = analyze_group_vulnerabilities(app_handle.clone(), group_id.clone()).await?;
+    
+    // Get group baseline controls for gap analysis
+    let baseline_controls = db.get_group_baseline_controls(&group_id).unwrap_or_default();
+    
+    // Perform control gap analysis
+    let mut control_gaps: Vec<ControlGap> = Vec::new();
+    let mut vulnerability_control_mappings: Vec<VulnerabilityControlMapping> = Vec::new();
+    
+    // Map vulnerabilities to NIST controls using OSCAL-inspired mapping
+    for vulnerability in &basic_analysis.cross_system_vulnerabilities {
+        let mapped_controls = map_vulnerability_to_nist_controls(&vulnerability);
+        
+        for control_mapping in mapped_controls {
+            vulnerability_control_mappings.push(VulnerabilityControlMapping {
+                vulnerability_id: vulnerability.vulnerability_id.clone(),
+                control_id: control_mapping.control_id.clone(),
+                mapping_confidence: control_mapping.confidence,
+                mapping_rationale: control_mapping.rationale,
+            });
+        }
+    }
+    
+    // Analyze control gaps based on baseline and vulnerabilities
+    for control in &baseline_controls {
+        let related_vulnerabilities: Vec<CrossSystemVulnerability> = basic_analysis.cross_system_vulnerabilities
+            .iter()
+            .filter(|vuln| {
+                vulnerability_control_mappings.iter().any(|mapping| 
+                    mapping.vulnerability_id == vuln.vulnerability_id && 
+                    mapping.control_id == control.id
+                )
+            })
+            .cloned()
+            .collect();
+        
+        if !related_vulnerabilities.is_empty() || control.implementation_status != "Implemented" {
+            let gap_severity = determine_control_gap_severity(&control, &related_vulnerabilities);
+            let remediation_priority = calculate_remediation_priority(&control, &related_vulnerabilities);
+            
+            let affected_systems: Vec<String> = related_vulnerabilities
+                .iter()
+                .flat_map(|v| v.affected_systems.clone())
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+            
+            control_gaps.push(ControlGap {
+                control_id: control.id.clone(),
+                control_title: control.title.clone(),
+                implementation_status: control.implementation_status.clone(),
+                affected_vulnerabilities: related_vulnerabilities,
+                gap_severity,
+                remediation_priority,
+                affected_systems,
+            });
+        }
+    }
+    
+    // Sort control gaps by priority
+    control_gaps.sort_by(|a, b| b.remediation_priority.cmp(&a.remediation_priority));
+    
+    let enhanced_analysis = EnhancedGroupVulnerabilityAnalysis {
+        group_id: basic_analysis.group_id,
+        total_systems: basic_analysis.total_systems,
+        total_vulnerabilities: basic_analysis.total_vulnerabilities,
+        critical_vulnerabilities: basic_analysis.critical_vulnerabilities,
+        high_vulnerabilities: basic_analysis.high_vulnerabilities,
+        medium_vulnerabilities: basic_analysis.medium_vulnerabilities,
+        low_vulnerabilities: basic_analysis.low_vulnerabilities,
+        cross_system_vulnerabilities: basic_analysis.cross_system_vulnerabilities,
+        control_gaps,
+        vulnerability_control_mappings,
+    };
+    
+    println!("Enhanced analysis completed: {} control gaps, {} mappings", 
+             enhanced_analysis.control_gaps.len(), 
+             enhanced_analysis.vulnerability_control_mappings.len());
+    
+    Ok(enhanced_analysis)
+}
+
+#[derive(Debug)]
+struct ControlMapping {
+    control_id: String,
+    confidence: i32,
+    rationale: String,
+}
+
+fn map_vulnerability_to_nist_controls(vulnerability: &CrossSystemVulnerability) -> Vec<ControlMapping> {
+    let mut mappings = Vec::new();
+    
+    // OSCAL-inspired vulnerability to NIST 800-53 control mapping
+    // This is a simplified mapping - in production, this would use a comprehensive mapping database
+    
+    let vuln_title_lower = vulnerability.title.to_lowercase();
+    let _vuln_desc_lower = vulnerability.description.to_lowercase();
+    
+    // Access Control mappings
+    if vuln_title_lower.contains("access") || vuln_title_lower.contains("authentication") || vuln_title_lower.contains("authorization") {
+        mappings.push(ControlMapping {
+            control_id: "AC-1".to_string(),
+            confidence: 85,
+            rationale: "Access control vulnerability maps to AC-1 (Access Control Policy and Procedures)".to_string(),
+        });
+        
+        if vuln_title_lower.contains("password") || vuln_title_lower.contains("credential") {
+            mappings.push(ControlMapping {
+                control_id: "IA-2".to_string(),
+                confidence: 90,
+                rationale: "Password/credential vulnerability maps to IA-2 (Identification and Authentication)".to_string(),
+            });
+        }
+    }
+    
+    // System and Communications Protection
+    if vuln_title_lower.contains("encryption") || vuln_title_lower.contains("tls") || vuln_title_lower.contains("ssl") {
+        mappings.push(ControlMapping {
+            control_id: "SC-8".to_string(),
+            confidence: 95,
+            rationale: "Encryption vulnerability maps to SC-8 (Transmission Confidentiality and Integrity)".to_string(),
+        });
+    }
+    
+    // Configuration Management
+    if vuln_title_lower.contains("configuration") || vuln_title_lower.contains("hardening") {
+        mappings.push(ControlMapping {
+            control_id: "CM-6".to_string(),
+            confidence: 88,
+            rationale: "Configuration vulnerability maps to CM-6 (Configuration Settings)".to_string(),
+        });
+    }
+    
+    // System and Information Integrity
+    if vuln_title_lower.contains("patch") || vuln_title_lower.contains("update") || vuln_title_lower.contains("vulnerability") {
+        mappings.push(ControlMapping {
+            control_id: "SI-2".to_string(),
+            confidence: 92,
+            rationale: "Patch/update vulnerability maps to SI-2 (Flaw Remediation)".to_string(),
+        });
+    }
+    
+    // Audit and Accountability
+    if vuln_title_lower.contains("log") || vuln_title_lower.contains("audit") || vuln_title_lower.contains("monitoring") {
+        mappings.push(ControlMapping {
+            control_id: "AU-2".to_string(),
+            confidence: 87,
+            rationale: "Logging/audit vulnerability maps to AU-2 (Event Logging)".to_string(),
+        });
+    }
+    
+    // If no specific mappings found, provide general security control mapping
+    if mappings.is_empty() {
+        mappings.push(ControlMapping {
+            control_id: "CA-2".to_string(),
+            confidence: 70,
+            rationale: "General vulnerability maps to CA-2 (Security Assessments) for assessment and remediation".to_string(),
+        });
+    }
+    
+    mappings
+}
+
+// STIG File Management Commands
+#[tauri::command]
+async fn save_stig_file(
+    app_handle: AppHandle, 
+    file_record: models::STIGFileRecord, 
+    checklist: serde_json::Value, 
+    system_id: String
+) -> Result<(), Error> {
+    println!("Saving STIG file: {} for system: {}", file_record.filename, system_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.save_stig_file(&file_record, &checklist, &system_id)?;
+    println!("Successfully saved STIG file: {}", file_record.filename);
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_all_stig_files(app_handle: AppHandle, system_id: String) -> Result<Vec<models::STIGFileRecord>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let files = db.get_all_stig_files(&system_id)?;
+    println!("Retrieved {} STIG files for system: {}", files.len(), system_id);
+    Ok(files)
+}
+
+#[tauri::command]
+async fn get_stig_file_by_id(app_handle: AppHandle, id: String, system_id: String) -> Result<Option<models::STIGFileRecord>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let file = db.get_stig_file_by_id(&id, &system_id)?;
+    Ok(file)
+}
+
+#[tauri::command]
+async fn get_stig_file_content(app_handle: AppHandle, id: String, system_id: String) -> Result<Option<serde_json::Value>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let content = db.get_stig_file_content(&id, &system_id)?;
+    Ok(content)
+}
+
+#[tauri::command]
+async fn update_stig_file(app_handle: AppHandle, file_record: models::STIGFileRecord, system_id: String) -> Result<(), Error> {
+    println!("Updating STIG file: {} for system: {}", file_record.filename, system_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.update_stig_file(&file_record, &system_id)?;
+    println!("Successfully updated STIG file: {}", file_record.filename);
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_stig_file(app_handle: AppHandle, id: String, system_id: String) -> Result<(), Error> {
+    println!("Deleting STIG file: {} for system: {}", id, system_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.delete_stig_file(&id, &system_id)?;
+    println!("Successfully deleted STIG file: {}", id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn download_stig_file(app_handle: AppHandle, id: String, file_path: String, system_id: String) -> Result<(), Error> {
+    println!("Downloading STIG file: {} to: {} for system: {}", id, file_path, system_id);
+    let db = database::get_database(&app_handle)?;
+    
+    // Get the file content
+    let content = db.get_stig_file_content(&id, &system_id)?;
+    if let Some(checklist_content) = content {
+        // Export as XML content (assuming this is CKL format)
+        let xml_content = stig::generate_ckl_xml(&serde_json::from_value(checklist_content)?)?;
+        fs::write(file_path, xml_content)?;
+        println!("Successfully downloaded STIG file: {}", id);
+    } else {
+        return Err(Error::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "STIG file not found")));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_stig_file_compliance(
+    app_handle: AppHandle, 
+    id: String, 
+    compliance_summary: serde_json::Value, 
+    system_id: String
+) -> Result<(), Error> {
+    println!("Updating compliance for STIG file: {} in system: {}", id, system_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.update_stig_file_compliance(&id, &compliance_summary, &system_id)?;
+    println!("Successfully updated compliance for STIG file: {}", id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_stig_file_progress(
+    app_handle: AppHandle, 
+    id: String, 
+    remediation_progress: serde_json::Value, 
+    system_id: String
+) -> Result<(), Error> {
+    println!("Updating progress for STIG file: {} in system: {}", id, system_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.update_stig_file_progress(&id, &remediation_progress, &system_id)?;
+    println!("Successfully updated progress for STIG file: {}", id);
+    Ok(())
+}
+
+fn determine_control_gap_severity(control: &database::GroupBaselineControl, vulnerabilities: &[CrossSystemVulnerability]) -> String {
+    if vulnerabilities.is_empty() {
+        match control.implementation_status.as_str() {
+            "Not Implemented" => "High".to_string(),
+            "Partially Implemented" => "Medium".to_string(),
+            _ => "Low".to_string(),
+        }
+    } else {
+        let has_critical = vulnerabilities.iter().any(|v| v.severity.to_lowercase() == "critical");
+        let has_high = vulnerabilities.iter().any(|v| v.severity.to_lowercase() == "high");
+        
+        if has_critical {
+            "Critical".to_string()
+        } else if has_high {
+            "High".to_string()
+        } else {
+            "Medium".to_string()
+        }
+    }
+}
+
+fn calculate_remediation_priority(control: &database::GroupBaselineControl, vulnerabilities: &[CrossSystemVulnerability]) -> i32 {
+    let mut priority = 0;
+    
+    // Base priority on implementation status
+    match control.implementation_status.as_str() {
+        "Not Implemented" => priority += 50,
+        "Partially Implemented" => priority += 30,
+        "Implemented" => priority += 10,
+        _ => priority += 20,
+    }
+    
+    // Add priority based on vulnerabilities
+    for vuln in vulnerabilities {
+        match vuln.severity.to_lowercase().as_str() {
+            "critical" => priority += 40,
+            "high" => priority += 25,
+            "medium" => priority += 15,
+            "low" => priority += 5,
+            _ => priority += 1,
+        }
+        
+        // Add priority based on number of affected systems
+        priority += vuln.affected_systems.len() as i32 * 2;
+    }
+    
+    priority
 }
 
 // Group NIST Controls API Commands

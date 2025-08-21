@@ -41,8 +41,14 @@ pub struct NessusPrepList {
     pub updated_date: String,
     pub source_scan_id: Option<String>,
     pub asset_info: serde_json::Value,
-    pub selected_findings: Vec<String>,
+    pub selected_findings: serde_json::Value,  // Changed from Vec<String> to flexible JSON
     pub finding_count: i32,
+    // Optional additional fields for new functionality
+    pub milestones: Option<serde_json::Value>,
+    pub cve_analysis: Option<serde_json::Value>,
+    pub summary: Option<serde_json::Value>,
+    pub prep_status: Option<String>,
+    pub scan_info: Option<serde_json::Value>,
 }
 
 pub struct NessusOperations<'a> {
@@ -196,10 +202,15 @@ impl<'a> NessusQueries<'a> {
     pub fn save_prep_list(&self, prep: &NessusPrepList, system_id: &str) -> Result<(), DatabaseError> {
         let selected_findings_json = serde_json::to_string(&prep.selected_findings).unwrap();
         let asset_info_json = serde_json::to_string(&prep.asset_info).unwrap();
+        let milestones_json = prep.milestones.as_ref().map(|m| serde_json::to_string(m).unwrap());
+        let cve_analysis_json = prep.cve_analysis.as_ref().map(|c| serde_json::to_string(c).unwrap());
+        let summary_json = prep.summary.as_ref().map(|s| serde_json::to_string(s).unwrap());
+        let scan_info_json = prep.scan_info.as_ref().map(|s| serde_json::to_string(s).unwrap());
+        
         self.conn.execute(
             "INSERT OR REPLACE INTO nessus_prep_lists
-                (id, name, description, created_date, updated_date, source_scan_id, asset_info, selected_findings, finding_count, system_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                (id, name, description, created_date, updated_date, source_scan_id, asset_info, selected_findings, finding_count, system_id, milestones, cve_analysis, summary, prep_status, scan_info)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             params![
                 prep.id,
                 prep.name,
@@ -210,7 +221,12 @@ impl<'a> NessusQueries<'a> {
                 asset_info_json,
                 selected_findings_json,
                 prep.finding_count,
-                system_id
+                system_id,
+                milestones_json,
+                cve_analysis_json,
+                summary_json,
+                prep.prep_status,
+                scan_info_json
             ],
         )?;
         Ok(())
@@ -218,13 +234,21 @@ impl<'a> NessusQueries<'a> {
 
     pub fn get_prep_lists(&self, system_id: &str) -> Result<Vec<NessusPrepList>, DatabaseError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, description, created_date, updated_date, source_scan_id, asset_info, selected_findings, finding_count FROM nessus_prep_lists WHERE system_id = ?1 ORDER BY updated_date DESC"
+            "SELECT id, name, description, created_date, updated_date, source_scan_id, asset_info, selected_findings, finding_count, milestones, cve_analysis, summary, prep_status, scan_info FROM nessus_prep_lists WHERE system_id = ?1 ORDER BY updated_date DESC"
         )?;
         let rows = stmt.query_map(params![system_id], |row| {
             let asset_info_json: String = row.get(6)?;
             let selected_findings_json: String = row.get(7)?;
             let asset_info = serde_json::from_str(&asset_info_json).unwrap_or(serde_json::json!({}));
-            let selected_findings = serde_json::from_str(&selected_findings_json).unwrap_or(Vec::<String>::new());
+            let selected_findings = serde_json::from_str(&selected_findings_json).unwrap_or(serde_json::json!([]));
+            
+            // Handle optional new fields with fallback for old records
+            let milestones = row.get::<_, Option<String>>(9).ok().flatten().and_then(|s| serde_json::from_str(&s).ok());
+            let cve_analysis = row.get::<_, Option<String>>(10).ok().flatten().and_then(|s| serde_json::from_str(&s).ok());
+            let summary = row.get::<_, Option<String>>(11).ok().flatten().and_then(|s| serde_json::from_str(&s).ok());
+            let prep_status = row.get::<_, Option<String>>(12).ok().flatten();
+            let scan_info = row.get::<_, Option<String>>(13).ok().flatten().and_then(|s| serde_json::from_str(&s).ok());
+            
             Ok(NessusPrepList {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -235,6 +259,11 @@ impl<'a> NessusQueries<'a> {
                 asset_info,
                 selected_findings,
                 finding_count: row.get(8)?,
+                milestones,
+                cve_analysis,
+                summary,
+                prep_status,
+                scan_info,
             })
         })?;
         let mut lists = Vec::new();

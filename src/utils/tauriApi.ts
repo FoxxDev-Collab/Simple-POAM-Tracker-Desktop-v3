@@ -157,6 +157,45 @@ export async function clearStigData(systemId: string): Promise<string> {
 }
 
 /**
+ * STIG File Management Functions
+ */
+export async function saveSTIGFile(fileRecord: any, checklist: any, systemId: string): Promise<void> {
+  return await invoke('save_stig_file', { fileRecord, checklist, systemId });
+}
+
+export async function getAllSTIGFiles(systemId: string): Promise<any[]> {
+  return await invoke('get_all_stig_files', { systemId });
+}
+
+export async function getSTIGFileById(id: string, systemId: string): Promise<any | null> {
+  return await invoke('get_stig_file_by_id', { id, systemId });
+}
+
+export async function getSTIGFileContent(id: string, systemId: string): Promise<any | null> {
+  return await invoke('get_stig_file_content', { id, systemId });
+}
+
+export async function updateSTIGFile(fileRecord: any, systemId: string): Promise<void> {
+  return await invoke('update_stig_file', { fileRecord, systemId });
+}
+
+export async function deleteSTIGFile(id: string, systemId: string): Promise<void> {
+  return await invoke('delete_stig_file', { id, systemId });
+}
+
+export async function downloadSTIGFile(id: string, filePath: string, systemId: string): Promise<void> {
+  return await invoke('download_stig_file', { id, filePath, systemId });
+}
+
+export async function updateSTIGFileCompliance(id: string, complianceSummary: any, systemId: string): Promise<void> {
+  return await invoke('update_stig_file_compliance', { id, complianceSummary, systemId });
+}
+
+export async function updateSTIGFileProgress(id: string, remediationProgress: any, systemId: string): Promise<void> {
+  return await invoke('update_stig_file_progress', { id, remediationProgress, systemId });
+}
+
+/**
  * Group Management Functions
  */
 export async function createGroup(group: any): Promise<void> {

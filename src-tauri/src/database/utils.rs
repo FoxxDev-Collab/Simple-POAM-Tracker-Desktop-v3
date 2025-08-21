@@ -11,6 +11,9 @@ pub enum DatabaseError {
     #[error(transparent)]
     Sqlite(#[from] rusqlite::Error),
 
+    #[error(transparent)]
+    Serde(#[from] serde_json::Error),
+
     #[error("Failed to get app directory: {0}")]
     AppDir(String),
     

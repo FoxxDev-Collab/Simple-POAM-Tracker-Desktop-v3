@@ -84,7 +84,7 @@ const navigation: NavItem[] = [
   },
   {
     id: 'stig-mapper',
-    label: 'STIG Mapper',
+    label: 'STIG Center',
     icon: Shield,
   },
   {

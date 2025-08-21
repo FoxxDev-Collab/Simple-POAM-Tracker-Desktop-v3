@@ -1,12 +1,6 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { 
-  Target,
-  AlertTriangle,
-} from 'lucide-react';
-import { Button } from '../ui/button';
 import { useToast } from '../../context/ToastContext';
-import GroupVulnerabilityAnalysis from './GroupVulnerabilityAnalysis';
 import CreateGroupPOAM from './CreateGroupPOAM';
 import GroupPOAMsView from './GroupPOAMsView';
 import type { GroupPOAM } from '../../types/group';
@@ -16,14 +10,13 @@ interface GroupPOAMTrackerProps {
   systems: any[];
 }
 
-type ViewMode = 'poams' | 'vulnerabilities' | 'create';
+type ViewMode = 'poams' | 'create';
 
 export default function GroupPOAMTracker({ groupId, systems }: GroupPOAMTrackerProps) {
   const [groupPOAMs, setGroupPOAMs] = useState<GroupPOAM[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('poams');
   const [selectedPOAM, setSelectedPOAM] = useState<GroupPOAM | null>(null);
-  const [selectedVulnerabilities, setSelectedVulnerabilities] = useState<any[]>([]);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -82,30 +75,17 @@ export default function GroupPOAMTracker({ groupId, systems }: GroupPOAMTrackerP
     />
   );
 
-  const renderVulnerabilityView = () => (
-    <GroupVulnerabilityAnalysis 
-      groupId={groupId} 
-      systems={systems}
-      onCreatePOAMsFromVulnerabilities={(vulnerabilities) => {
-        setSelectedVulnerabilities(vulnerabilities);
-        setViewMode('create');
-      }}
-    />
-  );
-
   const renderCreateView = () => (
     <CreateGroupPOAM
       groupId={groupId}
       systems={systems}
-      preSelectedVulnerabilities={selectedVulnerabilities}
+      preSelectedVulnerabilities={[]}
       existingPOAM={selectedPOAM}
       onCancel={() => {
-        setSelectedVulnerabilities([]);
         setSelectedPOAM(null);
         setViewMode('poams');
       }}
       onSuccess={() => {
-        setSelectedVulnerabilities([]);
         setSelectedPOAM(null);
         setViewMode('poams');
         loadGroupPOAMs();
@@ -115,36 +95,18 @@ export default function GroupPOAMTracker({ groupId, systems }: GroupPOAMTrackerP
 
   return (
     <div className="space-y-6">
-      {/* Header with Navigation */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Group POAM Tracker</h1>
           <p className="text-muted-foreground">
-            Manage cross-system security action items and vulnerabilities
+            Manage cross-system security action items
           </p>
-        </div>
-        
-        <div className="flex gap-2">
-          <Button 
-            variant={viewMode === 'poams' ? 'default' : 'outline'}
-            onClick={() => setViewMode('poams')}
-          >
-            <Target className="w-4 h-4 mr-2" />
-            POAMs
-          </Button>
-          <Button 
-            variant={viewMode === 'vulnerabilities' ? 'default' : 'outline'}
-            onClick={() => setViewMode('vulnerabilities')}
-          >
-            <AlertTriangle className="w-4 h-4 mr-2" />
-            Vulnerabilities
-          </Button>
         </div>
       </div>
 
       {/* Content based on view mode */}
       {viewMode === 'poams' && renderPOAMView()}
-      {viewMode === 'vulnerabilities' && renderVulnerabilityView()}
       {viewMode === 'create' && renderCreateView()}
     </div>
   );

@@ -264,6 +264,27 @@ impl<'a> DatabaseSetup<'a> {
             params![],
         )?;
         
+        // STIG File Management table
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS stig_files (
+                id TEXT PRIMARY KEY,
+                system_id TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                upload_date TEXT NOT NULL,
+                last_modified TEXT NOT NULL,
+                compliance_summary TEXT NOT NULL,
+                remediation_progress TEXT NOT NULL,
+                metadata TEXT NOT NULL,
+                tags TEXT NOT NULL,
+                checklist_content TEXT NOT NULL,
+                version TEXT NOT NULL,
+                created_by TEXT NOT NULL,
+                FOREIGN KEY (system_id) REFERENCES systems (id) ON DELETE CASCADE
+            )",
+            params![],
+        )?;
+        
         // Create Control-POAM associations table
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS control_poam_associations (
@@ -427,6 +448,8 @@ impl<'a> DatabaseSetup<'a> {
         self.migrate_to_system_schema()?;
         self.migrate_notes_schema()?;
         self.migrate_groups_schema()?;
+        self.migrate_nessus_prep_lists_schema()?;
+        self.create_cci_mappings_table()?;
         
         Ok(())
     }
@@ -644,6 +667,60 @@ impl<'a> DatabaseSetup<'a> {
                 params![],
             )?;
         }
+
+        Ok(())
+    }
+
+    fn migrate_nessus_prep_lists_schema(&mut self) -> Result<(), DatabaseError> {
+        // Add new fields to nessus_prep_lists table for enhanced functionality
+        let enhanced_fields = [
+            "milestones",
+            "cve_analysis", 
+            "summary",
+            "prep_status",
+            "scan_info"
+        ];
+
+        for field in &enhanced_fields {
+            let has_field = self.conn.query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('nessus_prep_lists') WHERE name = ?1",
+                params![field],
+                |row| row.get::<_, i64>(0)
+            ).unwrap_or(0) > 0;
+
+            if !has_field {
+                println!("Adding {} column to nessus_prep_lists table", field);
+                self.conn.execute(
+                    &format!("ALTER TABLE nessus_prep_lists ADD COLUMN {} TEXT", field),
+                    params![],
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn create_cci_mappings_table(&mut self) -> Result<(), DatabaseError> {
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS group_cci_mappings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id TEXT NOT NULL,
+                cci_id TEXT NOT NULL,
+                nist_control TEXT NOT NULL,
+                definition TEXT,
+                status TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(group_id, cci_id, nist_control)
+            )",
+            params![],
+        )?;
+
+        // Create index for faster lookups
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_group_cci_mappings_group_control 
+             ON group_cci_mappings(group_id, nist_control)",
+            params![],
+        )?;
 
         Ok(())
     }

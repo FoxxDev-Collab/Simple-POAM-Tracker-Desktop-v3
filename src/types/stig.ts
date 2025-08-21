@@ -9,6 +9,8 @@ export interface CCIMapping {
 }
 
 export interface STIGVulnerability {
+  check_text: any;
+  rule_description: any;
   vuln_num: string;
   severity: string;
   group_title: string;

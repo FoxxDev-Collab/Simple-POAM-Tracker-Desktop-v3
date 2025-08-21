@@ -71,7 +71,7 @@ export default function STIGMapper() {
   if (!currentSystem) {
     return (
       <div className="text-center p-8">
-        <p className="text-muted-foreground">No system selected. Please select a system to use STIG Mapper functionality.</p>
+        <p className="text-muted-foreground">No system selected. Please select a system to use STIG Center functionality.</p>
       </div>
     );
   }
@@ -270,15 +270,8 @@ export default function STIGMapper() {
 
   // Handle checklist file selection for multiple files with auto-save
   const handleChecklistFileSelect = useCallback(async () => {
-    if (!fileState.cciLoaded) {
-      addToast('Please upload the CCI list XML file first.', 'warning');
-      return;
-    }
-
-    if (!cciMappings || cciMappings.length === 0) {
-      addToast('CCI mappings not available. Please reload the CCI list file.', 'error');
-      return;
-    }
+    // CCI mappings are now optional for pure STIG viewing
+    const hasCciMappings = fileState.cciLoaded && cciMappings && cciMappings.length > 0;
 
     setLoading(true);
     initializeProcessingSteps();
@@ -310,13 +303,33 @@ export default function STIGMapper() {
         const singleChecklist = (Array.isArray(checklist) ? checklist[0] : checklist) as STIGChecklist;
         updateProcessingStep('parse', 'completed', `Parsed ${singleChecklist?.vulnerabilities?.length || 0} vulnerabilities`);
         
-        // Step 2: Create mapping
-        updateProcessingStep('map', 'processing', 'Creating STIG mapping...');
-        const result = await createSTIGMapping(singleChecklist, cciMappings);
-        console.log('Mapping result:', result);
-        
-        if (!result) {
-          throw new Error('Failed to create STIG mapping');
+        // Step 2: Create mapping (optional with CCI mappings)
+        let result;
+        if (hasCciMappings) {
+          updateProcessingStep('map', 'processing', 'Creating STIG to NIST control mapping...');
+          result = await createSTIGMapping(singleChecklist, cciMappings);
+          console.log('Mapping result:', result);
+          
+          if (!result) {
+            throw new Error('Failed to create STIG mapping');
+          }
+        } else {
+          updateProcessingStep('map', 'processing', 'Loading STIG checklist for viewing...');
+          // Create a simplified result structure for pure STIG viewing
+          result = {
+            checklist: singleChecklist,
+            mapped_controls: [],
+            summary: {
+              total_controls: 0,
+              compliant_controls: 0,
+              non_compliant_controls: 0,
+              not_applicable_controls: 0,
+              not_reviewed_controls: 0,
+              high_risk_findings: 0,
+              medium_risk_findings: 0,
+              low_risk_findings: 0,
+            }
+          };
         }
         
         const controlCount = result.mapped_controls?.length || 0;
@@ -1222,9 +1235,9 @@ export default function STIGMapper() {
             <Shield className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">STIG Mapper</h1>
+            <h1 className="text-3xl font-bold text-foreground">STIG Center</h1>
             <p className="text-muted-foreground">
-              Map and analyze STIG compliance for {currentSystem.name}
+              Analyze STIG compliance and create test preparation lists for {currentSystem.name}
             </p>
           </div>
         </div>
@@ -1271,7 +1284,7 @@ export default function STIGMapper() {
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
             <FileText className="w-5 h-5" />
-            Step 1: Upload CCI List (XML)
+            Step 1: Upload CCI List (XML) - Optional
           </h3>
           <div className={`upload-zone ${fileState.cciLoaded ? 'uploaded' : ''}`}>
             <div className="upload-content" onClick={handleCCIFileSelect}>
@@ -1284,7 +1297,7 @@ export default function STIGMapper() {
               ) : (
                                   <div className="text-center">
                     <p className="mb-1 text-foreground">Click to select CCI list XML file</p>
-                    <p className="text-sm text-muted-foreground">Browse for file</p>
+                    <p className="text-sm text-muted-foreground">Optional - for NIST control mapping</p>
                   </div>
               )}
             </div>
@@ -1297,7 +1310,7 @@ export default function STIGMapper() {
             <Shield className="w-5 h-5" />
             Step 2: Upload STIG Checklist(s) (.ckl)
           </h3>
-          <div className={`upload-zone ${fileState.checklistLoaded ? 'uploaded' : ''} ${!fileState.cciLoaded ? 'disabled' : ''}`}>
+          <div className={`upload-zone ${fileState.checklistLoaded ? 'uploaded' : ''}`}>
             <div className="upload-content" onClick={handleChecklistFileSelect}>
               <Upload className="w-8 h-8 mb-2" />
               {fileState.checklistLoaded ? (
@@ -1308,10 +1321,7 @@ export default function STIGMapper() {
               ) : (
                                   <div className="text-center">
                     <p className="mb-1 text-foreground">Click to select STIG checklist file(s)</p>
-                    <p className="text-sm text-muted-foreground">Browse for .ckl file(s)</p>
-                    {!fileState.cciLoaded && (
-                      <p className="text-xs text-destructive mt-2">Upload CCI list first</p>
-                    )}
+                    <p className="text-sm text-muted-foreground">Browse for .ckl file(s) - supports multiple files</p>
                   </div>
               )}
             </div>
@@ -1557,15 +1567,17 @@ export default function STIGMapper() {
             </div>
           )}
 
-          {/* Mapped Controls Table */}
+          {/* Show either NIST Control Mappings or STIG Vulnerabilities based on CCI availability */}
           <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-foreground">NIST Control Mappings</h3>
+              <h3 className="text-lg font-semibold text-foreground">
+                {mappingResult?.mapped_controls?.length > 0 ? 'NIST Control Mappings' : 'STIG Vulnerabilities'}
+              </h3>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input 
                   type="text"
-                  placeholder="Filter controls..." 
+                  placeholder={mappingResult?.mapped_controls?.length > 0 ? "Filter controls..." : "Filter vulnerabilities..."} 
                   className="w-full px-3 py-2 pl-10 bg-background border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}

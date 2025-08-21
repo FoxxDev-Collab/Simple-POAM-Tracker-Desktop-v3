@@ -6,7 +6,7 @@ import { MilestoneTracker } from "./components/milestones";
 import { Calendar } from "./components/calendar";
 import Metrics from "./components/metrics";
 import { Notes } from "./components/notes";
-import { STIGMapper } from "./components/stigMapper";
+import { STIGCenter } from "./components/stigCenter";
 import { SecurityTestPlan } from "./components/securityTestPlan";
 import ImportExport from "./components/importExport";
 import { NessusCenter } from "./components/nessus";
@@ -114,7 +114,7 @@ function AppContent() {
       case "notes":
         return <Notes />;
       case "stig-mapper":
-        return <STIGMapper />;
+        return <STIGCenter />;
       case "security-test-plan":
         return <SecurityTestPlan />;
       case "nessus-center":

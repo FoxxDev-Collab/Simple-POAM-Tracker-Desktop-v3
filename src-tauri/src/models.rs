@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct POAMData {
@@ -393,4 +395,20 @@ pub struct GroupSecurityTestPlan {
     pub group_poam_id: Option<i64>,
     pub test_cases: Vec<TestCase>,
     pub overall_score: Option<f64>,
+}
+
+// STIG File Management Data Structure
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct STIGFileRecord {
+    pub id: String,
+    pub filename: String,
+    pub file_path: String,
+    pub upload_date: DateTime<Utc>,
+    pub last_modified: DateTime<Utc>,
+    pub compliance_summary: Value,
+    pub remediation_progress: Value,
+    pub metadata: Value,
+    pub tags: Vec<String>,
+    pub version: String,
+    pub created_by: String,
 }

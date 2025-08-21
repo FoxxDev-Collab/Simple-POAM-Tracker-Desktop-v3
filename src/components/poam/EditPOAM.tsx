@@ -640,7 +640,7 @@ export default function EditPOAM({ poamId, onSave }: EditPOAMProps) {
                 Go to Nessus Center
               </Button>
               <Button variant="outline" onClick={() => navigateTab('stig-mapper')}>
-                Go to STIG Mapper
+                Go to STIG Center
               </Button>
               <Button variant="outline" onClick={() => navigateTab('security-test-plan')}>
                 Open Security Test Plans
