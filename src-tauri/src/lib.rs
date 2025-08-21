@@ -544,6 +544,72 @@ async fn upload_cci_list_file(app_handle: AppHandle, file_path: String) -> Resul
     Ok(())
 }
 
+#[tauri::command]
+async fn upload_cci_list(app_handle: AppHandle, file_path: String, group_id: String) -> Result<String, Error> {
+    println!("Uploading CCI list file for group {}: {}", group_id, file_path);
+    
+    // Parse the CCI list XML file
+    let mappings = stig::parse_cci_list(file_path)?;
+    println!("Successfully parsed {} CCI mappings", mappings.len());
+    
+    // Get database connection
+    let mut db = database::get_database(&app_handle)?;
+    
+    // Clear existing CCI mappings for this group
+    db.conn.execute(
+        "DELETE FROM group_cci_mappings WHERE group_id = ?1",
+        rusqlite::params![group_id],
+    ).map_err(database::DatabaseError::Sqlite)?;
+    
+    // Save new CCI mappings to the database
+    let mut saved_count = 0;
+    for mapping in &mappings {
+        for nist_control in &mapping.nist_controls {
+            db.conn.execute(
+                "INSERT INTO group_cci_mappings (group_id, cci_id, nist_control, definition, status) 
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![
+                    group_id,
+                    mapping.id,
+                    nist_control,
+                    mapping.definition,
+                    mapping.status
+                ],
+            ).map_err(database::DatabaseError::Sqlite)?;
+            saved_count += 1;
+        }
+    }
+    
+    // Update implementation status for group baseline controls based on CCI mappings
+    let baseline_controls = db.get_group_baseline_controls(&group_id)?;
+    for control in baseline_controls {
+        // Check if this control has CCI mappings
+        let has_mappings = db.conn.query_row(
+            "SELECT COUNT(*) FROM group_cci_mappings WHERE group_id = ?1 AND nist_control = ?2",
+            rusqlite::params![group_id, control.id],
+            |row| row.get::<_, i64>(0)
+        ).unwrap_or(0) > 0;
+        
+        if has_mappings {
+            // Update the control's implementation status to indicate it has CCI mappings
+            let mut updated_control = control;
+            if updated_control.implementation_status == "Not Assessed" {
+                updated_control.implementation_status = "Not Implemented".to_string();
+            }
+            db.update_group_baseline_control(&updated_control)?;
+        }
+    }
+    
+    let result_message = format!(
+        "Successfully uploaded CCI list with {} mappings covering {} CCI-to-NIST control associations. Group baseline controls have been updated with implementation status.",
+        mappings.len(),
+        saved_count
+    );
+    
+    println!("{}", result_message);
+    Ok(result_message)
+}
+
 // STIG Processing Commands
 
 #[tauri::command]
@@ -2172,6 +2238,7 @@ pub fn run() {
             remove_app_lock,
             is_app_lock_configured,
             upload_cci_list_file,
+            upload_cci_list,
             parse_cci_list_file,
             parse_stig_checklist_file,
             create_stig_mapping,
