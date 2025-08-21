@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Shield, BookOpen, Link, Search, Upload, Activity, AlertCircle } from 'lucide-react';
+import { Shield, BookOpen, Link, Search, Upload, Activity, AlertCircle, ChevronDown, ChevronRight, Edit } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Input } from '../ui/input';
@@ -61,8 +61,12 @@ export default function GroupNistControls({ groupId, systems }: GroupNistControl
   const [controls, setControls] = useState<NistControl[]>([]);
   const [baselineControls, setBaselineControls] = useState<GroupBaselineControl[]>([]);
   const [controlStatuses, setControlStatuses] = useState<ControlImplementationStatus[]>([]);
+  const [complianceAnalysis, setComplianceAnalysis] = useState<ControlComplianceAnalysis | null>(null);
   const [hasCciMappings, setHasCciMappings] = useState(false);
   const [isUploadingCci, setIsUploadingCci] = useState(false);
+  const [expandedControls, setExpandedControls] = useState<Set<string>>(new Set());
+  const [manualOverrides, setManualOverrides] = useState<Record<string, string>>({});
+  
   
   const { showToast } = useToast();
 
@@ -99,10 +103,12 @@ export default function GroupNistControls({ groupId, systems }: GroupNistControl
     try {
       const analysis = await invoke<ControlComplianceAnalysis>('analyze_control_compliance', { groupId });
       setControlStatuses(analysis.control_statuses);
+      setComplianceAnalysis(analysis);
       setHasCciMappings(analysis.controls_with_mappings > 0);
     } catch (error) {
       console.log('No CCI mappings found for this group - upload U_CCI_List.xml to enable implementation status detection');
       setHasCciMappings(false);
+      setComplianceAnalysis(null);
     }
   };
 
@@ -258,6 +264,36 @@ export default function GroupNistControls({ groupId, systems }: GroupNistControl
     }
   };
 
+  const toggleControlExpansion = (controlId: string) => {
+    const newExpanded = new Set(expandedControls);
+    if (newExpanded.has(controlId)) {
+      newExpanded.delete(controlId);
+    } else {
+      newExpanded.add(controlId);
+    }
+    setExpandedControls(newExpanded);
+  };
+
+  const handleManualOverride = async (controlId: string, status: string) => {
+    try {
+      // Save manual override to backend
+      await invoke('set_manual_control_compliance', { 
+        groupId, 
+        controlId, 
+        status 
+      });
+      
+      setManualOverrides(prev => ({ ...prev, [controlId]: status }));
+      showToast('success', `Updated manual compliance for ${controlId}`);
+      
+      // Reload compliance analysis
+      await loadControlImplementationStatus();
+    } catch (error) {
+      console.error('Failed to set manual override:', error);
+      showToast('error', 'Failed to update manual compliance');
+    }
+  };
+
   const handleUpdateControl = async (control: GroupBaselineControl) => {
     try {
       await invoke('update_group_baseline_control', { control });
@@ -410,7 +446,7 @@ export default function GroupNistControls({ groupId, systems }: GroupNistControl
           </TabsTrigger>
           <TabsTrigger value="status" className="flex items-center gap-2">
             <Activity className="w-4 h-4" />
-            Implementation Status
+            Compliance Status
           </TabsTrigger>
           <TabsTrigger value="associations" className="flex items-center gap-2">
             <Link className="w-4 h-4" />
@@ -439,77 +475,203 @@ export default function GroupNistControls({ groupId, systems }: GroupNistControl
 
         <TabsContent value="status">
           {hasCciMappings ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Control Implementation Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {controlStatuses.map((status) => (
-                    <div key={status.control_id} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{status.control_id}</span>
-                          <Badge 
-                            variant={
-                              status.implementation_status === 'Implemented' ? 'default' :
-                              status.implementation_status === 'Partially Implemented' ? 'secondary' :
-                              status.implementation_status === 'Not Implemented' ? 'destructive' :
-                              'outline'
-                            }
-                          >
-                            {status.implementation_status}
-                          </Badge>
-                        </div>
-                        <span className="text-sm text-muted-foreground">
-                          {status.compliance_percentage.toFixed(1)}% compliant
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Total Findings:</span>
-                          <span className="ml-1 font-medium">{status.total_findings}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Open:</span>
-                          <span className="ml-1 font-medium text-red-600">{status.open_findings}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Compliant:</span>
-                          <span className="ml-1 font-medium text-green-600">{status.compliant_findings}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">N/A:</span>
-                          <span className="ml-1 font-medium text-gray-600">{status.not_applicable_findings}</span>
-                        </div>
-                      </div>
-                      
-                      {status.affected_systems.length > 0 && (
-                        <div className="mt-2">
-                          <span className="text-sm text-muted-foreground">Affected Systems: </span>
-                          {status.affected_systems.map((system, index) => (
-                            <Badge key={index} variant="outline" className="mr-1">
-                              {system}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {status.mapped_ccis.length > 0 && (
-                        <div className="mt-2">
-                          <span className="text-sm text-muted-foreground">Mapped CCIs: </span>
-                          <span className="text-sm">{status.mapped_ccis.slice(0, 3).join(', ')}</span>
-                          {status.mapped_ccis.length > 3 && (
-                            <span className="text-sm text-muted-foreground"> +{status.mapped_ccis.length - 3} more</span>
+            <div className="space-y-6">
+              {/* Explanation Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="w-5 h-5" />
+                    Control Compliance Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <h4 className="font-medium text-blue-900 mb-2">How Compliance Status is Determined</h4>
+                    <div className="text-sm text-blue-800 space-y-2">
+                      <p>
+                        <strong>Compliance status</strong> is automatically calculated based on STIG vulnerability findings across all systems in your group:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 ml-4">
+                        <li><strong>Compliant (100%):</strong> All STIG findings for this control are "Not a Finding" or "Not Applicable"</li>
+                        <li><strong>Partially Compliant (1-99%):</strong> Some findings are compliant, but open vulnerabilities remain</li>
+                        <li><strong>Non-Compliant (0%):</strong> All findings are "Open" vulnerabilities</li>
+                        <li><strong>Not Assessed:</strong> No STIG findings exist for this control</li>
+                      </ul>
+                      <p className="mt-2">
+                        <strong>Data Source:</strong> STIG checklist results are mapped to NIST controls through CCI (Control Correlation Identifier) references.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Status Summary */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Compliance Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">{complianceAnalysis?.fully_compliant || 0}</div>
+                      <div className="text-sm text-muted-foreground">Compliant</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-yellow-600">{complianceAnalysis?.partially_compliant || 0}</div>
+                      <div className="text-sm text-muted-foreground">Partially Compliant</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-600">{complianceAnalysis?.non_compliant || 0}</div>
+                      <div className="text-sm text-muted-foreground">Non-Compliant</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-gray-600">{complianceAnalysis?.not_assessed || 0}</div>
+                      <div className="text-sm text-muted-foreground">Not Assessed</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Detailed Control Status */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Detailed Control Analysis</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {controlStatuses.map((status) => (
+                      <Card key={status.control_id}>
+                        <div className="p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => toggleControlExpansion(status.control_id)}
+                                className="p-1 h-auto"
+                              >
+                                {expandedControls.has(status.control_id) ? 
+                                  <ChevronDown className="w-4 h-4" /> : 
+                                  <ChevronRight className="w-4 h-4" />
+                                }
+                              </Button>
+                              <span className="font-medium">{status.control_id}</span>
+                              <Badge 
+                                variant={
+                                  status.implementation_status === 'Compliant' ? 'default' :
+                                  status.implementation_status === 'Partially Compliant' ? 'secondary' :
+                                  status.implementation_status === 'Non-Compliant' ? 'destructive' :
+                                  'outline'
+                                }
+                              >
+                                {status.implementation_status}
+                              </Badge>
+                              {status.total_findings === 0 && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleManualOverride(status.control_id, 'Compliant')}
+                                  className="ml-2"
+                                >
+                                  <Edit className="w-3 h-3 mr-1" />
+                                  Set Manual
+                                </Button>
+                              )}
+                            </div>
+                            <span className="text-sm text-muted-foreground">
+                              {status.compliance_percentage.toFixed(1)}% compliant
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Total Findings:</span>
+                              <span className="ml-1 font-medium">{status.total_findings}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Open:</span>
+                              <span className="ml-1 font-medium text-red-600">{status.open_findings}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Compliant:</span>
+                              <span className="ml-1 font-medium text-green-600">{status.compliant_findings}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">N/A:</span>
+                              <span className="ml-1 font-medium text-gray-600">{status.not_applicable_findings}</span>
+                            </div>
+                          </div>
+                          
+                          {status.affected_systems.length > 0 && (
+                            <div className="mt-2">
+                              <span className="text-sm text-muted-foreground">Affected Systems: </span>
+                              {status.affected_systems.map((system, index) => (
+                                <Badge key={index} variant="outline" className="mr-1">
+                                  {system}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {status.mapped_ccis.length > 0 && (
+                            <div className="mt-2">
+                              <span className="text-sm text-muted-foreground">Mapped CCIs: </span>
+                              <span className="text-sm">{status.mapped_ccis.slice(0, 3).join(', ')}</span>
+                              {status.mapped_ccis.length > 3 && (
+                                <span className="text-sm text-muted-foreground"> +{status.mapped_ccis.length - 3} more</span>
+                              )}
+                            </div>
+                          )}
+
+                          {expandedControls.has(status.control_id) && (
+                            <div className="mt-4 pt-4 border-t border-border">
+                              <h4 className="font-medium mb-2 text-foreground">CCI Details</h4>
+                              <div className="space-y-2">
+                                {status.mapped_ccis.map((cci) => (
+                                  <Card key={cci} className="p-3">
+                                    <div className="font-medium text-sm text-foreground">{cci}</div>
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      Control Correlation Identifier - Links STIG findings to NIST controls
+                                    </div>
+                                  </Card>
+                                ))}
+                              </div>
+                              
+                              {status.total_findings === 0 && (
+                                <Card className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800">
+                                  <div className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Manual Compliance Management</div>
+                                  <div className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                                    No STIG findings detected for this control. Set compliance status manually:
+                                  </div>
+                                  <div className="flex gap-2 mt-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleManualOverride(status.control_id, 'Compliant')}
+                                      className="border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-950"
+                                    >
+                                      Mark Compliant
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleManualOverride(status.control_id, 'Non-Compliant')}
+                                      className="border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950"
+                                    >
+                                      Mark Non-Compliant
+                                    </Button>
+                                  </div>
+                                </Card>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
             </Card>
+            </div>
           ) : (
             <Card>
               <CardContent className="text-center py-8">

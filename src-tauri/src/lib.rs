@@ -707,10 +707,17 @@ async fn analyze_control_compliance(app_handle: AppHandle, group_id: String) -> 
     for (control_id, findings) in &control_findings {
         controls_with_mappings += 1;
         
-        let total_findings = findings.len();
-        let open_findings = findings.iter().filter(|(_, status, _)| status == "Open").count();
-        let compliant_findings = findings.iter().filter(|(_, status, _)| status == "NotAFinding" || status == "Not_Applicable").count();
-        let not_applicable_findings = findings.iter().filter(|(_, status, _)| status == "Not_Applicable").count();
+        let total_findings = findings.len() as i32;
+        let open_findings = findings.iter().filter(|(_, status, _)| status == "Open").count() as i32;
+        let not_applicable_findings = findings.iter().filter(|(_, status, _)| status == "Not_Applicable").count() as i32;
+        let compliant_findings = findings.iter().filter(|(_, status, _)| status == "NotAFinding" || status == "Not_Applicable").count() as i32;
+        
+        // Debug logging to identify the issue
+        println!("Control {}: total={}, open={}, compliant={}, na={}", 
+                control_id, total_findings, open_findings, compliant_findings, not_applicable_findings);
+        for (system, status, ccis) in findings {
+            println!("  System: {}, Status: {}, CCIs: {:?}", system, status, ccis);
+        }
         
         let compliance_percentage = if total_findings > 0 {
             (compliant_findings as f64 / total_findings as f64) * 100.0
@@ -718,18 +725,18 @@ async fn analyze_control_compliance(app_handle: AppHandle, group_id: String) -> 
             0.0
         };
         
-        let implementation_status = if compliance_percentage >= 100.0 {
-            fully_compliant += 1;
-            "Implemented".to_string()
-        } else if compliance_percentage >= 50.0 {
-            partially_compliant += 1;
-            "Partially Implemented".to_string()
-        } else if total_findings > 0 {
-            non_compliant += 1;
-            "Not Implemented".to_string()
-        } else {
+        let implementation_status = if total_findings == 0 {
             not_assessed += 1;
             "Not Assessed".to_string()
+        } else if compliance_percentage >= 100.0 {
+            fully_compliant += 1;
+            "Compliant".to_string()
+        } else if compliance_percentage > 0.0 {
+            partially_compliant += 1;
+            "Partially Compliant".to_string()
+        } else {
+            non_compliant += 1;
+            "Non-Compliant".to_string()
         };
         
         let affected_systems: Vec<String> = findings.iter()
@@ -744,10 +751,10 @@ async fn analyze_control_compliance(app_handle: AppHandle, group_id: String) -> 
             control_id: control_id.clone(),
             implementation_status,
             compliance_percentage,
-            total_findings,
-            open_findings,
-            not_applicable_findings,
-            compliant_findings,
+            total_findings: total_findings.try_into().unwrap(),
+            open_findings: open_findings.try_into().unwrap(),
+            not_applicable_findings: not_applicable_findings.try_into().unwrap(),
+            compliant_findings: compliant_findings.try_into().unwrap(),
             mapped_ccis,
             affected_systems,
             last_assessed: Some(chrono::Utc::now().to_rfc3339()),
