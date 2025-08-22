@@ -24,7 +24,7 @@ pub use control_poam_associations::{ControlPOAMAssociationOperations, ControlPOA
 pub use baseline_controls::{BaselineControlOperations, BaselineControlQueries};
 pub use group_baseline_controls::{GroupBaselineControlOperations, GroupBaselineControlQueries, GroupControlPOAMAssociationOperations, GroupControlPOAMAssociationQueries, GroupBaselineControl, GroupControlPOAMAssociation};
 
-use crate::models::{POAM, POAMData, Note, STIGMappingData, SecurityTestPlan, StpPrepList, System, SystemSummary, ControlPOAMAssociation, BaselineControl, SystemGroup, GroupPOAM, STIGFileRecord};
+use crate::models::{POAM, POAMData, Note, STIGMappingData, SecurityTestPlan, StpPrepList, System, SystemSummary, ControlPOAMAssociation, BaselineControl, SystemGroup, GroupPOAM, STIGFileRecord, GroupSummary};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
@@ -98,6 +98,22 @@ impl Database {
     pub fn remove_system_from_group(&mut self, system_id: &str) -> Result<(), DatabaseError> {
         let group_ops = GroupOperations::new(&mut self.conn);
         group_ops.remove_system_from_group(system_id)
+    }
+
+    // Group Queries (read-only)
+    pub fn get_all_groups(&self) -> Result<Vec<GroupSummary>, DatabaseError> {
+        let group_queries = GroupQueries::new(&self.conn);
+        group_queries.get_all_groups()
+    }
+
+    pub fn get_group_by_id(&self, id: &str) -> Result<Option<SystemGroup>, DatabaseError> {
+        let group_queries = GroupQueries::new(&self.conn);
+        group_queries.get_group_by_id(id)
+    }
+
+    pub fn get_ungrouped_systems(&self) -> Result<Vec<SystemSummary>, DatabaseError> {
+        let group_queries = GroupQueries::new(&self.conn);
+        group_queries.get_ungrouped_systems()
     }
 
     pub fn get_systems_in_group(&mut self, group_id: &str) -> Result<Vec<SystemSummary>, DatabaseError> {
