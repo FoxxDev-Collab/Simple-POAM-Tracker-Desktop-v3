@@ -24,7 +24,7 @@ pub use control_poam_associations::{ControlPOAMAssociationOperations, ControlPOA
 pub use baseline_controls::{BaselineControlOperations, BaselineControlQueries};
 pub use group_baseline_controls::{GroupBaselineControlOperations, GroupBaselineControlQueries, GroupControlPOAMAssociationOperations, GroupControlPOAMAssociationQueries, GroupBaselineControl, GroupControlPOAMAssociation};
 
-use crate::models::{POAM, POAMData, Note, STIGMappingData, SecurityTestPlan, StpPrepList, System, SystemSummary, ControlPOAMAssociation, BaselineControl, SystemGroup, GroupSummary, GroupPOAM, STIGFileRecord};
+use crate::models::{POAM, POAMData, Note, STIGMappingData, SecurityTestPlan, StpPrepList, System, SystemSummary, ControlPOAMAssociation, BaselineControl, SystemGroup, GroupPOAM, STIGFileRecord};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
@@ -41,17 +41,15 @@ impl Database {
         Ok(Self { conn })
     }
 
-
-
-    // System Queries (read-only)
-    pub fn get_all_systems(&self) -> Result<Vec<SystemSummary>, DatabaseError> {
-        let system_queries = SystemQueries::new(&self.conn);
-        system_queries.get_all_systems()
-    }
-
+    // Essential System Queries (read-only)
     pub fn get_system_by_id(&self, id: &str) -> Result<Option<System>, DatabaseError> {
         let system_queries = SystemQueries::new(&self.conn);
         system_queries.get_system_by_id(id)
+    }
+
+    pub fn get_all_systems(&self) -> Result<Vec<SystemSummary>, DatabaseError> {
+        let system_queries = SystemQueries::new(&self.conn);
+        system_queries.get_all_systems()
     }
 
     // System Operations (mutable)
@@ -75,16 +73,6 @@ impl Database {
         system_ops.update_system_last_accessed(system_id)
     }
 
-    // Group Queries (read-only)
-    pub fn get_all_groups(&self) -> Result<Vec<GroupSummary>, DatabaseError> {
-        let group_queries = GroupQueries::new(&self.conn);
-        group_queries.get_all_groups()
-    }
-
-    pub fn get_group_by_id(&self, id: &str) -> Result<Option<SystemGroup>, DatabaseError> {
-        let group_queries = GroupQueries::new(&self.conn);
-        group_queries.get_group_by_id(id)
-    }
 
     // Group Operations (mutable)
     pub fn create_group(&mut self, group: &SystemGroup) -> Result<(), DatabaseError> {
@@ -117,10 +105,6 @@ impl Database {
         group_ops.get_systems_in_group(group_id)
     }
 
-    pub fn get_ungrouped_systems(&mut self) -> Result<Vec<SystemSummary>, DatabaseError> {
-        let group_ops = GroupOperations::new(&mut self.conn);
-        group_ops.get_ungrouped_systems()
-    }
 
     pub fn reorder_systems_in_group(&mut self, group_id: &str, system_orders: &[(String, i32)]) -> Result<(), DatabaseError> {
         let mut group_ops = GroupOperations::new(&mut self.conn);
@@ -479,10 +463,6 @@ impl Database {
         ops.clear_scans_and_findings_for_system(system_id)
     }
 
-    pub fn delete_nessus_scan(&mut self, scan_id: &str, system_id: &str) -> Result<(), DatabaseError> {
-        let mut ops = nessus::NessusOperations::new(&mut self.conn);
-        ops.delete_scan(scan_id, system_id)
-    }
 
     // STIG File Management Operations
     pub fn save_stig_file(&mut self, file_record: &STIGFileRecord, checklist: &serde_json::Value, system_id: &str) -> Result<(), DatabaseError> {

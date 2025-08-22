@@ -2,8 +2,6 @@
 use std::fs;
 use tauri::{AppHandle, Manager};
 use serde::{Serialize, Deserialize};
-use uuid;
-use chrono;
 
 mod database;
 mod models;
@@ -1516,20 +1514,6 @@ async fn create_system(app_handle: AppHandle, system: models::System) -> Result<
     Ok(())
 }
 
-#[tauri::command]
-async fn get_all_systems(app_handle: AppHandle) -> Result<Vec<models::SystemSummary>, Error> {
-    let db = database::get_database(&app_handle)?;
-    let systems = db.get_all_systems()?;
-    println!("Retrieved {} systems", systems.len());
-    Ok(systems)
-}
-
-#[tauri::command]
-async fn get_system_by_id(app_handle: AppHandle, id: String) -> Result<Option<models::System>, Error> {
-    let db = database::get_database(&app_handle)?;
-    let system = db.get_system_by_id(&id)?;
-    Ok(system)
-}
 
 #[tauri::command]
 async fn update_system(app_handle: AppHandle, system: models::System) -> Result<(), Error> {
@@ -2314,20 +2298,6 @@ async fn create_group(app_handle: AppHandle, group: models::SystemGroup) -> Resu
     Ok(())
 }
 
-#[tauri::command]
-async fn get_all_groups(app_handle: AppHandle) -> Result<Vec<models::GroupSummary>, Error> {
-    let db = database::get_database(&app_handle)?;
-    let groups = db.get_all_groups()?;
-    println!("Retrieved {} groups", groups.len());
-    Ok(groups)
-}
-
-#[tauri::command]
-async fn get_group_by_id(app_handle: AppHandle, id: String) -> Result<Option<models::SystemGroup>, Error> {
-    let db = database::get_database(&app_handle)?;
-    let group = db.get_group_by_id(&id)?;
-    Ok(group)
-}
 
 #[tauri::command]
 async fn update_group(app_handle: AppHandle, group: models::SystemGroup) -> Result<(), Error> {
@@ -2373,13 +2343,6 @@ async fn get_systems_in_group(app_handle: AppHandle, group_id: String) -> Result
     Ok(systems)
 }
 
-#[tauri::command]
-async fn get_ungrouped_systems(app_handle: AppHandle) -> Result<Vec<models::SystemSummary>, Error> {
-    let mut db = database::get_database(&app_handle)?;
-    let systems = db.get_ungrouped_systems()?;
-    println!("Retrieved {} ungrouped systems", systems.len());
-    Ok(systems)
-}
 
 #[tauri::command]
 async fn reorder_systems_in_group(app_handle: AppHandle, group_id: String, system_orders: Vec<(String, i32)>) -> Result<(), Error> {
@@ -2454,8 +2417,6 @@ pub fn run() {
             delete_stp_prep_list,
             get_stp_prep_lists_by_source_mapping,
             create_system,
-            get_all_systems,
-            get_system_by_id,
             update_system,
             delete_system,
             set_active_system,
@@ -2485,14 +2446,11 @@ pub fn run() {
             update_milestone_status,
             delete_poam,
             create_group,
-            get_all_groups,
-            get_group_by_id,
             update_group,
             delete_group,
             add_system_to_group,
             remove_system_from_group,
             get_systems_in_group,
-            get_ungrouped_systems,
             reorder_systems_in_group,
             // Group POAM commands
             get_group_poams,
@@ -3235,401 +3193,3 @@ async fn delete_poam(app_handle: AppHandle, poam_id: i64, system_id: String) -> 
     Ok(())
 }
 
-#[tauri::command]
-async fn export_complete_group_backup(app_handle: AppHandle, export_path: String, group_id: String) -> Result<String, Error> {
-    use std::io::Write;
-    use zip::write::FileOptions;
-    
-    println!("Creating complete group backup for group: {}", group_id);
-    
-    let mut db = database::get_database(&app_handle)?;
-    let app_data_dir = app_handle.path().app_data_dir()
-        .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
-    
-    // Get group information
-    let group = db.get_group_by_id(&group_id)?
-        .ok_or_else(|| Error::Database(database::DatabaseError::ClearDatabase("Group not found".to_string())))?;
-    
-    // Get all systems in the group
-    let group_systems = db.get_systems_in_group(&group_id)?;
-    println!("Found {} systems in group", group_systems.len());
-    
-    // Export each system's complete data
-    let mut system_exports = Vec::new();
-    let mut total_evidence_files = 0;
-    let mut evidence_file_count_by_system: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    
-    for system in &group_systems {
-        println!("Exporting system: {}", system.name);
-        
-        // Get all data for this system
-        let poams = db.get_all_poams(&system.id)?;
-        let notes = db.get_all_notes(&system.id)?;
-        let stig_mappings = db.get_all_stig_mappings(&system.id)?;
-        let test_plans = db.get_all_security_test_plans(&system.id)?;
-        let prep_lists = db.get_all_stp_prep_lists(&system.id)?;
-        let baseline_controls = db.get_baseline_controls(&system.id)?;
-        
-        let mut poam_control_associations = Vec::new();
-        for poam in &poams {
-            let mut associations = db.get_control_poam_associations_by_poam(poam.id, &system.id)?;
-            poam_control_associations.append(&mut associations);
-        }
-        
-        // Count evidence files for this system
-        let mut system_evidence_count = 0;
-        for test_plan in &test_plans {
-            for test_case in &test_plan.test_cases {
-                if let Some(evidence_files) = &test_case.evidence_files {
-                    system_evidence_count += evidence_files.len();
-                }
-            }
-        }
-        evidence_file_count_by_system.insert(system.id.clone(), system_evidence_count);
-        total_evidence_files += system_evidence_count;
-        
-        // Convert SystemSummary to System for export
-        let system_for_export = models::System {
-            id: system.id.clone(),
-            name: system.name.clone(),
-            description: system.description.clone(),
-            created_date: system.created_date.clone(),
-            updated_date: chrono::Utc::now().to_rfc3339(),
-            last_accessed: system.last_accessed.clone(),
-            owner: system.owner.clone(),
-            classification: system.classification.clone(),
-            tags: system.tags.clone(),
-            group_id: Some(group_id.clone()),
-            is_active: true,
-            poam_count: Some(system.poam_count),
-        };
-        
-        // Create system export data
-        let system_export = models::SystemExportData {
-            system: system_for_export,
-            poams,
-            notes,
-            stig_mappings: if stig_mappings.is_empty() { None } else { Some(stig_mappings) },
-            test_plans: if test_plans.is_empty() { None } else { Some(test_plans) },
-            prep_lists: if prep_lists.is_empty() { None } else { Some(prep_lists) },
-            baseline_controls: if baseline_controls.is_empty() { None } else { Some(baseline_controls) },
-            poam_control_associations: if poam_control_associations.is_empty() { None } else { Some(poam_control_associations) },
-            export_date: Some(chrono::Utc::now().to_rfc3339()),
-            export_version: Some("2.1".to_string()),
-        };
-        
-        system_exports.push(system_export);
-    }
-    
-    // Get group-level data (group POAMs, etc.)
-    // Note: Group POAMs functionality may need to be implemented in the database layer
-    
-    // Create group export data structure
-    let group_export_data = models::GroupExportData {
-        group: group.clone(),
-        systems: system_exports,
-        export_date: Some(chrono::Utc::now().to_rfc3339()),
-        export_version: Some("3.0".to_string()), // New version for group exports
-    };
-    
-    // Create ZIP file
-    let file = fs::File::create(&export_path)?;
-    let mut zip = zip::ZipWriter::new(file);
-    
-    // Add group backup JSON to ZIP
-    let json = serde_json::to_string_pretty(&group_export_data)?;
-    zip.start_file("group_backup.json", FileOptions::default())?;
-    zip.write_all(json.as_bytes())?;
-    
-    // Copy evidence files from all systems
-    let mut manifest = vec!["# Group Backup Evidence Files Manifest".to_string()];
-    
-    for (system_idx, system_export) in group_export_data.systems.iter().enumerate() {
-        let system_name = &system_export.system.name;
-        manifest.push(format!("\n## System: {}", system_name));
-        
-        if let Some(test_plans) = &system_export.test_plans {
-            for (plan_idx, test_plan) in test_plans.iter().enumerate() {
-                manifest.push(format!("### Test Plan: {}", test_plan.name));
-                
-                for (case_idx, test_case) in test_plan.test_cases.iter().enumerate() {
-                    if let Some(evidence_files) = &test_case.evidence_files {
-                        for (file_idx, evidence_file) in evidence_files.iter().enumerate() {
-                            let source_path = app_data_dir.join(&evidence_file);
-                            
-                            if source_path.exists() {
-                                let zip_path = format!("evidence/system_{}/plan_{}/case_{}/file_{}/{}", 
-                                                     system_idx, plan_idx, case_idx, file_idx,
-                                                     source_path.file_name().unwrap_or_default().to_string_lossy());
-                                
-                                manifest.push(format!("- {}: {}", zip_path, evidence_file));
-                                
-                                match fs::read(&source_path) {
-                                    Ok(file_data) => {
-                                        zip.start_file(&zip_path, FileOptions::default())?;
-                                        zip.write_all(&file_data)?;
-                                    }
-                                    Err(e) => {
-                                        manifest.push(format!("  ERROR: Failed to read file: {}", e));
-                                    }
-                                }
-                            } else {
-                                manifest.push(format!("- MISSING: {}", evidence_file));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    // Add evidence manifest
-    zip.start_file("EVIDENCE_MANIFEST.txt", FileOptions::default())?;
-    zip.write_all(manifest.join("\n").as_bytes())?;
-    
-    // Create group summary
-    let total_poams: usize = group_export_data.systems.iter().map(|s| s.poams.len()).sum();
-    let total_notes: usize = group_export_data.systems.iter().map(|s| s.notes.len()).sum();
-    let total_stig_mappings: usize = group_export_data.systems.iter()
-        .map(|s| s.stig_mappings.as_ref().map_or(0, |v| v.len())).sum();
-    let total_test_plans: usize = group_export_data.systems.iter()
-        .map(|s| s.test_plans.as_ref().map_or(0, |v| v.len())).sum();
-    let total_prep_lists: usize = group_export_data.systems.iter()
-        .map(|s| s.prep_lists.as_ref().map_or(0, |v| v.len())).sum();
-    let total_baseline_controls: usize = group_export_data.systems.iter()
-        .map(|s| s.baseline_controls.as_ref().map_or(0, |v| v.len())).sum();
-    let total_associations: usize = group_export_data.systems.iter()
-        .map(|s| s.poam_control_associations.as_ref().map_or(0, |v| v.len())).sum();
-    
-    let summary = format!(
-        "# {} - Complete Group Backup\n\n\
-        **Backup Date:** {}\n\
-        **Group Description:** {}\n\
-        **Export Version:** 3.0 (Group ZIP format with evidence files)\n\n\
-        ## Group Contents\n\
-        - {} Systems\n\
-        - {} Total POAMs\n\
-        - {} Total Notes\n\
-        - {} Total STIG Mappings\n\
-        - {} Total Security Test Plans\n\
-        - {} Total STP Prep Lists\n\
-        - {} Total Baseline Controls\n\
-        - {} Total POAM/Control Associations\n\
-        - {} Total Evidence Files\n\n\
-        ## Systems in Group\n{}\n\n\
-        This is a complete group backup that includes all systems, metadata, configurations, \
-        and evidence files. Import this ZIP file to restore the entire group with \
-        full data integrity and evidence preservation.",
-        group.name,
-        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
-        group.description.as_deref().unwrap_or("No description"),
-        group_export_data.systems.len(),
-        total_poams,
-        total_notes,
-        total_stig_mappings,
-        total_test_plans,
-        total_prep_lists,
-        total_baseline_controls,
-        total_associations,
-        total_evidence_files,
-        group_export_data.systems.iter()
-            .map(|s| format!("- {} ({})", s.system.name, 
-                           s.system.description.as_deref().unwrap_or("No description")))
-            .collect::<Vec<_>>().join("\n")
-    );
-    
-    zip.start_file("GROUP_SUMMARY.md", FileOptions::default())?;
-    zip.write_all(summary.as_bytes())?;
-    
-    zip.finish()?;
-    
-    let file_size = fs::metadata(&export_path)?.len();
-    let size_mb = file_size as f64 / 1024.0 / 1024.0;
-    
-    let result_message = format!(
-        "Group backup export completed successfully!\n\n\
-        Group: {}\n\
-        Systems: {}\n\
-        POAMs: {}\n\
-        Notes: {}\n\
-        STIG Mappings: {}\n\
-        Test Plans: {}\n\
-        Evidence Files: {}\n\
-        File Size: {:.2} MB\n\n\
-        Export saved to: {}",
-        group.name,
-        group_export_data.systems.len(),
-        total_poams,
-        total_notes,
-        total_stig_mappings,
-        total_test_plans,
-        total_evidence_files,
-        size_mb,
-        export_path
-    );
-    
-    println!("{}", result_message);
-    Ok(result_message)
-}
-
-#[tauri::command]
-async fn import_complete_group_backup(app_handle: AppHandle, import_path: String) -> Result<String, Error> {
-    use std::io::Read;
-    use zip::read::ZipArchive;
-    
-    println!("Importing complete group backup from: {}", import_path);
-    
-    let mut db = database::get_database(&app_handle)?;
-    let app_data_dir = app_handle.path().app_data_dir()
-        .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
-    
-    // Open ZIP file
-    let file = fs::File::open(&import_path)?;
-    let mut archive = ZipArchive::new(file)?;
-    
-    // Read group backup JSON
-    let json_content = {
-        let mut group_backup_file = archive.by_name("group_backup.json")?;
-        let mut content = String::new();
-        group_backup_file.read_to_string(&mut content)?;
-        content
-    };
-    
-    let group_export_data: models::GroupExportData = serde_json::from_str(&json_content)?;
-    
-    println!("Importing group: {} with {} systems", 
-             group_export_data.group.name, 
-             group_export_data.systems.len());
-    
-    // Create or update the group
-    let mut group = group_export_data.group.clone();
-    
-    // Generate new group ID to avoid conflicts
-    group.id = uuid::Uuid::new_v4().to_string();
-    group.created_date = chrono::Utc::now().to_rfc3339();
-    group.updated_date = chrono::Utc::now().to_rfc3339();
-    
-    db.create_group(&group)?;
-    println!("Created group: {} with ID: {}", group.name, group.id);
-    
-    let mut imported_systems = Vec::new();
-    let mut total_imported_files = 0;
-    
-    // Import each system
-    for (system_idx, system_export) in group_export_data.systems.iter().enumerate() {
-        println!("Importing system: {}", system_export.system.name);
-        
-        // Create new system with new ID to avoid conflicts
-        let mut system = system_export.system.clone();
-        system.id = uuid::Uuid::new_v4().to_string();
-        system.created_date = chrono::Utc::now().to_rfc3339();
-        system.updated_date = chrono::Utc::now().to_rfc3339();
-        
-        // Create the system
-        db.create_system(&system)?;
-        
-        // Associate system with group
-        db.add_system_to_group(&group.id, &system.id, None)?;
-        
-        // Import POAMs
-        for poam in &system_export.poams {
-            let mut new_poam = poam.clone();
-            new_poam.id = 0; // Let database assign new ID
-            db.create_poam(&new_poam, &system.id)?;
-        }
-        
-        // Import notes
-        for note in &system_export.notes {
-            let mut new_note = note.clone();
-            new_note.id = uuid::Uuid::new_v4().to_string();
-            db.create_note(&new_note, &system.id)?;
-        }
-        
-        // Import STIG mappings
-        if let Some(stig_mappings) = &system_export.stig_mappings {
-            for mapping in stig_mappings {
-                let mut new_mapping = mapping.clone();
-                new_mapping.id = uuid::Uuid::new_v4().to_string();
-                db.save_stig_mapping(&new_mapping, &system.id)?;
-            }
-        }
-        
-        // Import test plans and evidence files
-        if let Some(test_plans) = &system_export.test_plans {
-            for (plan_idx, test_plan) in test_plans.iter().enumerate() {
-                let mut new_test_plan = test_plan.clone();
-                new_test_plan.id = uuid::Uuid::new_v4().to_string();
-                
-                // Update evidence file paths and extract files
-                for (case_idx, test_case) in new_test_plan.test_cases.iter_mut().enumerate() {
-                    if let Some(evidence_files) = &mut test_case.evidence_files {
-                        let mut new_evidence_files = Vec::new();
-                        
-                        for (file_idx, _) in evidence_files.iter().enumerate() {
-                            let zip_path = format!("evidence/system_{}/plan_{}/case_{}/file_{}/", 
-                                                 system_idx, plan_idx, case_idx, file_idx);
-                            
-                            // Find the actual file in the ZIP
-                            for i in 0..archive.len() {
-                                let mut file = archive.by_index(i)?;
-                                if file.name().starts_with(&zip_path) && !file.name().ends_with('/') {
-                                    let filename = file.name().split('/').last().unwrap_or("unknown");
-                                    let new_filename = format!("{}_{}", uuid::Uuid::new_v4(), filename);
-                                    let dest_path = app_data_dir.join(&new_filename);
-                                    
-                                    // Extract file
-                                    let mut file_data = Vec::new();
-                                    file.read_to_end(&mut file_data)?;
-                                    fs::write(&dest_path, file_data)?;
-                                    
-                                    new_evidence_files.push(new_filename);
-                                    total_imported_files += 1;
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        *evidence_files = new_evidence_files;
-                    }
-                }
-                
-                db.save_security_test_plan(&new_test_plan, &system.id)?;
-            }
-        }
-        
-        // Import other data types (prep lists, baseline controls, associations)
-        if let Some(prep_lists) = &system_export.prep_lists {
-            for prep_list in prep_lists {
-                let mut new_prep_list = prep_list.clone();
-                new_prep_list.id = uuid::Uuid::new_v4().to_string();
-                db.save_stp_prep_list(&new_prep_list, &system.id)?;
-            }
-        }
-        
-        if let Some(baseline_controls) = &system_export.baseline_controls {
-            for control in baseline_controls {
-                let mut new_control = control.clone();
-                new_control.id = uuid::Uuid::new_v4().to_string();
-                new_control.system_id = system.id.clone();
-                db.add_baseline_control(&new_control)?;
-            }
-        }
-        
-        imported_systems.push(system.name.clone());
-    }
-    
-    let result_message = format!(
-        "Group backup import completed successfully!\n\n\
-        Imported Group: {}\n\
-        Systems Imported: {}\n\
-        Evidence Files Restored: {}\n\n\
-        The group and all its systems have been restored with new IDs to avoid conflicts. \
-        All data relationships and evidence files have been preserved.",
-        group.name,
-        imported_systems.len(),
-        total_imported_files
-    );
-    
-    println!("{}", result_message);
-    Ok(result_message)
-}

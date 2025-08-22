@@ -433,21 +433,6 @@ impl<'a> GroupOperations<'a> {
         Ok(())
     }
 
-    pub fn create_group_milestone(&mut self, group_poam_id: i64, milestone: &Milestone) -> Result<(), DatabaseError> {
-        self.conn.execute(
-            "INSERT INTO group_milestones (id, group_poam_id, title, due_date, status, description) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![milestone.id, group_poam_id, milestone.title, milestone.due_date, milestone.status, milestone.description],
-        )?;
-        Ok(())
-    }
-
-    pub fn update_group_milestone_status(&mut self, milestone_id: &str, status: &str) -> Result<(), DatabaseError> {
-        self.conn.execute(
-            "UPDATE group_milestones SET status = ?2 WHERE id = ?1",
-            params![milestone_id, status],
-        )?;
-        Ok(())
-    }
 }
 
 impl<'a> GroupQueries<'a> {
