@@ -319,28 +319,89 @@ export default function SecurityTestPlan() {
         return;
       }
       
-      // Create test cases from Nessus findings
-      // For now, we'll create basic test cases for vulnerability validation
-      testCases = [
-        {
-          id: crypto.randomUUID(),
-          nist_control: 'Nessus-Validation',
-          cci_ref: 'N/A',
-          stig_vuln_id: 'NESSUS-001',
-          test_description: `Validate ${nessusPrepList.finding_count} Nessus vulnerability findings`,
-          test_procedure: 'Review and validate the identified vulnerabilities from Nessus scan',
-          expected_result: 'All vulnerabilities are properly documented and remediation plans are in place',
-          status: 'Not Started',
-          risk_rating: 'High',
-          notes: `Nessus scan findings from: ${nessusPrepList.scan_info?.name || 'Unknown scan'}`
-        }
-      ];
+      // Create individual test cases for each CVE/finding
+      const selectedFindings = nessusPrepList.selected_findings || [];
+      
+      if (Array.isArray(selectedFindings) && selectedFindings.length > 0) {
+        // Group findings by CVE or Plugin ID for efficient test case creation
+        const findingGroups = new Map<string, any[]>();
+        
+        selectedFindings.forEach((finding: any) => {
+          const identifier = finding.cve || finding.plugin_id || `PLUGIN-${finding.plugin_name || 'UNKNOWN'}`;
+          if (!findingGroups.has(identifier)) {
+            findingGroups.set(identifier, []);
+          }
+          findingGroups.get(identifier)?.push(finding);
+        });
+        
+        // Create test cases for each CVE/Plugin group
+        testCases = Array.from(findingGroups.entries()).map(([identifier, findings]) => {
+          const firstFinding = findings[0];
+          const affectedHosts = [...new Set(findings.map(f => f.host).filter(h => h))];
+          const severity = firstFinding.severity || firstFinding.risk_factor || 'Medium';
+          
+          // Determine risk rating based on severity
+          const getRiskRating = (sev: string) => {
+            const s = sev.toLowerCase();
+            if (s.includes('critical')) return 'Critical';
+            if (s.includes('high')) return 'High';
+            if (s.includes('medium')) return 'Medium';
+            if (s.includes('low')) return 'Low';
+            return 'Medium';
+          };
+          
+          const isCVE = identifier.startsWith('CVE-');
+          const testId = isCVE ? identifier : `PLUGIN-${firstFinding.plugin_id || 'UNK'}`;
+          
+          return {
+            id: crypto.randomUUID(),
+            nist_control: isCVE ? `CVE-${identifier.split('-')[1]}-${identifier.split('-')[2]}` : `NESSUS-${firstFinding.plugin_id || 'UNKNOWN'}`,
+            cci_ref: isCVE ? identifier : 'N/A',
+            stig_vuln_id: testId,
+            test_description: `Validate and remediate ${identifier}: ${firstFinding.plugin_name || 'Unknown vulnerability'}`,
+            test_procedure: `1. Verify presence of vulnerability on affected hosts: ${affectedHosts.join(', ') || 'Unknown hosts'}
+2. Assess the risk and impact of this ${isCVE ? 'CVE' : 'vulnerability'}
+3. Implement appropriate remediation measures
+4. Validate remediation effectiveness
+5. Document findings and remediation steps`,
+            expected_result: `Vulnerability ${identifier} is successfully remediated on all affected systems with proper validation and documentation`,
+            status: 'Not Started',
+            risk_rating: getRiskRating(severity),
+            notes: `${isCVE ? 'CVE' : 'Plugin'}: ${identifier}
+Severity: ${severity}
+Affected Hosts: ${affectedHosts.length} host(s) - ${affectedHosts.join(', ') || 'Unknown'}
+Plugin: ${firstFinding.plugin_name || 'Unknown'}
+CVSS Score: ${firstFinding.cvss_score || firstFinding.cvss_base_score || 'N/A'}
+Description: ${firstFinding.synopsis || firstFinding.description || 'No description available'}
+Solution: ${firstFinding.solution || 'Refer to vendor guidance'}
+Source: Nessus Scan - ${nessusPrepList.scan_info?.name || 'Unknown scan'}`
+          };
+        });
+      } else {
+        // Fallback: Create a single test case if no detailed findings are available
+        testCases = [
+          {
+            id: crypto.randomUUID(),
+            nist_control: 'NESSUS-VALIDATION',
+            cci_ref: 'N/A',
+            stig_vuln_id: 'NESSUS-001',
+            test_description: `Validate ${nessusPrepList.finding_count} Nessus vulnerability findings`,
+            test_procedure: 'Review and validate the identified vulnerabilities from Nessus scan',
+            expected_result: 'All vulnerabilities are properly documented and remediation plans are in place',
+            status: 'Not Started',
+            risk_rating: 'High',
+            notes: `Nessus scan findings from: ${nessusPrepList.scan_info?.name || 'Unknown scan'}
+Note: Detailed finding data not available for individual CVE test case generation.`
+          }
+        ];
+      }
       
       prepListData = {
         source_type: 'nessus',
         source_id: nessusPrepList.id,
         name: nessusPrepList.name,
-        finding_count: nessusPrepList.finding_count
+        finding_count: nessusPrepList.finding_count,
+        test_case_count: testCases.length
       };
     } else {
       // Handle STIG prep list (existing logic)

@@ -271,6 +271,82 @@ impl<'a> NessusQueries<'a> {
         Ok(lists)
     }
 
+    pub fn get_prep_list_by_id(&self, id: &str, system_id: &str) -> Result<Option<NessusPrepList>, DatabaseError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, description, created_date, updated_date, source_scan_id, asset_info, selected_findings, finding_count, milestones, cve_analysis, summary, prep_status, scan_info FROM nessus_prep_lists WHERE id = ?1 AND system_id = ?2"
+        )?;
+        let mut rows = stmt.query_map(params![id, system_id], |row| {
+            let asset_info_json: String = row.get(6)?;
+            let selected_findings_json: String = row.get(7)?;
+            let asset_info = serde_json::from_str(&asset_info_json).unwrap_or(serde_json::json!({}));
+            let selected_findings = serde_json::from_str(&selected_findings_json).unwrap_or(serde_json::json!([]));
+            
+            // Handle optional new fields with fallback for old records
+            let milestones = row.get::<_, Option<String>>(9).ok().flatten().and_then(|s| serde_json::from_str(&s).ok());
+            let cve_analysis = row.get::<_, Option<String>>(10).ok().flatten().and_then(|s| serde_json::from_str(&s).ok());
+            let summary = row.get::<_, Option<String>>(11).ok().flatten().and_then(|s| serde_json::from_str(&s).ok());
+            let prep_status = row.get::<_, Option<String>>(12).ok().flatten();
+            let scan_info = row.get::<_, Option<String>>(13).ok().flatten().and_then(|s| serde_json::from_str(&s).ok());
+            
+            Ok(NessusPrepList {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                created_date: row.get(3)?,
+                updated_date: row.get(4)?,
+                source_scan_id: row.get(5)?,
+                asset_info,
+                selected_findings,
+                finding_count: row.get(8)?,
+                milestones,
+                cve_analysis,
+                summary,
+                prep_status,
+                scan_info,
+            })
+        })?;
+        
+        if let Some(row) = rows.next() {
+            Ok(Some(row?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn update_prep_list(&self, prep: &NessusPrepList, system_id: &str) -> Result<(), DatabaseError> {
+        let selected_findings_json = serde_json::to_string(&prep.selected_findings).unwrap();
+        let asset_info_json = serde_json::to_string(&prep.asset_info).unwrap();
+        let milestones_json = prep.milestones.as_ref().map(|m| serde_json::to_string(m).unwrap());
+        let cve_analysis_json = prep.cve_analysis.as_ref().map(|c| serde_json::to_string(c).unwrap());
+        let summary_json = prep.summary.as_ref().map(|s| serde_json::to_string(s).unwrap());
+        let scan_info_json = prep.scan_info.as_ref().map(|s| serde_json::to_string(s).unwrap());
+        
+        self.conn.execute(
+            "UPDATE nessus_prep_lists SET 
+                name = ?2, description = ?3, updated_date = ?4, source_scan_id = ?5, 
+                asset_info = ?6, selected_findings = ?7, finding_count = ?8,
+                milestones = ?9, cve_analysis = ?10, summary = ?11, prep_status = ?12, scan_info = ?13
+             WHERE id = ?1 AND system_id = ?14",
+            params![
+                prep.id,
+                prep.name,
+                prep.description,
+                prep.updated_date,
+                prep.source_scan_id,
+                asset_info_json,
+                selected_findings_json,
+                prep.finding_count,
+                milestones_json,
+                cve_analysis_json,
+                summary_json,
+                prep.prep_status,
+                scan_info_json,
+                system_id
+            ],
+        )?;
+        Ok(())
+    }
+
     pub fn delete_prep_list(&self, id: &str, system_id: &str) -> Result<(), DatabaseError> {
         self.conn.execute(
             "DELETE FROM nessus_prep_lists WHERE id = ?1 AND system_id = ?2",

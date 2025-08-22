@@ -224,6 +224,38 @@ export default function STIGFileManager() {
     }
   };
 
+  // Safely resolve an uploaded/updated date string for a file
+  const getUploadedDate = (file: STIGFileRecord): string => {
+    return (
+      file.uploaded_date ||
+      file.upload_date ||
+      file.updated_date ||
+      file.last_modified ||
+      ''
+    );
+  };
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString();
+  };
+
+  // Format file size
+  const formatFileSize = (bytes: number | undefined | null) => {
+    if (bytes == null || isNaN(bytes)) return 'Unknown size';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = bytes;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+    return `${size.toFixed(1)} ${units[unitIndex]}`;
+  };
+
   // Filter and sort files
   const filteredAndSortedFiles = (() => {
     let filtered = stigFiles.filter(file => {
@@ -231,10 +263,10 @@ export default function STIGFileManager() {
       if (filter.trim()) {
         const searchTerm = filter.toLowerCase();
         const matchesText = (
-          file.filename.toLowerCase().includes(searchTerm) ||
-          file.stig_info.title.toLowerCase().includes(searchTerm) ||
-          file.asset_info.host_name?.toLowerCase().includes(searchTerm) ||
-          file.tags.some(tag => tag.toLowerCase().includes(searchTerm))
+          file.filename?.toLowerCase().includes(searchTerm) ||
+          file.stig_info?.title?.toLowerCase().includes(searchTerm) ||
+          file.asset_info?.host_name?.toLowerCase().includes(searchTerm) ||
+          file.tags?.some(tag => tag.toLowerCase().includes(searchTerm))
         );
         if (!matchesText) return false;
       }
@@ -244,7 +276,7 @@ export default function STIGFileManager() {
 
       // Compliance filter
       if (complianceFilter !== 'all') {
-        const percentage = file.compliance_summary.compliance_percentage;
+        const percentage = file.compliance_summary?.compliance_percentage || 0;
         switch (complianceFilter) {
           case 'excellent':
             if (percentage < 90) return false;
@@ -280,11 +312,11 @@ export default function STIGFileManager() {
           break;
         }
         case 'compliance':
-          comparison = a.compliance_summary.compliance_percentage - b.compliance_summary.compliance_percentage;
+          comparison = (a.compliance_summary?.compliance_percentage || 0) - (b.compliance_summary?.compliance_percentage || 0);
           break;
         case 'progress': {
-          const aProgress = a.remediation_progress.remediated / (a.remediation_progress.total_findings || 1);
-          const bProgress = b.remediation_progress.remediated / (b.remediation_progress.total_findings || 1);
+          const aProgress = (a.remediation_progress?.remediated || 0) / (a.remediation_progress?.total_findings || 1);
+          const bProgress = (b.remediation_progress?.remediated || 0) / (b.remediation_progress?.total_findings || 1);
           comparison = aProgress - bProgress;
           break;
         }
@@ -294,37 +326,6 @@ export default function STIGFileManager() {
 
     return filtered;
   })();
-
-  // Format date
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '-';
-    const d = new Date(dateString);
-    if (isNaN(d.getTime())) return '-';
-    return d.toLocaleDateString();
-  };
-
-  // Safely resolve an uploaded/updated date string for a file
-  const getUploadedDate = (file: STIGFileRecord): string => {
-    return (
-      file.uploaded_date ||
-      file.upload_date ||
-      file.updated_date ||
-      file.last_modified ||
-      ''
-    );
-  };
-
-  // Format file size
-  const formatFileSize = (bytes: number) => {
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let unitIndex = 0;
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex++;
-    }
-    return `${size.toFixed(1)} ${units[unitIndex]}`;
-  };
 
   return (
     <div className="space-y-6">
@@ -367,7 +368,7 @@ export default function STIGFileManager() {
               <div className="text-sm font-medium text-muted-foreground">Avg. Compliance</div>
               <div className="text-2xl font-bold text-foreground">
                 {stigFiles.length > 0 
-                  ? (stigFiles.reduce((sum, f) => sum + f.compliance_summary.compliance_percentage, 0) / stigFiles.length).toFixed(1)
+                  ? (stigFiles.reduce((sum, f) => sum + (f.compliance_summary?.compliance_percentage || 0), 0) / stigFiles.length).toFixed(1)
                   : '0'
                 }%
               </div>
@@ -380,7 +381,7 @@ export default function STIGFileManager() {
             <div>
               <div className="text-sm font-medium text-muted-foreground">Open Findings</div>
               <div className="text-2xl font-bold text-foreground">
-                {stigFiles.reduce((sum, f) => sum + f.compliance_summary.open, 0)}
+                {stigFiles.reduce((sum, f) => sum + (f.compliance_summary?.open || 0), 0)}
               </div>
             </div>
           </div>
@@ -505,23 +506,23 @@ export default function STIGFileManager() {
                       </td>
                       <td className="p-3 border-b border-border">
                         <div className="max-w-xs">
-                          <div className="font-medium text-foreground truncate" title={file.stig_info.title}>
-                            {file.stig_info.title}
+                          <div className="font-medium text-foreground truncate" title={file.stig_info?.title || 'Unknown STIG'}>
+                            {file.stig_info?.title || 'Unknown STIG'}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {file.stig_info.version}
+                            {file.stig_info?.version || 'Unknown Version'}
                           </div>
                         </div>
                       </td>
                       <td className="p-3 border-b border-border">
                         <div>
                           <div className="font-medium text-foreground">
-                            {file.asset_info.host_name || 'Unknown Host'}
+                            {file.asset_info?.host_name || 'Unknown Host'}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {file.asset_info.asset_type}
+                            {file.asset_info?.asset_type || 'Unknown Type'}
                           </div>
-                          {file.asset_info.host_ip && (
+                          {file.asset_info?.host_ip && (
                             <div className="text-xs text-muted-foreground font-mono">
                               {file.asset_info.host_ip}
                             </div>
@@ -530,22 +531,22 @@ export default function STIGFileManager() {
                       </td>
                       <td className="p-3 border-b border-border text-center">
                         <div className="space-y-1">
-                          {renderComplianceBadge(file.compliance_summary.compliance_percentage)}
+                          {renderComplianceBadge(file.compliance_summary?.compliance_percentage || 0)}
                           <div className="text-xs text-muted-foreground">
-                            {file.compliance_summary.open} open findings
+                            {file.compliance_summary?.open || 0} open findings
                           </div>
                         </div>
                       </td>
                       <td className="p-3 border-b border-border text-center">
                         <div className="space-y-1">
                           <div className="text-sm font-medium text-foreground">
-                            {file.remediation_progress.total_findings > 0 
-                              ? Math.round((file.remediation_progress.remediated / file.remediation_progress.total_findings) * 100)
+                            {(file.remediation_progress?.total_findings || 0) > 0 
+                              ? Math.round(((file.remediation_progress?.remediated || 0) / (file.remediation_progress?.total_findings || 1)) * 100)
                               : 0
                             }%
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {file.remediation_progress.remediated}/{file.remediation_progress.total_findings} remediated
+                            {file.remediation_progress?.remediated || 0}/{file.remediation_progress?.total_findings || 0} remediated
                           </div>
                         </div>
                       </td>
@@ -702,7 +703,7 @@ export default function STIGFileManager() {
                         {detailDialog.mode === 'edit' ? (
                           <input
                             type="text"
-                            value={detailDialog.file.tags.join(', ')}
+                            value={(detailDialog.file.tags || []).join(', ')}
                             onChange={(e) => setDetailDialog(prev => ({
                               ...prev,
                               file: prev.file ? { 
@@ -715,7 +716,7 @@ export default function STIGFileManager() {
                           />
                         ) : (
                           <div className="flex flex-wrap gap-1">
-                            {detailDialog.file.tags.map(tag => (
+                            {(detailDialog.file.tags || []).map(tag => (
                               <Badge key={tag} variant="outline">{tag}</Badge>
                             ))}
                           </div>
@@ -727,24 +728,24 @@ export default function STIGFileManager() {
                   <div>
                     <h4 className="text-lg font-semibold text-foreground mb-3">STIG Information</h4>
                     <div className="bg-muted p-4 rounded-lg space-y-2">
-                      <div><strong>Title:</strong> {detailDialog.file.stig_info.title}</div>
-                      <div><strong>Version:</strong> {detailDialog.file.stig_info.version}</div>
-                      <div><strong>Release:</strong> {detailDialog.file.stig_info.release_info}</div>
-                      <div><strong>Classification:</strong> {detailDialog.file.stig_info.classification}</div>
+                      <div><strong>Title:</strong> {detailDialog.file.stig_info?.title || 'Unknown'}</div>
+                      <div><strong>Version:</strong> {detailDialog.file.stig_info?.version || 'Unknown'}</div>
+                      <div><strong>Release:</strong> {detailDialog.file.stig_info?.release_info || 'Unknown'}</div>
+                      <div><strong>Classification:</strong> {detailDialog.file.stig_info?.classification || 'Unknown'}</div>
                     </div>
                   </div>
 
                   <div>
                     <h4 className="text-lg font-semibold text-foreground mb-3">Asset Information</h4>
                     <div className="bg-muted p-4 rounded-lg space-y-2">
-                      <div><strong>Asset Type:</strong> {detailDialog.file.asset_info.asset_type}</div>
-                      {detailDialog.file.asset_info.host_name && (
+                      <div><strong>Asset Type:</strong> {detailDialog.file.asset_info?.asset_type || 'Unknown'}</div>
+                      {detailDialog.file.asset_info?.host_name && (
                         <div><strong>Host Name:</strong> {detailDialog.file.asset_info.host_name}</div>
                       )}
-                      {detailDialog.file.asset_info.host_ip && (
+                      {detailDialog.file.asset_info?.host_ip && (
                         <div><strong>Host IP:</strong> {detailDialog.file.asset_info.host_ip}</div>
                       )}
-                      {detailDialog.file.asset_info.host_fqdn && (
+                      {detailDialog.file.asset_info?.host_fqdn && (
                         <div><strong>FQDN:</strong> {detailDialog.file.asset_info.host_fqdn}</div>
                       )}
                     </div>
@@ -757,32 +758,32 @@ export default function STIGFileManager() {
                     <h4 className="text-lg font-semibold text-foreground mb-3">Compliance Summary</h4>
                     <div className="space-y-4">
                       <div className="text-center">
-                        {renderComplianceBadge(detailDialog.file.compliance_summary.compliance_percentage)}
+                        {renderComplianceBadge(detailDialog.file.compliance_summary?.compliance_percentage || 0)}
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div className="bg-muted p-3 rounded">
                           <div className="font-medium text-foreground">Total Vulnerabilities</div>
                           <div className="text-2xl font-bold text-primary">
-                            {detailDialog.file.compliance_summary.total_vulns}
+                            {detailDialog.file.compliance_summary?.total_vulns || 0}
                           </div>
                         </div>
                         <div className="bg-muted p-3 rounded">
                           <div className="font-medium text-foreground">Open Findings</div>
                           <div className="text-2xl font-bold text-destructive">
-                            {detailDialog.file.compliance_summary.open}
+                            {detailDialog.file.compliance_summary?.open || 0}
                           </div>
                         </div>
                         <div className="bg-muted p-3 rounded">
                           <div className="font-medium text-foreground">Not a Finding</div>
                           <div className="text-2xl font-bold text-success">
-                            {detailDialog.file.compliance_summary.not_a_finding}
+                            {detailDialog.file.compliance_summary?.not_a_finding || 0}
                           </div>
                         </div>
                         <div className="bg-muted p-3 rounded">
                           <div className="font-medium text-foreground">Not Applicable</div>
                           <div className="text-2xl font-bold text-secondary">
-                            {detailDialog.file.compliance_summary.not_applicable}
+                            {detailDialog.file.compliance_summary?.not_applicable || 0}
                           </div>
                         </div>
                       </div>
@@ -796,8 +797,8 @@ export default function STIGFileManager() {
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium">Progress</span>
                           <span className="text-sm font-medium">
-                            {detailDialog.file.remediation_progress.total_findings > 0 
-                              ? Math.round((detailDialog.file.remediation_progress.remediated / detailDialog.file.remediation_progress.total_findings) * 100)
+                            {(detailDialog.file.remediation_progress?.total_findings || 0) > 0 
+                              ? Math.round(((detailDialog.file.remediation_progress?.remediated || 0) / (detailDialog.file.remediation_progress?.total_findings || 1)) * 100)
                               : 0
                             }%
                           </span>
@@ -806,8 +807,8 @@ export default function STIGFileManager() {
                           <div 
                             className="bg-success h-2 rounded-full" 
                             style={{ 
-                              width: `${detailDialog.file.remediation_progress.total_findings > 0 
-                                ? (detailDialog.file.remediation_progress.remediated / detailDialog.file.remediation_progress.total_findings) * 100
+                              width: `${(detailDialog.file.remediation_progress?.total_findings || 0) > 0 
+                                ? ((detailDialog.file.remediation_progress?.remediated || 0) / (detailDialog.file.remediation_progress?.total_findings || 1)) * 100
                                 : 0
                               }%` 
                             }}
@@ -818,19 +819,19 @@ export default function STIGFileManager() {
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div className="bg-muted p-3 rounded">
                           <div className="text-success font-medium">Remediated</div>
-                          <div className="text-lg font-bold">{detailDialog.file.remediation_progress.remediated}</div>
+                          <div className="text-lg font-bold">{detailDialog.file.remediation_progress?.remediated || 0}</div>
                         </div>
                         <div className="bg-muted p-3 rounded">
                           <div className="text-warning font-medium">In Progress</div>
-                          <div className="text-lg font-bold">{detailDialog.file.remediation_progress.in_progress}</div>
+                          <div className="text-lg font-bold">{detailDialog.file.remediation_progress?.in_progress || 0}</div>
                         </div>
                         <div className="bg-muted p-3 rounded">
                           <div className="text-primary font-medium">Planned</div>
-                          <div className="text-lg font-bold">{detailDialog.file.remediation_progress.planned}</div>
+                          <div className="text-lg font-bold">{detailDialog.file.remediation_progress?.planned || 0}</div>
                         </div>
                         <div className="bg-muted p-3 rounded">
                           <div className="text-muted-foreground font-medium">Not Planned</div>
-                          <div className="text-lg font-bold">{detailDialog.file.remediation_progress.not_planned}</div>
+                          <div className="text-lg font-bold">{detailDialog.file.remediation_progress?.not_planned || 0}</div>
                         </div>
                       </div>
                     </div>

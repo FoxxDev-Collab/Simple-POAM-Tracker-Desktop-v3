@@ -348,7 +348,6 @@ export const NessusFindingsTable: React.FC<NessusFindingsTableProps> = ({
               {renderSortHeader('port', 'Port')}
               {renderSortHeader('cve', 'CVE')}
               {renderSortHeader('severity', 'Severity')}
-              <th className="bg-muted text-foreground font-semibold p-3 text-left border-b border-border">Synopsis</th>
             </tr>
           </thead>
           <tbody>
@@ -432,11 +431,6 @@ export const NessusFindingsTable: React.FC<NessusFindingsTableProps> = ({
                     </td>
                     <td className="p-3 border-b border-border">
                       {renderSeverityBadge(finding.severity, finding.risk_factor)}
-                    </td>
-                    <td className="p-3 border-b border-border max-w-md">
-                      <span className="text-foreground text-sm truncate block" title={finding.synopsis || finding.description || ''}>
-                        {finding.synopsis || finding.description || 'No synopsis available'}
-                      </span>
                     </td>
                   </tr>
                   {expandedFindings.has(finding.id) && renderExpandedFindingDetails(finding)}

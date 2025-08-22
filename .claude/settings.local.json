@@ -3,7 +3,8 @@
     "allow": [
       "Bash(cargo check:*)",
       "Bash(npm run build:*)",
-      "Bash(cargo:*)"
+      "Bash(cargo:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

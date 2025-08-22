@@ -21,8 +21,7 @@ import {
   importNessusFiles, 
   getNessusFindingsByScan, 
   saveNessusPrepList, 
-  getAllNessusPrepLists, 
-  deleteNessusPrepList 
+  getAllNessusPrepLists
 } from '../../utils/tauriApi';
 
 // Component imports
@@ -431,40 +430,6 @@ export default function NessusCenter() {
     }
   }, [analysisResult, nessusPrepDialog, selectedFindings, addToast, currentSystem.id, loadNessusPrepLists]);
 
-  // Handle prep list management (placeholder implementations)
-  const handleViewNessusPrepList = useCallback(async (id: string) => {
-    // TODO: Implement view functionality
-    console.log('View prep list:', id);
-  }, []);
-
-  const handleEditNessusPrepList = useCallback((prepList: any) => {
-    // TODO: Implement edit functionality
-    console.log('Edit prep list:', prepList);
-  }, []);
-
-  const handleDeleteNessusPrepList = useCallback(async (id: string, name: string) => {
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete the prep list "${name}"? This action cannot be undone.`
-    );
-    if (!confirmDelete) return;
-
-    setLoading(true);
-    try {
-      await deleteNessusPrepList(id, currentSystem.id);
-      await loadNessusPrepLists();
-      addToast(`Prep list "${name}" deleted successfully`, 'success');
-    } catch (error) {
-      console.error('Error deleting prep list:', error);
-      addToast(`Failed to delete prep list: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [addToast, currentSystem.id, loadNessusPrepLists]);
-
-  const handleOpenPrepManager = useCallback(() => {
-    // TODO: Implement prep manager modal
-    console.log('Open prep manager');
-  }, []);
 
   // Handle other actions (placeholder implementations)
   const handleExport = useCallback(() => {
@@ -514,10 +479,7 @@ export default function NessusCenter() {
       {/* Prep List Manager */}
       <NessusPrepListManager
         prepLists={nessusPrepLists}
-        onViewPrepList={handleViewNessusPrepList}
-        onEditPrepList={handleEditNessusPrepList}
-        onDeletePrepList={handleDeleteNessusPrepList}
-        onOpenManager={handleOpenPrepManager}
+        onRefreshPrepLists={loadNessusPrepLists}
       />
 
       {/* Processing Steps */}

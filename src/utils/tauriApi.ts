@@ -146,6 +146,14 @@ export async function deleteNessusPrepList(id: string, systemId: string): Promis
   return await invoke('delete_nessus_prep_list', { id, systemId });
 }
 
+export async function getNessusPrepListById(id: string, systemId: string): Promise<any | null> {
+  return await invoke('get_nessus_prep_list_by_id', { id, systemId });
+}
+
+export async function updateNessusPrepList(prepList: any, systemId: string): Promise<void> {
+  return await invoke('update_nessus_prep_list', { prepList, systemId });
+}
+
 // Clear Nessus scans and findings for a system
 export async function clearNessusData(systemId: string): Promise<string> {
   return await invoke('clear_nessus_data', { systemId });

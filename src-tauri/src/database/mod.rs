@@ -459,6 +459,16 @@ impl Database {
         queries.get_prep_lists(system_id)
     }
 
+    pub fn get_nessus_prep_list_by_id(&self, id: &str, system_id: &str) -> Result<Option<nessus::NessusPrepList>, DatabaseError> {
+        let queries = nessus::NessusQueries::new(&self.conn);
+        queries.get_prep_list_by_id(id, system_id)
+    }
+
+    pub fn update_nessus_prep_list(&mut self, prep: &nessus::NessusPrepList, system_id: &str) -> Result<(), DatabaseError> {
+        let queries = nessus::NessusQueries::new(&self.conn);
+        queries.update_prep_list(prep, system_id)
+    }
+
     pub fn delete_nessus_prep_list(&mut self, id: &str, system_id: &str) -> Result<(), DatabaseError> {
         let queries = nessus::NessusQueries::new(&self.conn);
         queries.delete_prep_list(id, system_id)

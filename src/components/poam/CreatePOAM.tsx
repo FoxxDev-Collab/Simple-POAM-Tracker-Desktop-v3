@@ -111,8 +111,10 @@ export default function CreatePOAM() {
     const endDateObj = endDate ? new Date(endDate) : new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000); // Default 90 days
 
     // Calculate minimum reasonable timeframe based on milestone count and complexity
-    const baseWeeksPerMilestone = 2; // Assume 2 weeks per milestone for security work
-    const minimumWeeks = Math.max(4, milestones.length * baseWeeksPerMilestone); // At least 4 weeks
+    // System-level POAMs typically involve configuration changes and patches (3-5 days per milestone)
+    const baseDaysPerMilestone = 4; // Average 4 days per milestone for system-level work
+    const minimumDays = Math.max(14, milestones.length * baseDaysPerMilestone); // At least 2 weeks total
+    const minimumWeeks = Math.ceil(minimumDays / 7);
     const suggestedEndDate = new Date(startDateObj.getTime() + minimumWeeks * 7 * 24 * 60 * 60 * 1000);
 
     // Check if current end date is unreasonable
@@ -121,18 +123,51 @@ export default function CreatePOAM() {
     if (!endDate || currentDurationWeeks < minimumWeeks) {
       const suggestedEndDateStr = suggestedEndDate.toISOString().split('T')[0];
       setEndDate(suggestedEndDateStr);
-      showToast('info', `Suggested end date adjusted to ${suggestedEndDateStr} (${minimumWeeks} weeks) based on ${milestones.length} milestones`);
+      showToast('info', `Suggested end date adjusted to ${suggestedEndDateStr} (${minimumDays} days) based on ${milestones.length} milestones`);
     }
 
     // Use the better end date for calculations
     const finalEndDate = !endDate || currentDurationWeeks < minimumWeeks ? suggestedEndDate : endDateObj;
     
-    // Distribute milestones evenly across the timeframe
-    const totalDuration = finalEndDate.getTime() - startDateObj.getTime();
-    const milestoneInterval = totalDuration / milestones.length;
+    // Intelligent milestone distribution for system-level POAMs
+    const totalDurationMs = finalEndDate.getTime() - startDateObj.getTime();
+    const totalDurationDays = Math.floor(totalDurationMs / (24 * 60 * 60 * 1000));
+    
+    // Calculate optimal spacing (3-5 days apart, fitting within POAM duration)
+    let daysBetweenMilestones: number;
+    
+    if (milestones.length === 1) {
+      // Single milestone: place it 80% through the timeline
+      daysBetweenMilestones = Math.floor(totalDurationDays * 0.8);
+    } else {
+      // Multiple milestones: space them 3-5 days apart, but ensure they fit
+      const preferredSpacing = 4; // 4 days apart (middle of 3-5 range)
+      const requiredDays = (milestones.length - 1) * preferredSpacing;
+      
+      if (requiredDays <= totalDurationDays - 3) { // Leave 3 days buffer at end
+        daysBetweenMilestones = preferredSpacing;
+      } else {
+        // Compress spacing to fit within timeline
+        daysBetweenMilestones = Math.max(1, Math.floor((totalDurationDays - 3) / (milestones.length - 1)));
+      }
+    }
 
     return milestones.map((milestone, index) => {
-      const milestoneDate = new Date(startDateObj.getTime() + (milestoneInterval * (index + 1)));
+      let milestoneDate: Date;
+      
+      if (milestones.length === 1) {
+        milestoneDate = new Date(startDateObj.getTime() + daysBetweenMilestones * 24 * 60 * 60 * 1000);
+      } else {
+        // Start milestones 2 days after start date, then space them appropriately
+        const startOffset = 2 * 24 * 60 * 60 * 1000; // 2 days
+        milestoneDate = new Date(startDateObj.getTime() + startOffset + (index * daysBetweenMilestones * 24 * 60 * 60 * 1000));
+      }
+      
+      // Ensure milestone doesn't exceed end date
+      if (milestoneDate > finalEndDate) {
+        milestoneDate = new Date(finalEndDate.getTime() - (24 * 60 * 60 * 1000)); // 1 day before end
+      }
+      
       return {
         ...milestone,
         dueDate: milestoneDate.toISOString().split('T')[0]

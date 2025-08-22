@@ -276,6 +276,20 @@ async fn get_all_nessus_prep_lists(app_handle: AppHandle, system_id: String) -> 
 }
 
 #[tauri::command]
+async fn get_nessus_prep_list_by_id(app_handle: AppHandle, id: String, system_id: String) -> Result<Option<database::nessus::NessusPrepList>, Error> {
+    let db = database::get_database(&app_handle)?;
+    let prep_list = db.get_nessus_prep_list_by_id(&id, &system_id)?;
+    Ok(prep_list)
+}
+
+#[tauri::command]
+async fn update_nessus_prep_list(app_handle: AppHandle, prep_list: database::nessus::NessusPrepList, system_id: String) -> Result<(), Error> {
+    let mut db = database::get_database(&app_handle)?;
+    db.update_nessus_prep_list(&prep_list, &system_id)?;
+    Ok(())
+}
+
+#[tauri::command]
 async fn delete_nessus_prep_list(app_handle: AppHandle, id: String, system_id: String) -> Result<(), Error> {
     let mut db = database::get_database(&app_handle)?;
     db.delete_nessus_prep_list(&id, &system_id)?;
@@ -2460,6 +2474,8 @@ pub fn run() {
             clear_stig_data,
             save_nessus_prep_list,
             get_all_nessus_prep_lists,
+            get_nessus_prep_list_by_id,
+            update_nessus_prep_list,
             delete_nessus_prep_list,
             get_baseline_controls,
             add_baseline_control,

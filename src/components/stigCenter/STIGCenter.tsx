@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Upload, FileText, Shield, Search, Save, Download, ChevronUp, ChevronDown, ChevronRight, Edit3, Check, X, AlertTriangle, Info, CheckCircle, XCircle, List, FolderOpen
 } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { STIGChecklist } from '../../types/stig';
-import { parseMultipleSTIGChecklists, saveStpPrepList, getAllStpPrepLists, getStpPrepListById, updateStpPrepList, deleteStpPrepList, saveSTIGFile } from '../../utils/tauriApi';
+import { parseMultipleSTIGChecklists, saveStpPrepList, getAllStpPrepLists, getStpPrepListById, updateStpPrepList, deleteStpPrepList, saveSTIGFile, getAllSTIGFiles, getSTIGFileContent } from '../../utils/tauriApi';
 import { useToast } from '../../context/ToastContext';
 import { useSystem } from '../../context/SystemContext';
 import STIGPrepListManager from './STIGPrepListManager';
@@ -97,10 +97,6 @@ export default function STIGCenter() {
     }
   }, [currentSystem.id]);
 
-  useEffect(() => {
-    loadStpPrepLists();
-  }, [loadStpPrepLists]);
-
   // Initialize processing steps
   const initializeProcessingSteps = useCallback(() => {
     const steps: ProcessingStep[] = [
@@ -118,6 +114,61 @@ export default function STIGCenter() {
       step.id === stepId ? { ...step, status, message } : step
     ));
   }, []);
+
+
+  useEffect(() => {
+    const initializeSTIGCenter = async () => {
+      if (!currentSystem?.id) return;
+      
+      try {
+        // Load prep lists
+        const prepLists = await getAllStpPrepLists(currentSystem.id);
+        setStpPrepLists(prepLists);
+        
+        // Auto-load most recent STIG file if none is currently loaded
+        if (!checklist) {
+          const stigFiles = await getAllSTIGFiles(currentSystem.id);
+          
+          if (stigFiles.length > 0) {
+            // Sort by upload date to get the most recent
+            const sortedFiles = stigFiles.sort((a, b) => 
+              new Date(b.uploaded_date || b.upload_date || b.updated_date || b.last_modified).getTime() - 
+              new Date(a.uploaded_date || a.upload_date || a.updated_date || a.last_modified).getTime()
+            );
+            
+            const mostRecentFile = sortedFiles[0];
+            
+            // Simple loading state
+            setLoading(true);
+            
+            try {
+              // Get the checklist content from database
+              const checklistContent = await getSTIGFileContent(mostRecentFile.id, currentSystem.id);
+              
+              if (checklistContent) {
+                setChecklist(checklistContent);
+                setFileState({
+                  checklistFilePath: mostRecentFile.file_path,
+                  checklistFileName: mostRecentFile.filename,
+                  checklistLoaded: true
+                });
+                setIsProcessingComplete(true);
+                addToast(`Loaded most recent STIG file: ${mostRecentFile.filename}`, 'success');
+              }
+            } catch (error) {
+              console.error('Error loading STIG file content:', error);
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing STIG Center:', error);
+      }
+    };
+
+    initializeSTIGCenter();
+  }, [currentSystem?.id]); // Only run when system changes
 
   // Handle checklist file selection
   const handleChecklistFileSelect = useCallback(async () => {
@@ -182,27 +233,43 @@ export default function STIGCenter() {
             const fileRecord = {
               id: crypto.randomUUID(),
               filename: fileName,
+              original_filename: fileName,
               file_path: filePath,
+              file_size: 0, // File size will be calculated by backend
               upload_date: now,
+              uploaded_date: now,
               last_modified: now,
+              updated_date: now,
               version: '1',
               created_by: 'current-user', // You might want to get this from a user context
+              status: 'active',
+              stig_info: {
+                title: singleChecklist.stig_info?.title || 'Unknown STIG',
+                version: singleChecklist.stig_info?.version || '1',
+                release_info: singleChecklist.stig_info?.release_info || 'Unknown',
+                classification: singleChecklist.stig_info?.classification || 'UNCLASSIFIED'
+              },
+              asset_info: {
+                asset_type: singleChecklist.asset?.asset_type || 'Unknown',
+                host_name: singleChecklist.asset?.host_name || null,
+                host_ip: singleChecklist.asset?.host_ip || null,
+                host_fqdn: singleChecklist.asset?.host_fqdn || null
+              },
               compliance_summary: {
-                total_vulns: totalVulns,
-                open: statusCounts['Open'] || 0,
-                not_a_finding: statusCounts['NotAFinding'] || 0,
-                not_applicable: statusCounts['Not_Applicable'] || 0,
-                not_reviewed: statusCounts['Not_Reviewed'] || 0,
                 compliance_percentage: Math.round(compliancePercentage * 10) / 10,
-                last_assessed: now
+                open: statusCounts['Open'] || 0,
+                total_vulns: totalVulns,
+                not_a_finding: statusCounts['NotAFinding'] || 0,
+                not_applicable: statusCounts['Not_Applicable'] || 0
               },
               remediation_progress: {
-                total_findings: statusCounts['Open'] || 0,
                 remediated: statusCounts['NotAFinding'] || 0,
+                total_findings: statusCounts['Open'] || 0,
                 in_progress: 0,
                 planned: 0,
                 not_planned: statusCounts['Open'] || 0
               },
+              notes: `Uploaded from STIG Viewer on ${new Date().toLocaleDateString()}`,
               metadata: {
                 stig_info: singleChecklist.stig_info || {},
                 asset_info: singleChecklist.asset || {},
@@ -220,18 +287,19 @@ export default function STIGCenter() {
         
         updateProcessingStep('complete', 'completed', 'Ready for STIG review and prep list creation');
         
-        // Update state
+        // Update state with the current uploaded checklist
         setFileState({
           checklistFilePath: filePaths.join(', '),
-          checklistFileName: `${filePaths.length} file(s) selected`,
+          checklistFileName: `${filePaths.length} file(s) uploaded`,
           checklistLoaded: true
         });
         
         setIsProcessingComplete(true);
+        
         setSelectedVulns(new Set()); // Reset selections
         
         const vulnCount = singleChecklist?.vulnerabilities?.length || 0;
-        addToast(`Successfully loaded STIG checklist with ${vulnCount} vulnerabilities.`, 'success');
+        addToast(`Successfully uploaded and loaded STIG checklist with ${vulnCount} vulnerabilities.`, 'success');
       }
     } catch (error) {
       console.error('Error processing checklist file(s):', error);
@@ -763,7 +831,8 @@ export default function STIGCenter() {
               <p className="text-success/90">Your STIG checklist is ready for review and editing.</p>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          {/* Enhanced Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
             <div className="bg-card border border-border p-3 rounded">
               <div className="font-medium text-foreground">Total Vulnerabilities</div>
               <div className="text-lg font-bold text-primary">
@@ -771,15 +840,49 @@ export default function STIGCenter() {
               </div>
             </div>
             <div className="bg-card border border-border p-3 rounded">
+              <div className="font-medium text-foreground">Open Findings</div>
+              <div className="text-lg font-bold text-destructive">
+                {checklist.vulnerabilities?.filter(v => v.status === 'Open').length || 0}
+              </div>
+            </div>
+            <div className="bg-card border border-border p-3 rounded">
+              <div className="font-medium text-foreground">Compliance Rate</div>
+              <div className="text-lg font-bold text-success">
+                {(() => {
+                  const total = checklist.vulnerabilities?.length || 0;
+                  const compliant = checklist.vulnerabilities?.filter(v => 
+                    v.status === 'NotAFinding' || v.status === 'Not_Applicable'
+                  ).length || 0;
+                  return total > 0 ? `${Math.round((compliant / total) * 100)}%` : '0%';
+                })()}
+              </div>
+            </div>
+            <div className="bg-card border border-border p-3 rounded">
+              <div className="font-medium text-foreground">Not Reviewed</div>
+              <div className="text-lg font-bold text-warning">
+                {checklist.vulnerabilities?.filter(v => v.status === 'Not_Reviewed' || !v.status).length || 0}
+              </div>
+            </div>
+          </div>
+          
+          {/* STIG and Asset Information */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="bg-card border border-border p-3 rounded">
               <div className="font-medium text-foreground">STIG Title</div>
               <div className="text-sm font-medium text-foreground">
                 {checklist.stig_info?.title || 'Unknown STIG'}
               </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Version: {checklist.stig_info?.version || 'Unknown'}
+              </div>
             </div>
             <div className="bg-card border border-border p-3 rounded">
-              <div className="font-medium text-foreground">Asset Type</div>
+              <div className="font-medium text-foreground">Asset Information</div>
               <div className="text-sm font-medium text-foreground">
-                {checklist.asset?.asset_type || 'Unknown'}
+                {checklist.asset?.asset_type || 'Unknown Type'}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Host: {checklist.asset?.host_name || checklist.asset?.host_ip || 'Unknown'}
               </div>
             </div>
           </div>
@@ -893,8 +996,8 @@ export default function STIGCenter() {
                 <tbody>
                   {filteredVulnerabilities.length > 0 ? (
                     filteredVulnerabilities.map((vuln) => (
-                      <>
-                        <tr key={vuln.vuln_num} className="hover:bg-muted/50 transition-colors">
+                      <React.Fragment key={vuln.vuln_num}>
+                        <tr className="hover:bg-muted/50 transition-colors">
                           <td className="p-3 border-b border-border">
                             <input
                               type="checkbox"
@@ -1145,7 +1248,7 @@ export default function STIGCenter() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </React.Fragment>
                     ))
                   ) : (
                     <tr>
