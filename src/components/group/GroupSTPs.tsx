@@ -355,17 +355,18 @@ export default function GroupSTPs({ systems, onSwitchToSystem }: GroupSTPs) {
         </CardContent>
       </Card>
 
-      {/* Systems Overview */}
+      {/* Enhanced Systems Grid */}
       {loading ? (
         <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading group STPs...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading group STPs...</p>
         </div>
       ) : filteredSystems.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-8">
-            <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">
+        <Card className="border-dashed border-2 border-slate-200">
+          <CardContent className="text-center py-12">
+            <AlertCircle className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-slate-600 mb-2">No systems found</h3>
+            <p className="text-slate-500">
               {systemSTPs.length === 0 
                 ? 'No systems found in this group.' 
                 : 'No systems match the current filters.'}
@@ -373,117 +374,225 @@ export default function GroupSTPs({ systems, onSwitchToSystem }: GroupSTPs) {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {filteredSystems.map((system) => (
-            <Card key={system.systemId} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-xl font-semibold text-foreground">{system.systemName}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {system.totalPlans} STPs • {system.totalTestCases} test cases
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    {system.totalPlans > 0 && (
-                      <div className={`text-right ${getProgressColor(system.overallProgress)}`}>
-                        <div className="text-sm font-medium">{system.overallProgress}% Complete</div>
-                        <div className="text-xs text-muted-foreground">
-                          {system.passedTestCases}/{system.totalTestCases} tests passed
-                        </div>
-                      </div>
-                    )}
-                    
-                    <Button
-                      onClick={() => handleViewSystemSTP(system.systemId)}
-                      variant={system.totalPlans > 0 ? "default" : "outline"}
-                      className="flex items-center gap-2"
-                    >
-                      {system.totalPlans > 0 ? (
-                        <>
-                          <ExternalLink className="h-4 w-4" />
-                          View STPs
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="h-4 w-4" />
-                          Create STP
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
+        <div className="grid gap-4 lg:gap-6">
+          {filteredSystems.map((system) => {
+            const progressLevel = system.overallProgress >= 80 ? 'high' : 
+                                system.overallProgress >= 60 ? 'medium' : 
+                                system.overallProgress >= 40 ? 'low' : 'critical';
+            
+            const borderColor = progressLevel === 'high' ? '#16a34a' :
+                              progressLevel === 'medium' ? '#2563eb' :
+                              progressLevel === 'low' ? '#d97706' : '#dc2626';
 
-                {system.totalPlans > 0 ? (
-                  <div className="space-y-3">
-                    {/* Progress Bar */}
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div 
-                        className="bg-primary h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${system.overallProgress}%` }}
-                      />
-                    </div>
-                    
-                    {/* STP Status Summary */}
-                    <div className="flex flex-wrap gap-2">
-                      {system.completedPlans > 0 && (
-                        <Badge variant="secondary" className="bg-green-100 text-green-800">
-                          {system.completedPlans} Completed
-                        </Badge>
-                      )}
-                      {system.inProgressPlans > 0 && (
-                        <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                          {system.inProgressPlans} In Progress
-                        </Badge>
-                      )}
-                      {system.draftPlans > 0 && (
-                        <Badge variant="secondary" className="bg-gray-100 text-gray-800">
-                          {system.draftPlans} Draft
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Recent STPs */}
-                    {system.testPlans.slice(0, 3).map((plan) => (
-                      <div key={plan.id} className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded-lg">
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">{plan.name}</div>
-                          {plan.description && (
-                            <div className="text-xs text-muted-foreground truncate">{plan.description}</div>
-                          )}
+            return (
+              <Card 
+                key={system.systemId} 
+                className="group hover:shadow-lg transition-all duration-300 border-l-4 hover:border-l-primary bg-gradient-to-r from-white to-slate-50/30"
+                style={{ borderLeftColor: borderColor }}
+              >
+                <CardContent className="p-6">
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-6">
+                    {/* System Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                          <Shield className="h-5 w-5 text-primary" />
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={getStatusColor(plan.status)}>{plan.status}</Badge>
-                          <div className="text-xs text-muted-foreground">
-                            {plan.test_cases?.length || 0} tests
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-xl font-bold text-foreground truncate group-hover:text-primary transition-colors">
+                            {system.systemName}
+                          </h3>
+                          <div className="flex flex-wrap gap-4 mt-1 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <span className="font-medium">STPs:</span> {system.totalPlans}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span className="font-medium">Test Cases:</span> {system.totalTestCases}
+                            </span>
+                            {system.lastUpdated && (
+                              <span className="flex items-center gap-1">
+                                <span className="font-medium">Updated:</span> 
+                                {new Date(system.lastUpdated).toLocaleDateString()}
+                              </span>
+                            )}
                           </div>
                         </div>
+                        {system.totalPlans > 0 && (
+                          <Badge className={`${getProgressColor(system.overallProgress) === 'text-green-600' ? 'bg-green-50 text-green-700 border-green-200' :
+                                                getProgressColor(system.overallProgress) === 'text-blue-600' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                getProgressColor(system.overallProgress) === 'text-yellow-600' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                                'bg-red-50 text-red-700 border-red-200'} font-semibold border`}>
+                            {system.overallProgress}% Complete
+                          </Badge>
+                        )}
                       </div>
-                    ))}
-                    
-                    {system.testPlans.length > 3 && (
+                    </div>
+
+                    {/* Metrics Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 lg:gap-6">
+                      {/* Total STPs */}
                       <div className="text-center">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleViewSystemSTP(system.systemId)}
-                          className="text-xs"
-                        >
-                          View {system.testPlans.length - 3} more STPs...
-                        </Button>
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          <FileText className="h-4 w-4 text-blue-600" />
+                          <span className="text-2xl font-bold text-foreground">{system.totalPlans}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground font-medium">Total STPs</div>
                       </div>
-                    )}
+
+                      {/* Completed */}
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          <span className="text-2xl font-bold text-foreground">{system.completedPlans}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground font-medium">Completed</div>
+                      </div>
+
+                      {/* In Progress */}
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          <TrendingUp className="h-4 w-4 text-blue-600" />
+                          <span className="text-2xl font-bold text-foreground">{system.inProgressPlans}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground font-medium">In Progress</div>
+                      </div>
+
+                      {/* Test Cases Passed */}
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          <CheckCircle2 className="h-4 w-4 text-purple-600" />
+                          <span className="text-2xl font-bold text-foreground">{system.passedTestCases}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground font-medium">Tests Passed</div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-col gap-2 lg:min-w-[140px]">
+                      <Button
+                        size="sm"
+                        onClick={() => handleViewSystemSTP(system.systemId)}
+                        className={`w-full justify-start ${system.totalPlans > 0 ? 'bg-primary hover:bg-primary/90' : 'bg-green-600 hover:bg-green-700'}`}
+                      >
+                        {system.totalPlans > 0 ? (
+                          <>
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            View STPs
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create STP
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                ) : (
-                  <div className="text-center py-4 text-muted-foreground">
-                    <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No Security Test Plans created yet</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+
+                  {/* Progress Section */}
+                  {system.totalPlans > 0 && (
+                    <div className="mt-6 space-y-4">
+                      {/* Progress Bar */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Overall Progress</span>
+                          <span className={`font-semibold ${getProgressColor(system.overallProgress)}`}>
+                            {system.passedTestCases}/{system.totalTestCases} tests passed
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full transition-all duration-500 ${
+                              system.overallProgress >= 80 ? 'bg-green-500' :
+                              system.overallProgress >= 60 ? 'bg-blue-500' :
+                              system.overallProgress >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`}
+                            style={{ width: `${system.overallProgress}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      {/* Status Summary */}
+                      <div className="flex flex-wrap gap-2">
+                        {system.completedPlans > 0 && (
+                          <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                            {system.completedPlans} Completed
+                          </Badge>
+                        )}
+                        {system.inProgressPlans > 0 && (
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">
+                            {system.inProgressPlans} In Progress
+                          </Badge>
+                        )}
+                        {system.draftPlans > 0 && (
+                          <Badge variant="secondary" className="bg-gray-100 text-gray-800 border-gray-200">
+                            {system.draftPlans} Draft
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Recent STPs Preview */}
+                      {system.testPlans.length > 0 && (
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-medium text-foreground">Recent STPs</h4>
+                          <div className="space-y-2">
+                            {system.testPlans.slice(0, 2).map((plan) => (
+                              <div key={plan.id} className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded-lg">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm text-foreground truncate">{plan.name}</div>
+                                  {plan.description && (
+                                    <div className="text-xs text-muted-foreground truncate">{plan.description}</div>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 ml-2">
+                                  <Badge className={getStatusColor(plan.status)} variant="outline">
+                                    {plan.status}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                    {plan.test_cases?.length || 0} tests
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                            
+                            {system.testPlans.length > 2 && (
+                              <div className="text-center pt-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleViewSystemSTP(system.systemId)}
+                                  className="text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  View {system.testPlans.length - 2} more STPs...
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Empty State */}
+                  {system.totalPlans === 0 && (
+                    <div className="mt-6 text-center py-8 border-2 border-dashed border-slate-200 rounded-lg">
+                      <FileText className="h-12 w-12 mx-auto mb-3 text-slate-400" />
+                      <h4 className="text-sm font-medium text-slate-600 mb-1">No Security Test Plans</h4>
+                      <p className="text-xs text-slate-500 mb-4">Get started by creating your first STP</p>
+                      <Button 
+                        size="sm" 
+                        onClick={() => handleViewSystemSTP(system.systemId)}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Create First STP
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

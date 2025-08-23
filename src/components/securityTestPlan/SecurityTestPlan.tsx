@@ -327,7 +327,10 @@ export default function SecurityTestPlan() {
         const findingGroups = new Map<string, any[]>();
         
         selectedFindings.forEach((finding: any) => {
-          const identifier = finding.cve || finding.plugin_id || `PLUGIN-${finding.plugin_name || 'UNKNOWN'}`;
+          // Ensure identifier is always a string; prefer CVE, otherwise use standardized PLUGIN-<id>
+          const rawIdentifier = (finding.cve as string)
+            || (finding.plugin_id != null ? `PLUGIN-${finding.plugin_id}` : `PLUGIN-${finding.plugin_name || 'UNKNOWN'}`);
+          const identifier = String(rawIdentifier);
           if (!findingGroups.has(identifier)) {
             findingGroups.set(identifier, []);
           }
@@ -350,24 +353,25 @@ export default function SecurityTestPlan() {
             return 'Medium';
           };
           
-          const isCVE = identifier.startsWith('CVE-');
-          const testId = isCVE ? identifier : `PLUGIN-${firstFinding.plugin_id || 'UNK'}`;
+          const idStr = String(identifier);
+          const isCVE = idStr.startsWith('CVE-');
+          const testId = isCVE ? idStr : `PLUGIN-${firstFinding.plugin_id ?? 'UNK'}`;
           
           return {
             id: crypto.randomUUID(),
-            nist_control: isCVE ? `CVE-${identifier.split('-')[1]}-${identifier.split('-')[2]}` : `NESSUS-${firstFinding.plugin_id || 'UNKNOWN'}`,
-            cci_ref: isCVE ? identifier : 'N/A',
+            nist_control: isCVE ? `CVE-${idStr.split('-')[1]}-${idStr.split('-')[2]}` : `NESSUS-${firstFinding.plugin_id || 'UNKNOWN'}`,
+            cci_ref: isCVE ? idStr : 'N/A',
             stig_vuln_id: testId,
-            test_description: `Validate and remediate ${identifier}: ${firstFinding.plugin_name || 'Unknown vulnerability'}`,
+            test_description: `Validate and remediate ${idStr}: ${firstFinding.plugin_name || 'Unknown vulnerability'}`,
             test_procedure: `1. Verify presence of vulnerability on affected hosts: ${affectedHosts.join(', ') || 'Unknown hosts'}
 2. Assess the risk and impact of this ${isCVE ? 'CVE' : 'vulnerability'}
 3. Implement appropriate remediation measures
 4. Validate remediation effectiveness
 5. Document findings and remediation steps`,
-            expected_result: `Vulnerability ${identifier} is successfully remediated on all affected systems with proper validation and documentation`,
+            expected_result: `Vulnerability ${idStr} is successfully remediated on all affected systems with proper validation and documentation`,
             status: 'Not Started',
             risk_rating: getRiskRating(severity),
-            notes: `${isCVE ? 'CVE' : 'Plugin'}: ${identifier}
+            notes: `${isCVE ? 'CVE' : 'Plugin'}: ${idStr}
 Severity: ${severity}
 Affected Hosts: ${affectedHosts.length} host(s) - ${affectedHosts.join(', ') || 'Unknown'}
 Plugin: ${firstFinding.plugin_name || 'Unknown'}

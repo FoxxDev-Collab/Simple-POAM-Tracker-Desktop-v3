@@ -301,6 +301,9 @@ pub struct SystemExportData {
     pub prep_lists: Option<Vec<StpPrepList>>,
     pub baseline_controls: Option<Vec<BaselineControl>>,
     pub poam_control_associations: Option<Vec<ControlPOAMAssociation>>,
+    pub nessus_scans: Option<Vec<crate::database::nessus::NessusScanMeta>>,
+    pub nessus_findings: Option<Vec<crate::database::nessus::NessusFinding>>,
+    pub nessus_prep_lists: Option<Vec<crate::database::nessus::NessusPrepList>>,
     pub export_date: Option<String>,
     pub export_version: Option<String>,
 }

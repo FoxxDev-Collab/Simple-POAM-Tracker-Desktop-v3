@@ -1625,6 +1625,16 @@ async fn export_complete_system_backup(app_handle: AppHandle, export_path: Strin
     let test_plans = db.get_all_security_test_plans(&system_id)?;
     let prep_lists = db.get_all_stp_prep_lists(&system_id)?;
     let baseline_controls = db.get_baseline_controls(&system_id)?;
+    let nessus_scans = db.get_nessus_scans(&system_id)?;
+    let nessus_prep_lists = db.get_all_nessus_prep_lists(&system_id)?;
+    
+    // Get all nessus findings for all scans
+    let mut all_nessus_findings = Vec::new();
+    for scan in &nessus_scans {
+        let mut findings = db.get_nessus_findings_by_scan(&scan.id, &system_id)?;
+        all_nessus_findings.append(&mut findings);
+    }
+    
     let mut poam_control_associations = Vec::new();
     for poam in &poams {
         let mut associations = db.get_control_poam_associations_by_poam(poam.id, &system_id)?;
@@ -1641,6 +1651,9 @@ async fn export_complete_system_backup(app_handle: AppHandle, export_path: Strin
         prep_lists: if prep_lists.is_empty() { None } else { Some(prep_lists) },
         baseline_controls: if baseline_controls.is_empty() { None } else { Some(baseline_controls) },
         poam_control_associations: if poam_control_associations.is_empty() { None } else { Some(poam_control_associations) },
+        nessus_scans: if nessus_scans.is_empty() { None } else { Some(nessus_scans) },
+        nessus_findings: if all_nessus_findings.is_empty() { None } else { Some(all_nessus_findings) },
+        nessus_prep_lists: if nessus_prep_lists.is_empty() { None } else { Some(nessus_prep_lists) },
         export_date: Some(chrono::Utc::now().to_rfc3339()),
         export_version: Some("2.1".to_string()), // Updated version to indicate ZIP format with files
     };
@@ -2460,6 +2473,7 @@ pub fn run() {
             delete_system,
             set_active_system,
             export_complete_system_backup,
+            export_complete_group_backup,
             export_stig_mappings,
             import_system_backup,
             import_comprehensive_backup,
@@ -3272,6 +3286,15 @@ async fn export_complete_group_backup(app_handle: AppHandle, export_path: String
         let prep_lists = db.get_all_stp_prep_lists(&system.id)?;
         let baseline_controls = db.get_baseline_controls(&system.id)?;
         
+        // Get Nessus data for this system
+        let nessus_scans = db.get_nessus_scans(&system.id)?;
+        let mut all_nessus_findings = Vec::new();
+        for scan in &nessus_scans {
+            let mut findings = db.get_nessus_findings_by_scan(&scan.id, &system.id)?;
+            all_nessus_findings.append(&mut findings);
+        }
+        let nessus_prep_lists = db.get_all_nessus_prep_lists(&system.id)?;
+        
         let mut poam_control_associations = Vec::new();
         for poam in &poams {
             let mut associations = db.get_control_poam_associations_by_poam(poam.id, &system.id)?;
@@ -3316,8 +3339,11 @@ async fn export_complete_group_backup(app_handle: AppHandle, export_path: String
             prep_lists: if prep_lists.is_empty() { None } else { Some(prep_lists) },
             baseline_controls: if baseline_controls.is_empty() { None } else { Some(baseline_controls) },
             poam_control_associations: if poam_control_associations.is_empty() { None } else { Some(poam_control_associations) },
+            nessus_scans: if nessus_scans.is_empty() { None } else { Some(nessus_scans) },
+            nessus_findings: if all_nessus_findings.is_empty() { None } else { Some(all_nessus_findings) },
+            nessus_prep_lists: if nessus_prep_lists.is_empty() { None } else { Some(nessus_prep_lists) },
             export_date: Some(chrono::Utc::now().to_rfc3339()),
-            export_version: Some("2.1".to_string()),
+            export_version: Some("2.2".to_string()),
         };
         
         system_exports.push(system_export);

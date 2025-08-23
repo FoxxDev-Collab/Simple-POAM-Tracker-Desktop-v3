@@ -195,9 +195,11 @@ export default function CreatePOAM() {
       for (const plan of plans) {
         if (plan?.test_cases?.length) {
           for (const tc of plan.test_cases) {
+            const cveTitle = typeof tc.cci_ref === 'string' && tc.cci_ref.startsWith('CVE-') ? tc.cci_ref : null;
+            const chosenTitle = cveTitle || tc.stig_vuln_id || `Test ${tc.id}`;
             const ms: Milestone = {
               id: `stp-${plan.id}-tc-${tc.id}`,
-              title: tc.stig_vuln_id || `Test ${tc.id}`,
+              title: chosenTitle,
               dueDate: '',
               status: 'Not Started',
               description: tc.test_description || tc.test_procedure || ''

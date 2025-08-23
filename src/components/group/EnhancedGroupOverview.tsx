@@ -410,135 +410,238 @@ export default function EnhancedGroupOverview({
         </CardContent>
       </Card>
 
-      {/* Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Systems</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="whitespace-nowrap min-w-[180px]">
-                  <button className="inline-flex items-center gap-1" onClick={() => toggleSort('name')}>
-                    Name
-                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </TableHead>
-                <TableHead className="whitespace-nowrap">Owner</TableHead>
-                <TableHead className="whitespace-nowrap">Classification</TableHead>
-                <TableHead className="whitespace-nowrap">
-                  <div className="inline-flex items-center gap-1">
-                    <Target className="h-4 w-4" /> POAMs
-                  </div>
-                </TableHead>
-                <TableHead className="whitespace-nowrap">
-                  <div className="inline-flex items-center gap-1">
-                    <Shield className="h-4 w-4" /> STIG
-                  </div>
-                </TableHead>
-                <TableHead className="whitespace-nowrap">
-                  <div className="inline-flex items-center gap-1">
-                    <CheckCircle2 className="h-4 w-4" /> Test Plans
-                  </div>
-                </TableHead>
-                <TableHead className="whitespace-nowrap">
-                  <div className="inline-flex items-center gap-1">
-                    <Bug className="h-4 w-4" /> Vulns
-                  </div>
-                </TableHead>
-                <TableHead className="whitespace-nowrap">
-                  <button className="inline-flex items-center gap-1" onClick={() => toggleSort('security')}>
-                    Security
-                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </TableHead>
-                <TableHead className="whitespace-nowrap">
-                  <button className="inline-flex items-center gap-1" onClick={() => toggleSort('compliance')}>
-                    Compliance
-                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </TableHead>
-                <TableHead className="whitespace-nowrap">
-                  <button className="inline-flex items-center gap-1" onClick={() => toggleSort('risk')}>
-                    Risk
-                    <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </TableHead>
-                <TableHead className="whitespace-nowrap">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredAndSorted.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={11} className="text-center text-muted-foreground">
-                    No systems found.
-                  </TableCell>
-                </TableRow>
-              )}
-              {filteredAndSorted.map(row => (
-                <TableRow key={row.systemId}>
-                  <TableCell className="font-medium">{row.systemName}</TableCell>
-                  <TableCell className="text-muted-foreground">{row.owner || '-'}</TableCell>
-                  <TableCell className="text-muted-foreground">{row.classification || '-'}</TableCell>
-                  <TableCell>{row.poamCount}</TableCell>
-                  <TableCell>{row.stigCount}</TableCell>
-                  <TableCell>{row.testPlanCount}</TableCell>
-                  <TableCell>{row.vulnCount}</TableCell>
-                  <TableCell className={`font-semibold ${getScoreColor(row.securityScore)}`}>
-                    {row.securityScore}%
-                  </TableCell>
-                  <TableCell className={`font-semibold ${getScoreColor(row.complianceScore)}`}>
-                    {row.complianceScore}%
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getRiskLevelColor(row.riskLevel)}>{row.riskLevel}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onSwitchToSystem?.(row.systemId, 'metrics')}
-                      >
-                        <ExternalLink className="h-4 w-4 mr-1" /> View
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onSwitchToSystem?.(row.systemId, 'poams')}
-                      >
-                        POAMs
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onSwitchToSystem?.(row.systemId, 'stig')}
-                      >
-                        STIG
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onSwitchToSystem?.(row.systemId, 'testing')}
-                      >
-                        Testing
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onSwitchToSystem?.(row.systemId, 'vulnerabilities')}
-                      >
-                        Vulns
-                      </Button>
+      {/* Enhanced Systems Grid */}
+      <div className="space-y-4">
+        {/* Sort Controls */}
+        <Card className="bg-gradient-to-r from-slate-50 to-blue-50 border-slate-200">
+          <CardContent className="py-4">
+            <div className="flex flex-wrap gap-3 items-center">
+              <span className="text-sm font-medium text-slate-700">Sort by:</span>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant={sortKey === 'name' ? 'default' : 'outline'}
+                  onClick={() => toggleSort('name')}
+                  className="h-8"
+                >
+                  Name
+                  <ArrowUpDown className="h-3 w-3 ml-1" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={sortKey === 'security' ? 'default' : 'outline'}
+                  onClick={() => toggleSort('security')}
+                  className="h-8"
+                >
+                  Security
+                  <ArrowUpDown className="h-3 w-3 ml-1" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={sortKey === 'compliance' ? 'default' : 'outline'}
+                  onClick={() => toggleSort('compliance')}
+                  className="h-8"
+                >
+                  Compliance
+                  <ArrowUpDown className="h-3 w-3 ml-1" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={sortKey === 'risk' ? 'default' : 'outline'}
+                  onClick={() => toggleSort('risk')}
+                  className="h-8"
+                >
+                  Risk Level
+                  <ArrowUpDown className="h-3 w-3 ml-1" />
+                </Button>
+              </div>
+              <div className="ml-auto text-sm text-slate-600">
+                {filteredAndSorted.length} system{filteredAndSorted.length !== 1 ? 's' : ''}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Systems Cards */}
+        {filteredAndSorted.length === 0 ? (
+          <Card className="border-dashed border-2 border-slate-200">
+            <CardContent className="text-center py-12">
+              <BarChart3 className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-slate-600 mb-2">No systems found</h3>
+              <p className="text-slate-500">Try adjusting your search criteria</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 lg:gap-6">
+            {filteredAndSorted.map(row => (
+              <Card 
+                key={row.systemId} 
+                className="group hover:shadow-lg transition-all duration-300 border-l-4 hover:border-l-primary bg-gradient-to-r from-white to-slate-50/30"
+                style={{
+                  borderLeftColor: row.riskLevel === 'Critical' ? '#dc2626' :
+                                 row.riskLevel === 'High' ? '#ea580c' :
+                                 row.riskLevel === 'Medium' ? '#d97706' : '#16a34a'
+                }}
+              >
+                <CardContent className="p-6">
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-6">
+                    {/* System Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                          <Shield className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-xl font-bold text-foreground truncate group-hover:text-primary transition-colors">
+                            {row.systemName}
+                          </h3>
+                          <div className="flex flex-wrap gap-4 mt-1 text-sm text-slate-600">
+                            {row.owner && (
+                              <span className="flex items-center gap-1">
+                                <span className="font-medium">Owner:</span> {row.owner}
+                              </span>
+                            )}
+                            {row.classification && (
+                              <span className="flex items-center gap-1">
+                                <span className="font-medium">Class:</span> 
+                                <Badge variant="secondary" className="text-xs">{row.classification}</Badge>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <Badge className={`${getRiskLevelColor(row.riskLevel)} font-semibold`}>
+                          {row.riskLevel} Risk
+                        </Badge>
+                      </div>
                     </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+
+                    {/* Metrics Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4 lg:gap-6">
+                      {/* Security Score */}
+                      <div className="text-center">
+                        <div className={`text-2xl font-bold ${getScoreColor(row.securityScore)}`}>
+                          {row.securityScore}%
+                        </div>
+                        <div className="text-xs text-slate-500 font-medium">Security</div>
+                        <div className="w-full bg-slate-200 rounded-full h-1.5 mt-1">
+                          <div 
+                            className={`h-1.5 rounded-full transition-all duration-500 ${
+                              row.securityScore >= 80 ? 'bg-green-500' :
+                              row.securityScore >= 60 ? 'bg-blue-500' :
+                              row.securityScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`}
+                            style={{ width: `${row.securityScore}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      {/* Compliance Score */}
+                      <div className="text-center">
+                        <div className={`text-2xl font-bold ${getScoreColor(row.complianceScore)}`}>
+                          {row.complianceScore}%
+                        </div>
+                        <div className="text-xs text-slate-500 font-medium">Compliance</div>
+                        <div className="w-full bg-slate-200 rounded-full h-1.5 mt-1">
+                          <div 
+                            className={`h-1.5 rounded-full transition-all duration-500 ${
+                              row.complianceScore >= 80 ? 'bg-green-500' :
+                              row.complianceScore >= 60 ? 'bg-blue-500' :
+                              row.complianceScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`}
+                            style={{ width: `${row.complianceScore}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      {/* POAMs */}
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          <Target className="h-4 w-4 text-blue-600" />
+                          <span className="text-2xl font-bold text-foreground">{row.poamCount}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground font-medium">POAMs</div>
+                      </div>
+
+                      {/* STIGs */}
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          <Shield className="h-4 w-4 text-purple-600" />
+                          <span className="text-2xl font-bold text-foreground">{row.stigCount}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground font-medium">STIGs</div>
+                      </div>
+
+                      {/* Test Plans */}
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          <span className="text-2xl font-bold text-foreground">{row.testPlanCount}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground font-medium">Tests</div>
+                      </div>
+
+                      {/* Vulnerabilities */}
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          <Bug className="h-4 w-4 text-red-600" />
+                          <span className="text-2xl font-bold text-foreground">{row.vulnCount}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground font-medium">Vulns</div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-col gap-2 lg:min-w-[140px]">
+                      <Button
+                        size="sm"
+                        onClick={() => onSwitchToSystem?.(row.systemId, 'metrics')}
+                        className="w-full justify-start bg-primary hover:bg-primary/90"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        View Details
+                      </Button>
+                      <div className="grid grid-cols-2 gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onSwitchToSystem?.(row.systemId, 'poams')}
+                          className="text-xs"
+                        >
+                          POAMs
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onSwitchToSystem?.(row.systemId, 'stig')}
+                          className="text-xs"
+                        >
+                          STIG
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onSwitchToSystem?.(row.systemId, 'testing')}
+                          className="text-xs"
+                        >
+                          Testing
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onSwitchToSystem?.(row.systemId, 'vulnerabilities')}
+                          className="text-xs"
+                        >
+                          Vulns
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

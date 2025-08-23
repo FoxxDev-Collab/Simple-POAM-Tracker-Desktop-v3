@@ -398,6 +398,99 @@ impl<'a> SystemQueries<'a> {
             .filter_map(Result::ok)
             .collect();
 
+        // Get nessus data
+        let nessus_scans: Vec<crate::database::nessus::NessusScanMeta> = self.conn.prepare("SELECT id, name, description, imported_date, version, source_file, scan_info FROM nessus_scans WHERE system_id = ?1")?
+            .query_map(params![system_id], |row| {
+                let scan_info_str: String = row.get("scan_info")?;
+                let scan_info = serde_json::from_str(&scan_info_str).unwrap_or(serde_json::Value::Null);
+                
+                Ok(crate::database::nessus::NessusScanMeta {
+                    id: row.get("id")?,
+                    name: row.get("name")?,
+                    description: row.get("description")?,
+                    imported_date: row.get("imported_date")?,
+                    version: row.get("version")?,
+                    source_file: row.get("source_file")?,
+                    scan_info,
+                })
+            })?
+            .filter_map(Result::ok)
+            .collect();
+
+        let nessus_findings: Vec<crate::database::nessus::NessusFinding> = self.conn.prepare("SELECT id, scan_id, plugin_id, plugin_name, severity, risk_factor, cve, cvss_base_score, host, port, protocol, synopsis, description, solution, raw_json FROM nessus_findings WHERE system_id = ?1")?
+            .query_map(params![system_id], |row| {
+                let raw_json_str: String = row.get("raw_json")?;
+                let raw_json = serde_json::from_str(&raw_json_str).unwrap_or(serde_json::Value::Null);
+                
+                Ok(crate::database::nessus::NessusFinding {
+                    id: row.get("id")?,
+                    scan_id: row.get("scan_id")?,
+                    plugin_id: row.get("plugin_id")?,
+                    plugin_name: row.get("plugin_name")?,
+                    severity: row.get("severity")?,
+                    risk_factor: row.get("risk_factor")?,
+                    cve: row.get("cve")?,
+                    cvss_base_score: row.get("cvss_base_score")?,
+                    host: row.get("host")?,
+                    port: row.get("port")?,
+                    protocol: row.get("protocol")?,
+                    synopsis: row.get("synopsis")?,
+                    description: row.get("description")?,
+                    solution: row.get("solution")?,
+                    raw_json,
+                })
+            })?
+            .filter_map(Result::ok)
+            .collect();
+
+        let nessus_prep_lists: Vec<crate::database::nessus::NessusPrepList> = self.conn.prepare("SELECT id, name, description, created_date, updated_date, source_scan_id, asset_info, selected_findings, finding_count, milestones, cve_analysis, summary, prep_status, scan_info FROM nessus_prep_lists WHERE system_id = ?1")?
+            .query_map(params![system_id], |row| {
+                let asset_info_str: String = row.get("asset_info")?;
+                let asset_info = serde_json::from_str(&asset_info_str).unwrap_or(serde_json::Value::Null);
+                
+                let selected_findings_str: String = row.get("selected_findings")?;
+                let selected_findings = serde_json::from_str(&selected_findings_str).unwrap_or(serde_json::Value::Null);
+                
+                let milestones = match row.get::<_, Option<String>>("milestones")? {
+                    Some(s) => Some(serde_json::from_str(&s).unwrap_or(serde_json::Value::Null)),
+                    None => None,
+                };
+                
+                let cve_analysis = match row.get::<_, Option<String>>("cve_analysis")? {
+                    Some(s) => Some(serde_json::from_str(&s).unwrap_or(serde_json::Value::Null)),
+                    None => None,
+                };
+                
+                let summary = match row.get::<_, Option<String>>("summary")? {
+                    Some(s) => Some(serde_json::from_str(&s).unwrap_or(serde_json::Value::Null)),
+                    None => None,
+                };
+                
+                let scan_info = match row.get::<_, Option<String>>("scan_info")? {
+                    Some(s) => Some(serde_json::from_str(&s).unwrap_or(serde_json::Value::Null)),
+                    None => None,
+                };
+                
+                Ok(crate::database::nessus::NessusPrepList {
+                    id: row.get("id")?,
+                    name: row.get("name")?,
+                    description: row.get("description")?,
+                    created_date: row.get("created_date")?,
+                    updated_date: row.get("updated_date")?,
+                    source_scan_id: row.get("source_scan_id")?,
+                    asset_info,
+                    selected_findings,
+                    finding_count: row.get("finding_count")?,
+                    milestones,
+                    cve_analysis,
+                    summary,
+                    prep_status: row.get("prep_status")?,
+                    scan_info,
+                })
+            })?
+            .filter_map(Result::ok)
+            .collect();
+
         Ok(SystemExportData {
             system,
             poams,
@@ -407,6 +500,9 @@ impl<'a> SystemQueries<'a> {
             prep_lists: Some(prep_lists),
             baseline_controls: Some(baseline_controls),
             poam_control_associations: Some(poam_control_associations),
+            nessus_scans: if nessus_scans.is_empty() { None } else { Some(nessus_scans) },
+            nessus_findings: if nessus_findings.is_empty() { None } else { Some(nessus_findings) },
+            nessus_prep_lists: if nessus_prep_lists.is_empty() { None } else { Some(nessus_prep_lists) },
             export_date: None,
             export_version: None,
         })
