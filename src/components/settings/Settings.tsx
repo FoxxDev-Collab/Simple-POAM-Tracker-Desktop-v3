@@ -356,6 +356,60 @@ export default function Settings() {
     await clearDatabase();
   };
 
+  const handleResetDatabase = async () => {
+    setClearingLog([]);
+    
+    try {
+      setIsClearing(true);
+      addToLog("Starting database reset process...");
+      
+      const result = await invoke<string>('reset_database');
+      addToLog(result);
+      
+      addToLog("Clearing browser storage...");
+      
+      let itemsCleared = 0;
+      try {
+        Object.keys(localStorage).forEach(key => {
+          if (key !== 'appSettings') {
+            localStorage.removeItem(key);
+            itemsCleared++;
+          } else {
+            addToLog(`Keeping settings: ${key}`);
+          }
+        });
+        addToLog(`Cleared ${itemsCleared} localStorage items`);
+      } catch (localStorageError) {
+        const errorMessage = localStorageError instanceof Error 
+          ? localStorageError.message 
+          : 'Unknown localStorage error';
+        addToLog(`Error clearing localStorage: ${errorMessage}`);
+      }
+      
+      try {
+        sessionStorage.clear();
+        addToLog('Session storage cleared');
+      } catch (sessionStorageError) {
+        const errorMessage = sessionStorageError instanceof Error 
+          ? sessionStorageError.message 
+          : 'Unknown sessionStorage error';
+        addToLog(`Error clearing sessionStorage: ${errorMessage}`);
+      }
+      
+      showToast('success', 'Database reset completed successfully');
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[DatabaseReset] Error resetting database:', error);
+      addToLog(`Fatal error during database reset: ${errorMessage}`);
+      showToast('error', `Failed to reset database: ${errorMessage}`);
+    } finally {
+      addToLog('Database reset process finalized');
+      setIsClearing(false);
+      setShowConfirmDialog(false);
+    }
+  };
+
   // Tab render functions
   const renderGeneralSettings = () => (
     <div className="space-y-6">
@@ -521,6 +575,28 @@ export default function Settings() {
             >
               <Trash2 className="h-4 w-4" />
               {isClearing ? 'Clearing...' : 'Clear All Data'}
+            </Button>
+          </div>
+          <div className="flex items-center justify-between mt-4 pt-4 border-t">
+            <div>
+              <div className="font-medium">Reset Database</div>
+              <div className="text-sm text-muted-foreground">
+                Completely reset database structure and clear all data (recommended before group import)
+              </div>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (window.confirm('Are you sure you want to reset the database? This will permanently delete ALL data and recreate the database structure. This is recommended if you\'re having import issues.')) {
+                  handleResetDatabase();
+                }
+              }}
+              disabled={isClearing}
+              className="gap-2"
+            >
+              <Database className="h-4 w-4" />
+              {isClearing ? 'Resetting...' : 'Reset Database'}
             </Button>
           </div>
           <div className="flex items-center justify-between mt-4 pt-4 border-t">

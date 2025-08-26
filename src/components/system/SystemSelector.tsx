@@ -58,9 +58,7 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
   const [deletingSystemId, setDeletingSystemId] = useState<string | null>(null);
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(currentSystem?.id || null);
   const [isImporting, setIsImporting] = useState(false);
-  const [isImportingGroup, setIsImportingGroup] = useState(false);
   const [importProgress, setImportProgress] = useState<string | null>(null);
-  const [groupImportProgress, setGroupImportProgress] = useState<string | null>(null);
 
   
   // Group management state
@@ -315,49 +313,6 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
     }
   };
 
-  const handleImportGroup = async () => {
-    try {
-      setIsImportingGroup(true);
-      setGroupImportProgress('Selecting file...');
-      
-      const selected = await open({
-        filters: [{ name: 'Group Backup', extensions: ['zip'] }]
-      });
-      
-      if (!selected) {
-        showToast('info', 'Group import cancelled');
-        setIsImportingGroup(false);
-        setGroupImportProgress(null);
-        return;
-      }
-      
-      setGroupImportProgress('Extracting group backup...');
-      await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay for UX
-      
-      const result = await invoke('import_complete_group_backup', { 
-        importPath: selected 
-      }) as string;
-      
-      setGroupImportProgress('Updating groups and systems...');
-      await loadGroupsAndSystems();
-      await loadSystems();
-      
-      setGroupImportProgress('Group import completed successfully!');
-      await new Promise(resolve => setTimeout(resolve, 800)); // Show success state
-      
-      showToast('success', `Group backup imported successfully. ${result}`);
-      
-    } catch (error) {
-      console.error('Group import error:', error);
-      showToast('error', `Group import failed: ${error}`);
-    } finally {
-      // Clean up loading state after successful import or error
-      setTimeout(() => {
-        setIsImportingGroup(false);
-        setGroupImportProgress(null);
-      }, 1000); // Brief delay to show final state
-    }
-  };
 
   // Group management handlers
   const handleCreateGroup = async (groupData: any) => {
@@ -526,19 +481,6 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
                   <>
                     <Icon icon={Upload} size="md" className="mr-2" />
                     Import System
-                  </>
-                )}
-              </Button>
-              <Button onClick={handleImportGroup} variant="outline" size="lg" className="shadow-lg hover:shadow-xl transition-all duration-200" disabled={isImportingGroup}>
-                {isImportingGroup ? (
-                  <div className="flex items-center">
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    <span className="animate-pulse">{groupImportProgress || 'Importing Group...'}</span>
-                  </div>
-                ) : (
-                  <>
-                    <Icon icon={Upload} size="md" className="mr-2" />
-                    Import Group
                   </>
                 )}
               </Button>
@@ -722,19 +664,6 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
                         </>
                       )}
                     </Button>
-                    <Button onClick={handleImportGroup} variant="outline" size="lg" disabled={isImportingGroup}>
-                      {isImportingGroup ? (
-                        <div className="flex items-center">
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          <span className="animate-pulse">{groupImportProgress || 'Importing...'}</span>
-                        </div>
-                      ) : (
-                        <>
-                          <Icon icon={Upload} size="md" className="mr-2" />
-                          Import Group
-                        </>
-                      )}
-                    </Button>
                   </div>
                 </div>
               </div>
@@ -744,13 +673,12 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
       </div>
       
       {/* Import Loading Overlay */}
-      {(isImporting || isImportingGroup) && (
+      {isImporting && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="bg-card rounded-lg border shadow-xl p-8 max-w-md w-full mx-4">
             <div className="flex flex-col items-center space-y-4">
               <div className="relative">
-                {((isImporting && importProgress?.includes('completed')) || 
-                  (isImportingGroup && groupImportProgress?.includes('completed'))) ? (
+                {(isImporting && importProgress?.includes('completed')) ? (
                   <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
                     <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400 animate-pulse" />
                   </div>
@@ -763,14 +691,13 @@ export default function SystemSelector({ onSystemSelected, onGroupSelected }: Sy
               </div>
               <div className="text-center space-y-2">
                 <h3 className="text-lg font-semibold">
-                  {isImporting ? 'Importing System' : 'Importing Group'}
+                  Importing System
                 </h3>
                 <p className="text-sm text-muted-foreground animate-pulse">
-                  {isImporting ? importProgress : groupImportProgress}
+                  {importProgress}
                 </p>
                 <div className="text-xs text-muted-foreground">
-                  {((isImporting && importProgress?.includes('completed')) || 
-                    (isImportingGroup && groupImportProgress?.includes('completed'))) 
+                  {(isImporting && importProgress?.includes('completed'))
                     ? 'Import completed! The page will update automatically.' 
                     : 'Please wait while we process your import...'}
                 </div>

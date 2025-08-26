@@ -964,15 +964,10 @@ pub fn run() {
             import_evidence_package,
             save_stp_prep_list,
             get_all_stp_prep_lists,
-            // Import/Export commands
-            commands::import_export::export_complete_system_backup,
-            commands::import_export::export_complete_group_backup,
+            // Import/Export commands (System Level Only)
+            commands::import_export::export_system_backup,
             commands::import_export::import_system_backup,
-            commands::import_export::import_group_backup,
-            commands::import_export::import_complete_group_backup,
-            commands::import_export::export_json_data,
-            commands::import_export::export_data,
-            commands::import_export::import_json_file,
+            commands::import_export::reset_database,
             // Systems module commands
             commands::systems::create_system,
             commands::systems::get_all_systems,

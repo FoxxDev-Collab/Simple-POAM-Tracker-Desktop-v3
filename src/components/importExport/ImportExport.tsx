@@ -319,7 +319,7 @@ export default function ImportExport() {
       setExportProgress(20);
       
       // Export complete system backup
-      await invoke('export_complete_system_backup', {
+      await invoke('export_system_backup', {
         exportPath: savePath,
         systemId: currentSystem.id
       });

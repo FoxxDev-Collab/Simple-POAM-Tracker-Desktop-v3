@@ -45,7 +45,6 @@ const groupNavigation: NavItemDef[] = [
   { id: 'group-stps', label: 'Group Test Plans', icon: ClipboardCheck },
   { id: 'group-notes', label: 'Group Notes', icon: StickyNote },
   { id: 'group-metrics', label: 'Group Metrics', icon: BarChart3 },
-  { id: 'group-export-import', label: 'Export/Import', icon: HardDrive },
 ];
 
 export default function GroupSidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse, onExit }: GroupSidebarProps) {

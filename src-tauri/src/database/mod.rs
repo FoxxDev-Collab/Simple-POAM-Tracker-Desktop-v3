@@ -535,4 +535,55 @@ impl Database {
     pub fn delete_database_file(app_handle: &AppHandle) -> Result<(), DatabaseError> {
         POAMOperations::delete_database_file(app_handle)
     }
+
+    /// Completely reset the database - clear all data and reinitialize tables
+    pub fn reset_database(&mut self) -> Result<(), DatabaseError> {
+        println!("Resetting database - clearing all data");
+        
+        // Disable foreign key constraints temporarily to avoid deletion order issues
+        self.conn.execute("PRAGMA foreign_keys = OFF", [])?;
+        
+        // Drop all tables in reverse dependency order
+        let tables_to_drop = vec![
+            "group_cci_mappings",
+            "group_control_poam_associations", 
+            "group_baseline_controls",
+            "group_milestones",
+            "group_poams",
+            "group_security_test_plans",
+            "group_system_associations",
+            "system_groups",
+            "control_poam_associations",
+            "baseline_controls",
+            "stig_files",
+            "nessus_prep_lists",
+            "nessus_findings", 
+            "nessus_scans",
+            "stp_prep_lists",
+            "security_test_plans",
+            "stig_mappings",
+            "note_poam_associations",
+            "notes",
+            "milestones",
+            "poams",
+            "systems"
+        ];
+        
+        for table in tables_to_drop {
+            match self.conn.execute(&format!("DROP TABLE IF EXISTS {}", table), []) {
+                Ok(_) => println!("Dropped table: {}", table),
+                Err(e) => println!("Warning: Failed to drop table {}: {}", table, e),
+            }
+        }
+        
+        // Re-enable foreign key constraints
+        self.conn.execute("PRAGMA foreign_keys = ON", [])?;
+        
+        // Recreate all tables with fresh structure
+        let mut setup = setup::DatabaseSetup::new(&mut self.conn);
+        setup.initialize_tables()?;
+        
+        println!("Database reset completed successfully");
+        Ok(())
+    }
 }

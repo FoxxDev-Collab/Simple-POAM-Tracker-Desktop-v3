@@ -7,7 +7,6 @@ import GroupMilestones from './GroupMilestones';
 import GroupSTPs from './GroupSTPs';
 import GroupNotes from './GroupNotes';
 import GroupMetrics from './GroupMetrics';
-import GroupExportImport from './GroupExportImport';
 import * as api from '../../utils/tauriApi';
 import { BrandedLoader } from '../ui/BrandedLoader';
 
@@ -24,8 +23,7 @@ type GroupTab =
   | 'group-milestones'
   | 'group-stps'
   | 'group-notes'
-  | 'group-metrics'
-  | 'group-export-import';
+  | 'group-metrics';
 
 export default function GroupPackage({ groupId, onExit, onSwitchToSystem }: GroupPackageProps) {
   const [activeTab, setActiveTab] = useState<GroupTab>('overview');
@@ -107,14 +105,6 @@ export default function GroupPackage({ groupId, onExit, onSwitchToSystem }: Grou
             groupId={groupId} 
             systems={systems}
             onSwitchToSystem={onSwitchToSystem}
-          />
-        );
-      case 'group-export-import':
-        return (
-          <GroupExportImport
-            groupId={groupId}
-            groupName={group?.name || 'Unknown Group'}
-            systems={systems}
           />
         );
       default:
