@@ -415,3 +415,37 @@ pub struct STIGFileRecord {
     pub version: String,
     pub created_by: String,
 }
+
+// Import Configuration Structure for Export/Import Operations
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ImportOptions {
+    pub generate_new_ids: bool,
+    pub rename_duplicates: bool,
+    pub target_group_id: Option<String>,
+    pub import_poams: bool,
+    pub import_notes: bool,
+    pub import_stig_mappings: bool,
+    pub import_test_plans: bool,
+    pub import_baseline_controls: bool,
+    pub import_nessus_data: bool,
+    pub import_evidence_files: bool,
+    pub overwrite_existing: bool,
+}
+
+impl Default for ImportOptions {
+    fn default() -> Self {
+        Self {
+            generate_new_ids: true,
+            rename_duplicates: true,
+            target_group_id: None,
+            import_poams: true,
+            import_notes: true,
+            import_stig_mappings: true,
+            import_test_plans: true,
+            import_baseline_controls: true,
+            import_nessus_data: true,
+            import_evidence_files: true,
+            overwrite_existing: false,
+        }
+    }
+}

@@ -65,7 +65,7 @@ export default function GroupNistControls({ groupId, systems }: GroupNistControl
   const [hasCciMappings, setHasCciMappings] = useState(false);
   const [isUploadingCci, setIsUploadingCci] = useState(false);
   const [expandedControls, setExpandedControls] = useState<Set<string>>(new Set());
-  const [manualOverrides, setManualOverrides] = useState<Record<string, string>>({});
+  const [_manualOverrides, setManualOverrides] = useState<Record<string, string>>({});
   
   
   const { showToast } = useToast();

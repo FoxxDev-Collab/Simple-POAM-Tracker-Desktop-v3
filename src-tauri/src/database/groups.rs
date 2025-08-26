@@ -175,6 +175,44 @@ impl<'a> GroupOperations<'a> {
 
     // System-Group Association Methods
     pub fn add_system_to_group(&self, group_id: &str, system_id: &str, added_by: Option<&str>) -> Result<(), DatabaseError> {
+        // Verify that the group exists
+        let group_exists = self.conn.query_row(
+            "SELECT COUNT(*) FROM system_groups WHERE id = ?1",
+            params![group_id],
+            |row| row.get::<_, i32>(0)
+        ).unwrap_or(0) > 0;
+
+        if !group_exists {
+            return Err(DatabaseError::NotFound(
+                format!("Group with id '{}' does not exist", group_id)
+            ));
+        }
+
+        // Verify that the system exists
+        let system_exists = self.conn.query_row(
+            "SELECT COUNT(*) FROM systems WHERE id = ?1",
+            params![system_id],
+            |row| row.get::<_, i32>(0)
+        ).unwrap_or(0) > 0;
+
+        if !system_exists {
+            return Err(DatabaseError::NotFound(
+                format!("System with id '{}' does not exist", system_id)
+            ));
+        }
+
+        // Check if association already exists
+        let association_exists = self.conn.query_row(
+            "SELECT COUNT(*) FROM group_system_associations WHERE group_id = ?1 AND system_id = ?2",
+            params![group_id, system_id],
+            |row| row.get::<_, i32>(0)
+        ).unwrap_or(0) > 0;
+
+        if association_exists {
+            println!("System {} is already in group {}, skipping", system_id, group_id);
+            return Ok(());
+        }
+
         let now = chrono::Utc::now().to_rfc3339();
         let association_id = uuid::Uuid::new_v4().to_string();
 
@@ -738,5 +776,14 @@ impl<'a> GroupQueries<'a> {
         }
 
         Ok(systems)
+    }
+    
+    pub fn group_name_exists(&self, name: &str) -> Result<bool, DatabaseError> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM system_groups WHERE name = ?1",
+            params![name],
+            |row| row.get(0)
+        )?;
+        Ok(count > 0)
     }
 }

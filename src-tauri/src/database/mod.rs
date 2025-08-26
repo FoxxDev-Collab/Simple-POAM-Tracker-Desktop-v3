@@ -51,6 +51,11 @@ impl Database {
         let system_queries = SystemQueries::new(&self.conn);
         system_queries.get_all_systems()
     }
+    
+    pub fn system_name_exists(&self, name: &str) -> Result<bool, DatabaseError> {
+        let system_queries = SystemQueries::new(&self.conn);
+        system_queries.system_name_exists(name)
+    }
 
     // System Operations (mutable)
     pub fn create_system(&mut self, system: &System) -> Result<(), DatabaseError> {
@@ -114,6 +119,11 @@ impl Database {
     pub fn get_ungrouped_systems(&self) -> Result<Vec<SystemSummary>, DatabaseError> {
         let group_queries = GroupQueries::new(&self.conn);
         group_queries.get_ungrouped_systems()
+    }
+    
+    pub fn group_name_exists(&self, name: &str) -> Result<bool, DatabaseError> {
+        let group_queries = GroupQueries::new(&self.conn);
+        group_queries.group_name_exists(name)
     }
 
     pub fn get_systems_in_group(&mut self, group_id: &str) -> Result<Vec<SystemSummary>, DatabaseError> {

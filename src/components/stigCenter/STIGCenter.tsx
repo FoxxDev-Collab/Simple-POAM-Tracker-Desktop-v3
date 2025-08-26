@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  Upload, FileText, Shield, Search, Save, Download, ChevronUp, ChevronDown, ChevronRight, Edit3, Check, X, AlertTriangle, Info, CheckCircle, XCircle, List, FolderOpen
+  Upload, FileText, Shield, Search, Save, Download, ChevronDown, ChevronRight, Edit3, Check, X, AlertTriangle, Info, CheckCircle, XCircle, List, FolderOpen
 } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { STIGChecklist } from '../../types/stig';
-import { parseMultipleSTIGChecklists, saveStpPrepList, getAllStpPrepLists, getStpPrepListById, updateStpPrepList, deleteStpPrepList, saveSTIGFile, getAllSTIGFiles, getSTIGFileContent } from '../../utils/tauriApi';
+import { parseMultipleSTIGChecklists, saveStpPrepList, getAllStpPrepLists, saveSTIGFile, getAllSTIGFiles, getSTIGFileContent } from '../../utils/tauriApi';
 import { useToast } from '../../context/ToastContext';
 import { useSystem } from '../../context/SystemContext';
 import STIGPrepListManager from './STIGPrepListManager';
@@ -65,7 +65,7 @@ export default function STIGCenter() {
   const [editingStig, setEditingStig] = useState<EditingStigState | null>(null);
   const [processingSteps, setProcessingSteps] = useState<ProcessingStep[]>([]);
   const [isProcessingComplete, setIsProcessingComplete] = useState(false);
-  const [stpPrepLists, setStpPrepLists] = useState<any[]>([]);
+  const [_stpPrepLists, setStpPrepLists] = useState<any[]>([]);
   const [stpPrepDialog, setStpPrepDialog] = useState<StpPrepDialog>({
     isOpen: false,
     name: '',
@@ -80,12 +80,6 @@ export default function STIGCenter() {
     { value: 'Not_Reviewed', label: 'Not Reviewed', color: 'warning' }
   ];
 
-  const SEVERITY_OPTIONS = [
-    { value: '', label: 'No Override', color: 'secondary' },
-    { value: 'high', label: 'High', color: 'destructive' },
-    { value: 'medium', label: 'Medium', color: 'warning' },
-    { value: 'low', label: 'Low', color: 'success' }
-  ];
 
   // Load STP prep lists
   const loadStpPrepLists = useCallback(async () => {

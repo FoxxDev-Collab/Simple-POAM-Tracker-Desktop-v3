@@ -39,7 +39,7 @@ impl<'a> DatabaseSetup<'a> {
         
         println!("Database path: {:?}", db_path.canonicalize().unwrap_or(db_path.clone()));
         
-        let conn = Connection::open(&db_path).map_err(|e| {
+        let mut conn = Connection::open(&db_path).map_err(|e| {
             let detailed_error = format!(
                 "Failed to open database at '{}': {}. \
                 This may be due to: \
@@ -53,6 +53,9 @@ impl<'a> DatabaseSetup<'a> {
             );
             DatabaseError::AppDir(detailed_error)
         })?;
+        
+        // Enable foreign key constraints - this is critical for data integrity
+        conn.execute("PRAGMA foreign_keys = ON", [])?;
         
         Ok(conn)
     }

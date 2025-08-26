@@ -53,39 +53,7 @@ async fn clear_stig_data(app_handle: AppHandle, system_id: String) -> Result<Str
     Ok("STIG data cleared".to_string())
 }
 
-#[tauri::command]
-async fn import_json_file(app_handle: AppHandle, file_path: String, system_id: String) -> Result<String, Error> {
-    let file_content = fs::read_to_string(file_path)?;
-    let data: models::POAMData = serde_json::from_str(&file_content)?;
-    
-    // Get database connection
-    let mut db = database::get_database(&app_handle)?;
-    
-    // Import the data
-    db.import_poam_data(&data, &system_id)?;
-    
-    Ok("Data imported successfully".to_string())
-}
-
 // POAM command implementations moved to `commands::poams_milestones`.
-
-#[tauri::command]
-async fn export_data(app_handle: AppHandle, export_path: String, system_id: String) -> Result<String, Error> {
-    let db = database::get_database(&app_handle)?;
-    let poams = db.get_all_poams(&system_id)?;
-    let notes = db.get_all_notes(&system_id)?;
-    
-    let data = models::POAMData { 
-        poams, 
-        notes, 
-        stig_mappings: None 
-    };
-    let json = serde_json::to_string_pretty(&data)?;
-    
-    fs::write(export_path, json)?;
-    
-    Ok("Data exported successfully".to_string())
-}
 
 #[tauri::command]
 async fn select_file_path() -> Result<String, Error> {
@@ -678,13 +646,6 @@ async fn export_security_test_plans(app_handle: AppHandle, export_path: String, 
     Ok("Security test plans exported successfully".to_string())
 }
 
-#[tauri::command]
-async fn export_json_data(file_path: String, data: String) -> Result<(), Error> {
-    println!("Exporting JSON data to: {}", file_path);
-    fs::write(file_path, data)?;
-    println!("JSON export completed successfully");
-    Ok(())
-}
 
 #[tauri::command]
 async fn export_updated_checklist(file_path: String, checklist: stig::STIGChecklist) -> Result<(), Error> {
@@ -950,264 +911,17 @@ async fn get_all_stp_prep_lists(app_handle: AppHandle, system_id: String) -> Res
 
 // Milestone and POAM command implementations moved to `commands::poams_milestones`.
 
-#[tauri::command]
-async fn export_complete_group_backup(app_handle: AppHandle, export_path: String, group_id: String) -> Result<String, Error> {
-    use std::io::Write;
-    use zip::write::FileOptions;
-    
-    println!("Creating complete group backup for group: {}", group_id);
-    
-    let mut db = database::get_database(&app_handle)?;
-    let app_data_dir = app_handle.path().app_data_dir()
-        .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
-    
-    // Get group information
-    let group = db.get_group_by_id(&group_id)?
-        .ok_or_else(|| Error::Database(database::DatabaseError::ClearDatabase("Group not found".to_string())))?;
-    
-    // Get all systems in the group
-    let group_systems = db.get_systems_in_group(&group_id)?;
-    println!("Found {} systems in group", group_systems.len());
-    
-    // Export each system's complete data
-    let mut system_exports = Vec::new();
-    let mut total_evidence_files = 0;
-    let mut evidence_file_count_by_system: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    
-    for system in &group_systems {
-        println!("Exporting system: {}", system.name);
-        
-        // Get all data for this system
-        let poams = db.get_all_poams(&system.id)?;
-        let notes = db.get_all_notes(&system.id)?;
-        let stig_mappings = db.get_all_stig_mappings(&system.id)?;
-        let test_plans = db.get_all_security_test_plans(&system.id)?;
-        let prep_lists = db.get_all_stp_prep_lists(&system.id)?;
-        let baseline_controls = db.get_baseline_controls(&system.id)?;
-        
-        // Get Nessus data for this system
-        let nessus_scans = db.get_nessus_scans(&system.id)?;
-        let mut all_nessus_findings = Vec::new();
-        for scan in &nessus_scans {
-            let mut findings = db.get_nessus_findings_by_scan(&scan.id, &system.id)?;
-            all_nessus_findings.append(&mut findings);
-        }
-        let nessus_prep_lists = db.get_all_nessus_prep_lists(&system.id)?;
-        
-        let mut poam_control_associations = Vec::new();
-        for poam in &poams {
-            let mut associations = db.get_control_poam_associations_by_poam(poam.id, &system.id)?;
-            poam_control_associations.append(&mut associations);
-        }
-        
-        // Count evidence files for this system
-        let mut system_evidence_count = 0;
-        for test_plan in &test_plans {
-            for test_case in &test_plan.test_cases {
-                if let Some(evidence_files) = &test_case.evidence_files {
-                    system_evidence_count += evidence_files.len();
-                }
-            }
-        }
-        evidence_file_count_by_system.insert(system.id.clone(), system_evidence_count);
-        total_evidence_files += system_evidence_count;
-        
-        // Convert SystemSummary to System for export
-        let system_for_export = models::System {
-            id: system.id.clone(),
-            name: system.name.clone(),
-            description: system.description.clone(),
-            created_date: system.created_date.clone(),
-            updated_date: chrono::Utc::now().to_rfc3339(),
-            last_accessed: system.last_accessed.clone(),
-            owner: system.owner.clone(),
-            classification: system.classification.clone(),
-            tags: system.tags.clone(),
-            group_id: Some(group_id.clone()),
-            is_active: true,
-            poam_count: Some(system.poam_count),
-        };
-        
-        // Create system export data
-        let system_export = models::SystemExportData {
-            system: system_for_export,
-            poams,
-            notes,
-            stig_mappings: if stig_mappings.is_empty() { None } else { Some(stig_mappings) },
-            test_plans: if test_plans.is_empty() { None } else { Some(test_plans) },
-            prep_lists: if prep_lists.is_empty() { None } else { Some(prep_lists) },
-            baseline_controls: if baseline_controls.is_empty() { None } else { Some(baseline_controls) },
-            poam_control_associations: if poam_control_associations.is_empty() { None } else { Some(poam_control_associations) },
-            nessus_scans: if nessus_scans.is_empty() { None } else { Some(nessus_scans) },
-            nessus_findings: if all_nessus_findings.is_empty() { None } else { Some(all_nessus_findings) },
-            nessus_prep_lists: if nessus_prep_lists.is_empty() { None } else { Some(nessus_prep_lists) },
-            export_date: Some(chrono::Utc::now().to_rfc3339()),
-            export_version: Some("2.2".to_string()),
-        };
-        
-        system_exports.push(system_export);
-    }
-    
-    // Get group-level data (group POAMs, etc.)
-    // Note: Group POAMs functionality may need to be implemented in the database layer
-    
-    // Create group export data structure
-    let group_export_data = models::GroupExportData {
-        group: group.clone(),
-        systems: system_exports,
-        export_date: Some(chrono::Utc::now().to_rfc3339()),
-        export_version: Some("3.0".to_string()), // New version for group exports
-    };
-    
-    // Create ZIP file
-    let file = fs::File::create(&export_path)?;
-    let mut zip = zip::ZipWriter::new(file);
-    
-    // Add group backup JSON to ZIP
-    let json = serde_json::to_string_pretty(&group_export_data)?;
-    zip.start_file("group_backup.json", FileOptions::default())?;
-    zip.write_all(json.as_bytes())?;
-    
-    // Copy evidence files from all systems
-    let mut manifest = vec!["# Group Backup Evidence Files Manifest".to_string()];
-    
-    for (system_idx, system_export) in group_export_data.systems.iter().enumerate() {
-        let system_name = &system_export.system.name;
-        manifest.push(format!("\n## System: {}", system_name));
-        
-        if let Some(test_plans) = &system_export.test_plans {
-            for (plan_idx, test_plan) in test_plans.iter().enumerate() {
-                manifest.push(format!("### Test Plan: {}", test_plan.name));
-                
-                for (case_idx, test_case) in test_plan.test_cases.iter().enumerate() {
-                    if let Some(evidence_files) = &test_case.evidence_files {
-                        for (file_idx, evidence_file) in evidence_files.iter().enumerate() {
-                            let source_path = app_data_dir.join(&evidence_file);
-                            
-                            if source_path.exists() {
-                                let zip_path = format!("evidence/system_{}/plan_{}/case_{}/file_{}/{}", 
-                                                     system_idx, plan_idx, case_idx, file_idx,
-                                                     source_path.file_name().unwrap_or_default().to_string_lossy());
-                                
-                                manifest.push(format!("- {}: {}", zip_path, evidence_file));
-                                
-                                match fs::read(&source_path) {
-                                    Ok(file_data) => {
-                                        zip.start_file(&zip_path, FileOptions::default())?;
-                                        zip.write_all(&file_data)?;
-                                    }
-                                    Err(e) => {
-                                        manifest.push(format!("  ERROR: Failed to read file: {}", e));
-                                    }
-                                }
-                            } else {
-                                manifest.push(format!("- MISSING: {}", evidence_file));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    // Add evidence manifest
-    zip.start_file("EVIDENCE_MANIFEST.txt", FileOptions::default())?;
-    zip.write_all(manifest.join("\n").as_bytes())?;
-    
-    // Create group summary
-    let total_poams: usize = group_export_data.systems.iter().map(|s| s.poams.len()).sum();
-    let total_notes: usize = group_export_data.systems.iter().map(|s| s.notes.len()).sum();
-    let total_stig_mappings: usize = group_export_data.systems.iter()
-        .map(|s| s.stig_mappings.as_ref().map_or(0, |v| v.len())).sum();
-    let total_test_plans: usize = group_export_data.systems.iter()
-        .map(|s| s.test_plans.as_ref().map_or(0, |v| v.len())).sum();
-    let total_prep_lists: usize = group_export_data.systems.iter()
-        .map(|s| s.prep_lists.as_ref().map_or(0, |v| v.len())).sum();
-    let total_baseline_controls: usize = group_export_data.systems.iter()
-        .map(|s| s.baseline_controls.as_ref().map_or(0, |v| v.len())).sum();
-    let total_associations: usize = group_export_data.systems.iter()
-        .map(|s| s.poam_control_associations.as_ref().map_or(0, |v| v.len())).sum();
-    
-    let summary = format!(
-        "# {} - Complete Group Backup\n\n\
-        **Backup Date:** {}\n\
-        **Group Description:** {}\n\
-        **Export Version:** 3.0 (Group ZIP format with evidence files)\n\n\
-        ## Group Contents\n\
-        - {} Systems\n\
-        - {} Total POAMs\n\
-        - {} Total Notes\n\
-        - {} Total STIG Mappings\n\
-        - {} Total Security Test Plans\n\
-        - {} Total STP Prep Lists\n\
-        - {} Total Baseline Controls\n\
-        - {} Total POAM/Control Associations\n\
-        - {} Total Evidence Files\n\n\
-        ## Systems in Group\n{}\n\n\
-        This is a complete group backup that includes all systems, metadata, configurations, \
-        and evidence files. Import this ZIP file to restore the entire group with \
-        full data integrity and evidence preservation.",
-        group.name,
-        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
-        group.description.as_deref().unwrap_or("No description"),
-        group_export_data.systems.len(),
-        total_poams,
-        total_notes,
-        total_stig_mappings,
-        total_test_plans,
-        total_prep_lists,
-        total_baseline_controls,
-        total_associations,
-        total_evidence_files,
-        group_export_data.systems.iter()
-            .map(|s| format!("- {} ({})", s.system.name, 
-                           s.system.description.as_deref().unwrap_or("No description")))
-            .collect::<Vec<_>>().join("\n")
-    );
-    
-    zip.start_file("GROUP_SUMMARY.md", FileOptions::default())?;
-    zip.write_all(summary.as_bytes())?;
-    
-    zip.finish()?;
-    
-    let file_size = fs::metadata(&export_path)?.len();
-    let size_mb = file_size as f64 / 1024.0 / 1024.0;
-    
-    let result_message = format!(
-        "Group backup export completed successfully!\n\n\
-        Group: {}\n\
-        Systems: {}\n\
-        POAMs: {}\n\
-        Notes: {}\n\
-        STIG Mappings: {}\n\
-        Test Plans: {}\n\
-        Evidence Files: {}\n\
-        File Size: {:.2} MB\n\n\
-        Export saved to: {}",
-        group.name,
-        group_export_data.systems.len(),
-        total_poams,
-        total_notes,
-        total_stig_mappings,
-        total_test_plans,
-        total_evidence_files,
-        size_mb,
-        export_path
-    );
-    println!("{}", result_message);
-    Ok(result_message)
-}
 
 // Application entry point exposed for the bin crate (src/main.rs)
 // This sets up the Tauri runtime, registers commands declared in this lib,
 // and starts the app.
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             // Main lib.rs commands
             clear_stig_data,
-            import_json_file,
-            export_data,
             select_file_path,
             select_save_path,
             clear_database,
@@ -1242,7 +956,6 @@ pub fn run() {
             export_data_with_stig,
             import_json_file_with_stig,
             export_security_test_plans,
-            export_json_data,
             export_updated_checklist,
             associate_poam_with_control,
             remove_poam_control_association,
@@ -1251,7 +964,15 @@ pub fn run() {
             import_evidence_package,
             save_stp_prep_list,
             get_all_stp_prep_lists,
-            export_complete_group_backup,
+            // Import/Export commands
+            commands::import_export::export_complete_system_backup,
+            commands::import_export::export_complete_group_backup,
+            commands::import_export::import_system_backup,
+            commands::import_export::import_group_backup,
+            commands::import_export::import_complete_group_backup,
+            commands::import_export::export_json_data,
+            commands::import_export::export_data,
+            commands::import_export::import_json_file,
             // Systems module commands
             commands::systems::create_system,
             commands::systems::get_all_systems,

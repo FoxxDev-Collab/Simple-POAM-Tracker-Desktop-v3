@@ -4,9 +4,7 @@ import {
   NessusScanSummary, 
   NessusScanStatistics, 
   CVEInformation,
-  NessusScanComparison,
   VulnerabilitySeverityChange,
-  ComparisonSummary,
   FilterType,
   SortField,
   SortDirection
@@ -358,7 +356,7 @@ export function calculateRiskScore(findings: NessusFinding[]): number {
 }
 
 // Extract and enrich CVE information
-export function enrichCVEInformation(cveId: string): Promise<CVEInformation | null> {
+export function enrichCVEInformation(_cveId: string): Promise<CVEInformation | null> {
   // This would typically call an external API like NVD
   // For now, return a placeholder implementation
   return Promise.resolve(null);

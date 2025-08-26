@@ -59,9 +59,8 @@ export default function GroupPackage({ groupId, onExit, onSwitchToSystem }: Grou
       case 'overview':
         return (
           <EnhancedGroupOverview 
-            group={group} 
+            groupId={group.id} 
             systems={systems} 
-            onExit={onExit}
             onSwitchToSystem={onSwitchToSystem}
           />
         );

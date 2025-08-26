@@ -588,4 +588,13 @@ impl<'a> SystemQueries<'a> {
             Err(e) => Err(DatabaseError::Sqlite(e)),
         }
     }
+    
+    pub fn system_name_exists(&self, name: &str) -> Result<bool, DatabaseError> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM systems WHERE name = ?1",
+            params![name],
+            |row| row.get(0)
+        )?;
+        Ok(count > 0)
+    }
 }

@@ -1,6 +1,5 @@
 import React from 'react';
 import { CheckCircle } from 'lucide-react';
-import { Badge } from '../ui/badge';
 import { NessusScanSummary } from './types';
 
 interface NessusSummaryCardsProps {
