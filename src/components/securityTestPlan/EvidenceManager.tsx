@@ -5,37 +5,7 @@ import { Upload, Eye, Trash2, Paperclip, FileText, Image } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useToast } from '../../context/ToastContext';
 import { useSystem } from '../../context/SystemContext';
-
-interface TestCase {
-  id: string;
-  nist_control: string;
-  cci_ref: string;
-  stig_vuln_id: string;
-  test_description: string;
-  test_procedure: string;
-  expected_result: string;
-  actual_result?: string;
-  status: 'Not Started' | 'In Progress' | 'Passed' | 'Failed' | 'Not Applicable';
-  stig_compliance_status?: 'Open' | 'NotAFinding' | 'Not_Applicable' | 'Not_Reviewed';
-  notes?: string;
-  evidence_files?: string[];
-  tested_by?: string;
-  tested_date?: string;
-  risk_rating: 'Low' | 'Medium' | 'High' | 'Critical';
-}
-
-interface SecurityTestPlan {
-  id: string;
-  name: string;
-  description?: string;
-  created_date: string;
-  updated_date: string;
-  status: 'Draft' | 'In Progress' | 'Completed' | 'On Hold';
-  poam_id?: number;
-  stig_mapping_id?: string;
-  test_cases: TestCase[];
-  overall_score?: number;
-}
+import { TestCase, SecurityTestPlan } from '../../types/testPlan';
 
 interface EvidenceManagerProps {
   testCase: TestCase;

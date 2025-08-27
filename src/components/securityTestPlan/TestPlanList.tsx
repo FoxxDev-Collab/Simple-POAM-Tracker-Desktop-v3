@@ -2,37 +2,7 @@ import { Plus, CheckCircle, Clock, AlertTriangle, Search, Trash2, Upload } from 
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
-
-interface TestCase {
-  id: string;
-  nist_control: string;
-  cci_ref: string;
-  stig_vuln_id: string;
-  test_description: string;
-  test_procedure: string;
-  expected_result: string;
-  actual_result?: string;
-  status: 'Not Started' | 'In Progress' | 'Passed' | 'Failed' | 'Not Applicable';
-  stig_compliance_status?: 'Open' | 'NotAFinding' | 'Not_Applicable' | 'Not_Reviewed';
-  notes?: string;
-  evidence_files?: string[];
-  tested_by?: string;
-  tested_date?: string;
-  risk_rating: 'Low' | 'Medium' | 'High' | 'Critical';
-}
-
-interface SecurityTestPlan {
-  id: string;
-  name: string;
-  description?: string;
-  created_date: string;
-  updated_date: string;
-  status: 'Draft' | 'In Progress' | 'Completed' | 'On Hold';
-  poam_id?: number;
-  stig_mapping_id?: string;
-  test_cases: TestCase[];
-  overall_score?: number;
-}
+import { SecurityTestPlan } from '../../types/testPlan';
 
 interface TestPlanListProps {
   testPlans: SecurityTestPlan[];
@@ -130,11 +100,11 @@ export default function TestPlanList({
         <div className="text-center py-12">
           <div className="text-muted-foreground mb-4">
             <AlertTriangle className="w-16 h-16 mx-auto mb-2" />
-            <h3 className="text-lg font-semibold text-foreground">No STIG Mappings Found</h3>
+            <h3 className="text-lg font-semibold text-foreground">No Prep Lists Found</h3>
             <p className="text-sm text-muted-foreground mt-2 mb-4">
-              You need to create and save STIG mappings before creating test plans.
+              You need to create prep lists before creating test plans.
               <br />
-              Go to <strong>STIG Center</strong> to create your first mapping.
+              Go to <strong>STIG Center</strong> or <strong>Nessus Center</strong> to create your first prep list.
             </p>
             <p className="text-sm text-muted-foreground mb-4">
               <strong>Or</strong> import a complete evidence package if you have one:

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -33,7 +33,7 @@ interface ToastProviderProps {
 export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = (message: string, type: ToastType = 'info', duration = 5000) => {
+  const addToast = useCallback((message: string, type: ToastType = 'info', duration = 5000) => {
     const id = Math.random().toString(36).substring(2, 9);
     
     const newToast: Toast = {
@@ -48,19 +48,19 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
     // Auto-remove toast after duration
     if (duration !== 0) {
       setTimeout(() => {
-        removeToast(id);
+        setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== id));
       }, duration);
     }
-  };
+  }, []);
 
   // Alias for addToast with different parameter order to match common patterns
-  const showToast = (type: ToastType, message: string, duration = 5000) => {
+  const showToast = useCallback((type: ToastType, message: string, duration = 5000) => {
     addToast(message, type, duration);
-  };
+  }, [addToast]);
 
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== id));
-  };
+  }, []);
 
   return (
     <ToastContext.Provider value={{ toasts, addToast, showToast, removeToast }}>

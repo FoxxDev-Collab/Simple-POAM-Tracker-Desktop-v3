@@ -32,20 +32,34 @@ import TestCaseModal from './TestCaseModal';
 
 interface TestCase {
   id: string;
-  nist_control: string;
-  cci_ref: string;
-  stig_vuln_id: string;
   test_description: string;
   test_procedure: string;
   expected_result: string;
   actual_result?: string;
   status: 'Not Started' | 'In Progress' | 'Passed' | 'Failed' | 'Not Applicable';
-  stig_compliance_status?: 'Open' | 'NotAFinding' | 'Not_Applicable' | 'Not_Reviewed';
   notes?: string;
   evidence_files?: string[];
   tested_by?: string;
   tested_date?: string;
   risk_rating: 'Low' | 'Medium' | 'High' | 'Critical';
+  
+  // Type indicator
+  source_type: 'stig' | 'nessus';
+  
+  // STIG-specific fields
+  nist_control?: string;
+  cci_ref?: string;
+  stig_vuln_id?: string;
+  stig_compliance_status?: 'Open' | 'NotAFinding' | 'Not_Applicable' | 'Not_Reviewed';
+  
+  // Nessus-specific fields
+  cve_id?: string;
+  plugin_id?: string;
+  plugin_name?: string;
+  cvss_score?: string;
+  severity?: string;
+  affected_hosts?: string[];
+  nessus_compliance_status?: 'Open' | 'Fixed' | 'Exception' | 'Not_Applicable';
 }
 
 interface SecurityTestPlan {
@@ -55,6 +69,7 @@ interface SecurityTestPlan {
   created_date: string;
   updated_date: string;
   status: 'Draft' | 'In Progress' | 'Completed' | 'On Hold';
+  source_type: 'stig' | 'nessus' | 'mixed';
   poam_id?: number;
   stig_mapping_id?: string;
   test_cases: TestCase[];
@@ -355,30 +370,38 @@ export default function SecurityTestPlan() {
           
           const idStr = String(identifier);
           const isCVE = idStr.startsWith('CVE-');
-          const testId = isCVE ? idStr : `PLUGIN-${firstFinding.plugin_id ?? 'UNK'}`;
           
           return {
             id: crypto.randomUUID(),
-            nist_control: isCVE ? `CVE-${idStr.split('-')[1]}-${idStr.split('-')[2]}` : `NESSUS-${firstFinding.plugin_id || 'UNKNOWN'}`,
-            cci_ref: isCVE ? idStr : 'N/A',
-            stig_vuln_id: testId,
+            source_type: 'nessus',
             test_description: `Validate and remediate ${idStr}: ${firstFinding.plugin_name || 'Unknown vulnerability'}`,
             test_procedure: `1. Verify presence of vulnerability on affected hosts: ${affectedHosts.join(', ') || 'Unknown hosts'}
 2. Assess the risk and impact of this ${isCVE ? 'CVE' : 'vulnerability'}
-3. Implement appropriate remediation measures
-4. Validate remediation effectiveness
+3. Implement appropriate remediation measures based on vendor guidance
+4. Validate remediation effectiveness through re-scanning or manual verification
 5. Document findings and remediation steps`,
             expected_result: `Vulnerability ${idStr} is successfully remediated on all affected systems with proper validation and documentation`,
             status: 'Not Started',
             risk_rating: getRiskRating(severity),
-            notes: `${isCVE ? 'CVE' : 'Plugin'}: ${idStr}
-Severity: ${severity}
-Affected Hosts: ${affectedHosts.length} host(s) - ${affectedHosts.join(', ') || 'Unknown'}
-Plugin: ${firstFinding.plugin_name || 'Unknown'}
-CVSS Score: ${firstFinding.cvss_score || firstFinding.cvss_base_score || 'N/A'}
-Description: ${firstFinding.synopsis || firstFinding.description || 'No description available'}
-Solution: ${firstFinding.solution || 'Refer to vendor guidance'}
-Source: Nessus Scan - ${nessusPrepList.scan_info?.name || 'Unknown scan'}`
+            
+            // Nessus-specific fields
+            cve_id: isCVE ? idStr : undefined,
+            plugin_id: firstFinding.plugin_id?.toString(),
+            plugin_name: firstFinding.plugin_name,
+            cvss_score: firstFinding.cvss_score || firstFinding.cvss_base_score,
+            severity: severity,
+            affected_hosts: affectedHosts,
+            nessus_compliance_status: 'Open',
+            
+            notes: `Vulnerability Details:
+- ${isCVE ? 'CVE' : 'Plugin'}: ${idStr}
+- Severity: ${severity}
+- CVSS Score: ${firstFinding.cvss_score || firstFinding.cvss_base_score || 'N/A'}
+- Affected Hosts (${affectedHosts.length}): ${affectedHosts.join(', ') || 'Unknown'}
+- Plugin: ${firstFinding.plugin_name || 'Unknown'}
+- Description: ${firstFinding.synopsis || firstFinding.description || 'No description available'}
+- Solution: ${firstFinding.solution || 'Refer to vendor guidance'}
+- Source: Nessus Scan - ${nessusPrepList.scan_info?.name || 'Unknown scan'}`
           };
         });
       } else {
@@ -386,16 +409,20 @@ Source: Nessus Scan - ${nessusPrepList.scan_info?.name || 'Unknown scan'}`
         testCases = [
           {
             id: crypto.randomUUID(),
-            nist_control: 'NESSUS-VALIDATION',
-            cci_ref: 'N/A',
-            stig_vuln_id: 'NESSUS-001',
+            source_type: 'nessus',
             test_description: `Validate ${nessusPrepList.finding_count} Nessus vulnerability findings`,
-            test_procedure: 'Review and validate the identified vulnerabilities from Nessus scan',
+            test_procedure: 'Review and validate the identified vulnerabilities from Nessus scan results',
             expected_result: 'All vulnerabilities are properly documented and remediation plans are in place',
             status: 'Not Started',
             risk_rating: 'High',
-            notes: `Nessus scan findings from: ${nessusPrepList.scan_info?.name || 'Unknown scan'}
-Note: Detailed finding data not available for individual CVE test case generation.`
+            plugin_name: 'Nessus Scan Validation',
+            severity: 'High',
+            nessus_compliance_status: 'Open',
+            notes: `Bulk validation test case for Nessus scan findings
+- Scan Source: ${nessusPrepList.scan_info?.name || 'Unknown scan'}
+- Finding Count: ${nessusPrepList.finding_count}
+- Note: Detailed finding data not available for individual vulnerability test cases.
+- Review individual findings in the Nessus Center for detailed remediation guidance.`
           }
         ];
       }
@@ -421,6 +448,7 @@ Note: Detailed finding data not available for individual CVE test case generatio
         .flatMap(control => 
           control.stigs.map(stig => ({
             id: crypto.randomUUID(),
+            source_type: 'stig',
             nist_control: control.nist_control,
             cci_ref: control.ccis.join(', '),
             stig_vuln_id: stig.vuln_num || stig.rule_id || 'Unknown',
@@ -450,10 +478,11 @@ Note: Detailed finding data not available for individual CVE test case generatio
       const newPlan: SecurityTestPlan = {
         id: crypto.randomUUID(),
         name: createForm.name,
-        description: createForm.description || `Test plan generated from prep list: ${prepListData.name}`,
+        description: createForm.description || `Test plan generated from ${prepListData.source_type === 'stig' ? 'STIG' : 'Nessus'} prep list: ${prepListData.name}`,
         created_date: new Date().toISOString(),
         updated_date: new Date().toISOString(),
         status: 'Draft',
+        source_type: prepListData.source_type,
         stig_mapping_id: prepListData.source_type === 'stig' ? (prepListData.stig_mapping_id || null) : null,
         test_cases: testCases,
       };
@@ -744,8 +773,20 @@ Note: Detailed finding data not available for individual CVE test case generatio
   }, []);
 
   const filteredTestCases = selectedPlan?.test_cases.filter(tc => {
-    const matchesFilter = tc.nist_control.toLowerCase().includes(filter.toLowerCase()) ||
-                         tc.test_description.toLowerCase().includes(filter.toLowerCase());
+    const searchTerm = filter.toLowerCase();
+    const matchesFilter = tc.test_description.toLowerCase().includes(searchTerm) ||
+                         tc.test_procedure.toLowerCase().includes(searchTerm) ||
+                         (tc.source_type === 'stig' && (
+                           tc.nist_control?.toLowerCase().includes(searchTerm) ||
+                           tc.cci_ref?.toLowerCase().includes(searchTerm) ||
+                           tc.stig_vuln_id?.toLowerCase().includes(searchTerm)
+                         )) ||
+                         (tc.source_type === 'nessus' && (
+                           tc.cve_id?.toLowerCase().includes(searchTerm) ||
+                           tc.plugin_id?.toLowerCase().includes(searchTerm) ||
+                           tc.plugin_name?.toLowerCase().includes(searchTerm) ||
+                           tc.severity?.toLowerCase().includes(searchTerm)
+                         ));
     const matchesStatus = statusFilter === 'all' || tc.status === statusFilter;
     return matchesFilter && matchesStatus;
   }) || [];
@@ -823,7 +864,7 @@ Note: Detailed finding data not available for individual CVE test case generatio
             <Button 
               onClick={() => setShowCreateModal(true)} 
               size="sm"
-              disabled={loading || stpPrepLists.length === 0 || isImporting || isExporting}
+              disabled={loading || (stpPrepLists.length === 0 && nessusPrepLists.length === 0) || isImporting || isExporting}
               className="flex-shrink-0"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -884,8 +925,8 @@ Note: Detailed finding data not available for individual CVE test case generatio
 
       <div className="max-w-full">
         {!selectedPlan ? (
-          // Test Plan List View
-          <TestPlanList
+            // Test Plan List View
+            <TestPlanList
             testPlans={testPlans}
             loading={loading}
             isDeleting={isDeleting}
@@ -894,10 +935,10 @@ Note: Detailed finding data not available for individual CVE test case generatio
             onSelectPlan={setSelectedPlan}
             onCreateNew={() => setShowCreateModal(true)}
             onDeletePlan={handleDeleteTestPlan}
-            hasSTIGMappings={stigMappings.length > 0}
+            hasSTIGMappings={stigMappings.length > 0 || stpPrepLists.length > 0 || nessusPrepLists.length > 0}
             onImportEvidencePackage={handleImportEvidencePackage}
-          />
-        ) : (
+            />
+          ) : (
           // Selected Test Plan Detail View
           <div className="space-y-6">
             {/* Plan Header */}
@@ -1010,12 +1051,45 @@ Note: Detailed finding data not available for individual CVE test case generatio
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <Badge variant="outline" className="text-xs">
-                              {testCase.nist_control}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs">
-                              {testCase.cci_ref}
-                            </Badge>
+                            {testCase.source_type === 'stig' ? (
+                              <>
+                                <Badge variant="outline" className="text-xs">
+                                  NIST: {testCase.nist_control}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  CCI: {testCase.cci_ref}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  STIG: {testCase.stig_vuln_id}
+                                </Badge>
+                              </>
+                            ) : (
+                              <>
+                                {testCase.cve_id && (
+                                  <Badge variant="outline" className="text-xs bg-red-50 text-red-700">
+                                    CVE: {testCase.cve_id}
+                                  </Badge>
+                                )}
+                                {testCase.plugin_id && (
+                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                                    Plugin: {testCase.plugin_id}
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className={`text-xs ${
+                                  testCase.severity?.toLowerCase() === 'critical' ? 'bg-purple-50 text-purple-700' :
+                                  testCase.severity?.toLowerCase() === 'high' ? 'bg-red-50 text-red-700' :
+                                  testCase.severity?.toLowerCase() === 'medium' ? 'bg-yellow-50 text-yellow-700' :
+                                  'bg-green-50 text-green-700'
+                                }`}>
+                                  {testCase.severity} Risk
+                                </Badge>
+                                {testCase.cvss_score && (
+                                  <Badge variant="outline" className="text-xs">
+                                    CVSS: {testCase.cvss_score}
+                                  </Badge>
+                                )}
+                              </>
+                            )}
                           </div>
                           <p className="font-medium">{testCase.test_description}</p>
                           <p className="text-sm text-muted-foreground">{testCase.test_procedure}</p>

@@ -4,30 +4,13 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { useToast } from '../../context/ToastContext';
 import EvidenceManager from './EvidenceManager';
-
-interface TestCase {
-  id: string;
-  nist_control: string;
-  cci_ref: string;
-  stig_vuln_id: string;
-  test_description: string;
-  test_procedure: string;
-  expected_result: string;
-  actual_result?: string;
-  status: 'Not Started' | 'In Progress' | 'Passed' | 'Failed' | 'Not Applicable';
-  stig_compliance_status?: 'Open' | 'NotAFinding' | 'Not_Applicable' | 'Not_Reviewed';
-  notes?: string;
-  evidence_files?: string[];
-  tested_by?: string;
-  tested_date?: string;
-  risk_rating: 'Low' | 'Medium' | 'High' | 'Critical';
-}
+import { TestCase, SecurityTestPlan } from '../../types/testPlan';
 
 
 interface TestCaseModalProps {
   isOpen: boolean;
   testCase: TestCase;
-  selectedPlan: any; // SecurityTestPlan
+  selectedPlan: SecurityTestPlan;
   isUpdating: boolean;
   onClose: () => void;
   onSave: (testCase: TestCase) => Promise<void>;
@@ -79,9 +62,21 @@ export default function TestCaseModal({
               <CheckCircle className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-foreground">Edit Test Case</h2>
+              <h2 className="text-xl font-semibold text-foreground">
+                Edit {editingTestCase.source_type === 'stig' ? 'STIG' : 'Nessus'} Test Case
+              </h2>
               <p className="text-sm text-muted-foreground">
-                {editingTestCase.nist_control} • {editingTestCase.cci_ref} • {editingTestCase.stig_vuln_id}
+                {editingTestCase.source_type === 'stig' ? (
+                  <>
+                    {editingTestCase.nist_control} • {editingTestCase.cci_ref} • {editingTestCase.stig_vuln_id}
+                  </>
+                ) : (
+                  <>
+                    {editingTestCase.cve_id && `${editingTestCase.cve_id} • `}
+                    {editingTestCase.plugin_id && `Plugin ${editingTestCase.plugin_id} • `}
+                    {editingTestCase.severity} Risk
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -101,97 +96,233 @@ export default function TestCaseModal({
           {/* Basic Information Card */}
           <Card>
             <CardHeader className="pb-4">
-              <h3 className="text-lg font-semibold">Test Information</h3>
+              <h3 className="text-lg font-semibold">
+                {editingTestCase.source_type === 'stig' ? 'STIG' : 'Nessus'} Test Information
+              </h3>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">STIG ID</label>
-                  <input
-                    type="text"
-                    value={editingTestCase.nist_control}
-                    className="w-full px-3 py-2 bg-muted border border-input rounded-lg text-muted-foreground"
-                    disabled
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">CCI Reference</label>
-                  <input
-                    type="text"
-                    value={editingTestCase.cci_ref}
-                    className="w-full px-3 py-2 bg-muted border border-input rounded-lg text-muted-foreground"
-                    disabled
-                  />
-                </div>
-              </div>
+              {/* Conditional rendering based on source type */}
+              {editingTestCase.source_type === 'stig' ? (
+                // STIG-specific fields
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">NIST Control</label>
+                      <input
+                        type="text"
+                        value={editingTestCase.nist_control}
+                        className="w-full px-3 py-2 bg-muted border border-input rounded-lg text-muted-foreground"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">CCI Reference</label>
+                      <input
+                        type="text"
+                        value={editingTestCase.cci_ref}
+                        className="w-full px-3 py-2 bg-muted border border-input rounded-lg text-muted-foreground"
+                        disabled
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">STIG Vulnerability ID</label>
+                      <input
+                        type="text"
+                        value={editingTestCase.stig_vuln_id}
+                        className="w-full px-3 py-2 bg-muted border border-input rounded-lg text-muted-foreground"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">Test Status *</label>
+                      <select
+                        value={editingTestCase.status}
+                        onChange={(e) => setEditingTestCase(prev => ({
+                          ...prev,
+                          status: e.target.value as any
+                        }))}
+                        className="w-full px-3 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                      >
+                        <option value="Not Started">Not Started</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Passed">Passed</option>
+                        <option value="Failed">Failed</option>
+                        <option value="Not Applicable">Not Applicable</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">STIG Compliance Status</label>
+                      <select
+                        value={editingTestCase.stig_compliance_status || 'Not_Reviewed'}
+                        onChange={(e) => setEditingTestCase(prev => ({
+                          ...prev,
+                          stig_compliance_status: e.target.value as any
+                        }))}
+                        className="w-full px-3 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                      >
+                        <option value="Not_Reviewed">Not Reviewed</option>
+                        <option value="Open">Open (Non-Compliant)</option>
+                        <option value="NotAFinding">Not a Finding (Compliant)</option>
+                        <option value="Not_Applicable">Not Applicable</option>
+                      </select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        This updates the original STIG mapping compliance status
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">Risk Rating</label>
+                      <select
+                        value={editingTestCase.risk_rating}
+                        onChange={(e) => setEditingTestCase(prev => ({
+                          ...prev,
+                          risk_rating: e.target.value as any
+                        }))}
+                        className="w-full px-3 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                // Nessus-specific fields
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    {editingTestCase.cve_id && (
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">CVE ID</label>
+                        <input
+                          type="text"
+                          value={editingTestCase.cve_id}
+                          className="w-full px-3 py-2 bg-muted border border-input rounded-lg text-muted-foreground"
+                          disabled
+                        />
+                      </div>
+                    )}
+                    {editingTestCase.plugin_id && (
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">Plugin ID</label>
+                        <input
+                          type="text"
+                          value={editingTestCase.plugin_id}
+                          className="w-full px-3 py-2 bg-muted border border-input rounded-lg text-muted-foreground"
+                          disabled
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">Plugin Name</label>
+                      <input
+                        type="text"
+                        value={editingTestCase.plugin_name || 'Unknown Plugin'}
+                        className="w-full px-3 py-2 bg-muted border border-input rounded-lg text-muted-foreground"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">Test Status *</label>
+                      <select
+                        value={editingTestCase.status}
+                        onChange={(e) => setEditingTestCase(prev => ({
+                          ...prev,
+                          status: e.target.value as any
+                        }))}
+                        className="w-full px-3 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                      >
+                        <option value="Not Started">Not Started</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Passed">Passed</option>
+                        <option value="Failed">Failed</option>
+                        <option value="Not Applicable">Not Applicable</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">Severity</label>
+                      <input
+                        type="text"
+                        value={editingTestCase.severity || 'Unknown'}
+                        className="w-full px-3 py-2 bg-muted border border-input rounded-lg text-muted-foreground"
+                        disabled
+                      />
+                    </div>
+                    {editingTestCase.cvss_score && (
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">CVSS Score</label>
+                        <input
+                          type="text"
+                          value={editingTestCase.cvss_score}
+                          className="w-full px-3 py-2 bg-muted border border-input rounded-lg text-muted-foreground"
+                          disabled
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">Nessus Compliance Status</label>
+                      <select
+                        value={editingTestCase.nessus_compliance_status || 'Open'}
+                        onChange={(e) => setEditingTestCase(prev => ({
+                          ...prev,
+                          nessus_compliance_status: e.target.value as any
+                        }))}
+                        className="w-full px-3 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                      >
+                        <option value="Open">Open (Needs Remediation)</option>
+                        <option value="Fixed">Fixed (Remediated)</option>
+                        <option value="Exception">Exception (Approved)</option>
+                        <option value="Not_Applicable">Not Applicable</option>
+                      </select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Current remediation status for this vulnerability
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">Risk Rating</label>
+                      <select
+                        value={editingTestCase.risk_rating}
+                        onChange={(e) => setEditingTestCase(prev => ({
+                          ...prev,
+                          risk_rating: e.target.value as any
+                        }))}
+                        className="w-full px-3 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  {editingTestCase.affected_hosts && editingTestCase.affected_hosts.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">Affected Hosts ({editingTestCase.affected_hosts.length})</label>
+                      <div className="w-full px-3 py-2 bg-muted border border-input rounded-lg text-muted-foreground max-h-20 overflow-y-auto">
+                        {editingTestCase.affected_hosts.join(', ')}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Vulnerability ID</label>
-                  <input
-                    type="text"
-                    value={editingTestCase.stig_vuln_id}
-                    className="w-full px-3 py-2 bg-muted border border-input rounded-lg text-muted-foreground"
-                    disabled
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Test Status *</label>
-                  <select
-                    value={editingTestCase.status}
-                    onChange={(e) => setEditingTestCase(prev => ({
-                      ...prev,
-                      status: e.target.value as any
-                    }))}
-                    className="w-full px-3 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                  >
-                    <option value="Not Started">Not Started</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Passed">Passed</option>
-                    <option value="Failed">Failed</option>
-                    <option value="Not Applicable">Not Applicable</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">STIG Compliance Status</label>
-                  <select
-                    value={editingTestCase.stig_compliance_status || 'Not_Reviewed'}
-                    onChange={(e) => setEditingTestCase(prev => ({
-                      ...prev,
-                      stig_compliance_status: e.target.value as any
-                    }))}
-                    className="w-full px-3 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                  >
-                    <option value="Not_Reviewed">Not Reviewed</option>
-                    <option value="Open">Open (Non-Compliant)</option>
-                    <option value="NotAFinding">Not a Finding (Compliant)</option>
-                    <option value="Not_Applicable">Not Applicable</option>
-                  </select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    This updates the original STIG mapping compliance status
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Risk Rating</label>
-                  <select
-                    value={editingTestCase.risk_rating}
-                    onChange={(e) => setEditingTestCase(prev => ({
-                      ...prev,
-                      risk_rating: e.target.value as any
-                    }))}
-                    className="w-full px-3 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                  >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                    <option value="Critical">Critical</option>
-                  </select>
-                </div>
-              </div>
-              
+              {/* Common fields for both types */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">Tested By</label>

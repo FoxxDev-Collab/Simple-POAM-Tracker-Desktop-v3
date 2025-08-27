@@ -698,8 +698,8 @@ export default function Settings() {
   };
 
   const renderAbout = () => {
-    const appName = 'POAM Tracker Desktop';
-    const version = '1.0.1';
+    const appName = 'POAM Tracker Desktop-v3';
+    const version = '1.0.4';
 
     return (
       <div className="space-y-6">

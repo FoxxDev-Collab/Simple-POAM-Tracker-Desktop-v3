@@ -1022,6 +1022,16 @@ pub fn run() {
             commands::evidence::delete_evidence_file,
             commands::evidence::export_evidence_package,
             commands::evidence::open_file_with_default_app,
+            // STIG file management commands
+            commands::stigs::save_stig_file,
+            commands::stigs::get_all_stig_files,
+            commands::stigs::get_stig_file_by_id,
+            commands::stigs::get_stig_file_content,
+            commands::stigs::update_stig_file,
+            commands::stigs::delete_stig_file,
+            commands::stigs::download_stig_file,
+            commands::stigs::update_stig_file_compliance,
+            commands::stigs::update_stig_file_progress,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
