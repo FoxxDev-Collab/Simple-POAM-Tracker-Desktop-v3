@@ -20,6 +20,9 @@ pub enum DatabaseError {
     #[error("Failed to clear database: {0}")]
     ClearDatabase(String),
 
+    #[error("Migration error: {0}")]
+    Migration(String),
+
     #[error("Not Found: {0}")]
     NotFound(String),
 }

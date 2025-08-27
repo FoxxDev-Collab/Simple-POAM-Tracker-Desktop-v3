@@ -220,20 +220,90 @@ pub async fn export_evidence_package(
 pub async fn open_file_with_default_app(file_path: String) -> Result<(), Error> {
     println!("Opening file with default app: {}", file_path);
 
+    // Validate and sanitize file path to prevent command injection
+    let sanitized_path = sanitize_file_path(&file_path)?;
+    
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd").args(["/C", "start", "", &file_path]).spawn()?;
+        // Use safer approach with proper argument separation
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "\"\""])
+            .arg(&sanitized_path)
+            .spawn()?;
     }
 
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("open").arg(&file_path).spawn()?;
+        std::process::Command::new("open").arg(&sanitized_path).spawn()?;
     }
 
     #[cfg(target_os = "linux")]
     {
-        std::process::Command::new("xdg-open").arg(&file_path).spawn()?;
+        std::process::Command::new("xdg-open").arg(&sanitized_path).spawn()?;
     }
 
     Ok(())
+}
+
+/// Sanitize file path to prevent command injection attacks
+fn sanitize_file_path(file_path: &str) -> Result<String, Error> {
+    use std::path::Path;
+    
+    // Check if path is empty
+    if file_path.trim().is_empty() {
+        return Err(Error::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "File path cannot be empty"
+        )));
+    }
+    
+    // Validate path format and check for dangerous characters
+    let path = Path::new(file_path);
+    
+    // Check for null bytes and other dangerous characters
+    if file_path.contains('\0') || file_path.contains('\n') || file_path.contains('\r') {
+        return Err(Error::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "File path contains invalid characters"
+        )));
+    }
+    
+    // Check for command injection patterns (Windows specific)
+    #[cfg(target_os = "windows")]
+    {
+        let dangerous_patterns = ["&", "|", ";", "&&", "||", ">", "<", "^"];
+        for pattern in &dangerous_patterns {
+            if file_path.contains(pattern) {
+                return Err(Error::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("File path contains dangerous pattern: {}", pattern)
+                )));
+            }
+        }
+    }
+    
+    // Verify the path exists and is a file
+    if !path.exists() {
+        return Err(Error::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "File does not exist"
+        )));
+    }
+    
+    if !path.is_file() {
+        return Err(Error::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Path is not a file"
+        )));
+    }
+    
+    // Convert to absolute path for additional safety
+    let absolute_path = path.canonicalize().map_err(|e| {
+        Error::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("Failed to resolve absolute path: {}", e)
+        ))
+    })?;
+    
+    Ok(absolute_path.to_string_lossy().to_string())
 }

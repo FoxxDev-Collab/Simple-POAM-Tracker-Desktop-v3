@@ -545,11 +545,8 @@ impl Database {
         
         // Drop all tables in reverse dependency order
         let tables_to_drop = vec![
-            "group_cci_mappings",
-            "group_control_poam_associations", 
-            "group_baseline_controls",
-            "group_milestones",
             "group_poams",
+            "group_milestones", 
             "group_security_test_plans",
             "group_system_associations",
             "system_groups",
@@ -570,7 +567,34 @@ impl Database {
         ];
         
         for table in tables_to_drop {
-            match self.conn.execute(&format!("DROP TABLE IF EXISTS {}", table), []) {
+            // Use whitelist approach to prevent SQL injection
+            let drop_sql = match table {
+                "group_poams" => "DROP TABLE IF EXISTS group_poams",
+                "group_milestones" => "DROP TABLE IF EXISTS group_milestones",
+                "group_security_test_plans" => "DROP TABLE IF EXISTS group_security_test_plans",
+                "group_system_associations" => "DROP TABLE IF EXISTS group_system_associations",
+                "system_groups" => "DROP TABLE IF EXISTS system_groups",
+                "control_poam_associations" => "DROP TABLE IF EXISTS control_poam_associations",
+                "baseline_controls" => "DROP TABLE IF EXISTS baseline_controls",
+                "stig_files" => "DROP TABLE IF EXISTS stig_files",
+                "nessus_prep_lists" => "DROP TABLE IF EXISTS nessus_prep_lists",
+                "nessus_findings" => "DROP TABLE IF EXISTS nessus_findings",
+                "nessus_scans" => "DROP TABLE IF EXISTS nessus_scans",
+                "stp_prep_lists" => "DROP TABLE IF EXISTS stp_prep_lists",
+                "security_test_plans" => "DROP TABLE IF EXISTS security_test_plans",
+                "stig_mappings" => "DROP TABLE IF EXISTS stig_mappings",
+                "note_poam_associations" => "DROP TABLE IF EXISTS note_poam_associations",
+                "notes" => "DROP TABLE IF EXISTS notes",
+                "milestones" => "DROP TABLE IF EXISTS milestones",
+                "poams" => "DROP TABLE IF EXISTS poams",
+                "systems" => "DROP TABLE IF EXISTS systems",
+                _ => {
+                    println!("Warning: Invalid table name: {}", table);
+                    continue;
+                }
+            };
+            
+            match self.conn.execute(drop_sql, []) {
                 Ok(_) => println!("Dropped table: {}", table),
                 Err(e) => println!("Warning: Failed to drop table {}: {}", table, e),
             }

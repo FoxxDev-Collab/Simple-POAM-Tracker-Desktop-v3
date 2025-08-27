@@ -370,7 +370,8 @@ impl<'a> POAMOperations<'a> {
             })?;
         
         // Clear all tables with error handling
-        let tables = vec![
+        // Using whitelist approach to prevent SQL injection
+        let valid_tables = vec![
             "note_poam_associations",
             "milestones", 
             "poams",
@@ -380,8 +381,24 @@ impl<'a> POAMOperations<'a> {
             "stig_mappings"
         ];
         
-        for table_name in tables {
-            match tx.execute(&format!("DELETE FROM {}", table_name), params![]) {
+        for table_name in valid_tables {
+            // Validate table name against whitelist before using in query
+            let sql = match table_name {
+                "note_poam_associations" => "DELETE FROM note_poam_associations",
+                "milestones" => "DELETE FROM milestones",
+                "poams" => "DELETE FROM poams",
+                "notes" => "DELETE FROM notes",
+                "stp_prep_lists" => "DELETE FROM stp_prep_lists",
+                "security_test_plans" => "DELETE FROM security_test_plans",
+                "stig_mappings" => "DELETE FROM stig_mappings",
+                _ => {
+                    let error_msg = format!("Invalid table name: {}", table_name);
+                    println!("Error: {}", error_msg);
+                    return Err(DatabaseError::ClearDatabase(error_msg));
+                }
+            };
+            
+            match tx.execute(sql, params![]) {
                 Ok(rows) => println!("Deleted {} rows from {} table", rows, table_name),
                 Err(e) => {
                     let error_msg = format!("Failed to clear {} table: {}", table_name, e);

@@ -460,7 +460,7 @@ impl<'a> DatabaseSetup<'a> {
 
     fn migrate_poam_enhanced_fields(&mut self) -> Result<(), DatabaseError> {
         // List of enhanced fields to add
-        let enhanced_fields = [
+        let enhanced_fields = vec![
             "resources",
             "source_identifying_vulnerability",
             "raw_severity",
@@ -484,10 +484,25 @@ impl<'a> DatabaseSetup<'a> {
 
             if !has_field {
                 println!("Adding {} column to poams table", field);
-                self.conn.execute(
-                    &format!("ALTER TABLE poams ADD COLUMN {} TEXT", field),
-                    params![],
-                )?;
+                // Use whitelist approach to prevent SQL injection
+                let alter_query = match *field {
+                    "resources" => "ALTER TABLE poams ADD COLUMN resources TEXT",
+                    "source_identifying_vulnerability" => "ALTER TABLE poams ADD COLUMN source_identifying_vulnerability TEXT",
+                    "raw_severity" => "ALTER TABLE poams ADD COLUMN raw_severity TEXT",
+                    "severity" => "ALTER TABLE poams ADD COLUMN severity TEXT",
+                    "relevance_of_threat" => "ALTER TABLE poams ADD COLUMN relevance_of_threat TEXT",
+                    "likelihood" => "ALTER TABLE poams ADD COLUMN likelihood TEXT",
+                    "impact" => "ALTER TABLE poams ADD COLUMN impact TEXT",
+                    "residual_risk" => "ALTER TABLE poams ADD COLUMN residual_risk TEXT",
+                    "mitigations" => "ALTER TABLE poams ADD COLUMN mitigations TEXT",
+                    "devices_affected" => "ALTER TABLE poams ADD COLUMN devices_affected TEXT",
+                    "source_stig_mapping_id" => "ALTER TABLE poams ADD COLUMN source_stig_mapping_id TEXT",
+                    "selected_vulnerabilities" => "ALTER TABLE poams ADD COLUMN selected_vulnerabilities TEXT",
+                    _ => {
+                        return Err(DatabaseError::Migration(format!("Invalid field name: {}", field)));
+                    }
+                };
+                self.conn.execute(alter_query, params![])?;
             }
         }
 
@@ -517,23 +532,48 @@ impl<'a> DatabaseSetup<'a> {
 
     fn migrate_to_system_schema(&mut self) -> Result<(), DatabaseError> {
         // Add system_id columns to existing tables if they don't exist
-        let tables_to_migrate = vec![
+        // Using whitelist approach to prevent SQL injection
+        let valid_tables = vec![
             "poams", "notes", "stig_mappings", "security_test_plans", "stp_prep_lists"
         ];
 
-        for table in tables_to_migrate {
+        for table in valid_tables {
+            // Validate table name and construct safe queries
+            let (pragma_query, alter_query) = match table {
+                "poams" => (
+                    "SELECT COUNT(*) FROM pragma_table_info('poams') WHERE name = 'system_id'",
+                    "ALTER TABLE poams ADD COLUMN system_id TEXT NOT NULL DEFAULT 'default'"
+                ),
+                "notes" => (
+                    "SELECT COUNT(*) FROM pragma_table_info('notes') WHERE name = 'system_id'",
+                    "ALTER TABLE notes ADD COLUMN system_id TEXT NOT NULL DEFAULT 'default'"
+                ),
+                "stig_mappings" => (
+                    "SELECT COUNT(*) FROM pragma_table_info('stig_mappings') WHERE name = 'system_id'",
+                    "ALTER TABLE stig_mappings ADD COLUMN system_id TEXT NOT NULL DEFAULT 'default'"
+                ),
+                "security_test_plans" => (
+                    "SELECT COUNT(*) FROM pragma_table_info('security_test_plans') WHERE name = 'system_id'",
+                    "ALTER TABLE security_test_plans ADD COLUMN system_id TEXT NOT NULL DEFAULT 'default'"
+                ),
+                "stp_prep_lists" => (
+                    "SELECT COUNT(*) FROM pragma_table_info('stp_prep_lists') WHERE name = 'system_id'",
+                    "ALTER TABLE stp_prep_lists ADD COLUMN system_id TEXT NOT NULL DEFAULT 'default'"
+                ),
+                _ => {
+                    return Err(DatabaseError::Migration(format!("Invalid table name: {}", table)));
+                }
+            };
+
             let has_system_id = self.conn.query_row(
-                &format!("SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = 'system_id'", table),
+                pragma_query,
                 params![],
                 |row| row.get::<_, i64>(0)
             ).unwrap_or(0) > 0;
 
             if !has_system_id {
                 println!("Adding system_id column to {} table", table);
-                self.conn.execute(
-                    &format!("ALTER TABLE {} ADD COLUMN system_id TEXT NOT NULL DEFAULT 'default'", table),
-                    params![],
-                )?;
+                self.conn.execute(alter_query, params![])?;
             }
         }
 
@@ -694,10 +734,18 @@ impl<'a> DatabaseSetup<'a> {
 
             if !has_field {
                 println!("Adding {} column to nessus_prep_lists table", field);
-                self.conn.execute(
-                    &format!("ALTER TABLE nessus_prep_lists ADD COLUMN {} TEXT", field),
-                    params![],
-                )?;
+                // Use whitelist approach to prevent SQL injection
+                let alter_query = match *field {
+                    "milestones" => "ALTER TABLE nessus_prep_lists ADD COLUMN milestones TEXT",
+                    "cve_analysis" => "ALTER TABLE nessus_prep_lists ADD COLUMN cve_analysis TEXT",
+                    "summary" => "ALTER TABLE nessus_prep_lists ADD COLUMN summary TEXT",
+                    "prep_status" => "ALTER TABLE nessus_prep_lists ADD COLUMN prep_status TEXT",
+                    "scan_info" => "ALTER TABLE nessus_prep_lists ADD COLUMN scan_info TEXT",
+                    _ => {
+                        return Err(DatabaseError::Migration(format!("Invalid field name: {}", field)));
+                    }
+                };
+                self.conn.execute(alter_query, params![])?;
             }
         }
 
