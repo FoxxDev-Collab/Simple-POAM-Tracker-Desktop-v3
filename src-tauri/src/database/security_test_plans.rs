@@ -21,8 +21,8 @@ impl<'a> SecurityTestPlanOperations<'a> {
         
         self.conn.execute(
             "INSERT OR REPLACE INTO security_test_plans 
-             (id, name, description, created_date, updated_date, status, poam_id, stig_mapping_id, test_cases, overall_score, system_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+             (id, name, description, created_date, updated_date, status, source_type, poam_id, stig_mapping_id, test_cases, overall_score, system_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 plan.id,
                 plan.name,
@@ -30,6 +30,7 @@ impl<'a> SecurityTestPlanOperations<'a> {
                 plan.created_date,
                 plan.updated_date,
                 plan.status,
+                plan.source_type,
                 plan.poam_id,
                 plan.stig_mapping_id,
                 test_cases_json,
@@ -94,13 +95,13 @@ impl<'a> SecurityTestPlanQueries<'a> {
 
     pub fn get_all_security_test_plans(&self, system_id: &str) -> Result<Vec<SecurityTestPlan>, DatabaseError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, description, created_date, updated_date, status, poam_id, stig_mapping_id, test_cases, overall_score
+            "SELECT id, name, description, created_date, updated_date, status, source_type, poam_id, stig_mapping_id, test_cases, overall_score
              FROM security_test_plans WHERE system_id = ?1 ORDER BY updated_date DESC"
         )?;
         
         let mut plans = Vec::new();
         let rows = stmt.query_map(params![system_id], |row| {
-            let test_cases_json: String = row.get(8)?;
+            let test_cases_json: String = row.get(9)?;
             let test_cases = serde_json::from_str(&test_cases_json).unwrap();
             
             Ok(SecurityTestPlan {
@@ -110,10 +111,11 @@ impl<'a> SecurityTestPlanQueries<'a> {
                 created_date: row.get(3)?,
                 updated_date: row.get(4)?,
                 status: row.get(5)?,
-                poam_id: row.get(6)?,
-                stig_mapping_id: row.get(7)?,
+                source_type: row.get(6)?,
+                poam_id: row.get(7)?,
+                stig_mapping_id: row.get(8)?,
                 test_cases,
-                overall_score: row.get(9)?,
+                overall_score: row.get(10)?,
             })
         })?;
         
@@ -126,12 +128,12 @@ impl<'a> SecurityTestPlanQueries<'a> {
 
     pub fn get_security_test_plan_by_id(&self, id: &str, system_id: &str) -> Result<Option<SecurityTestPlan>, DatabaseError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, description, created_date, updated_date, status, poam_id, stig_mapping_id, test_cases, overall_score
+            "SELECT id, name, description, created_date, updated_date, status, source_type, poam_id, stig_mapping_id, test_cases, overall_score
              FROM security_test_plans WHERE id = ?1 AND system_id = ?2"
         )?;
         
         let plan = stmt.query_row(params![id, system_id], |row| {
-            let test_cases_json: String = row.get(8)?;
+            let test_cases_json: String = row.get(9)?;
             let test_cases = serde_json::from_str(&test_cases_json).unwrap();
             
             Ok(SecurityTestPlan {
@@ -141,10 +143,11 @@ impl<'a> SecurityTestPlanQueries<'a> {
                 created_date: row.get(3)?,
                 updated_date: row.get(4)?,
                 status: row.get(5)?,
-                poam_id: row.get(6)?,
-                stig_mapping_id: row.get(7)?,
+                source_type: row.get(6)?,
+                poam_id: row.get(7)?,
+                stig_mapping_id: row.get(8)?,
                 test_cases,
-                overall_score: row.get(9)?,
+                overall_score: row.get(10)?,
             })
         });
         
@@ -157,7 +160,7 @@ impl<'a> SecurityTestPlanQueries<'a> {
 
     pub fn get_test_plans_by_poam(&self, poam_id: i64, system_id: &str) -> Result<Vec<SecurityTestPlan>, DatabaseError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, description, created_date, updated_date, status, poam_id, stig_mapping_id, test_cases, overall_score
+            "SELECT id, name, description, created_date, updated_date, status, source_type, poam_id, stig_mapping_id, test_cases, overall_score
              FROM security_test_plans 
              WHERE poam_id = ?1 AND system_id = ?2
              ORDER BY updated_date DESC"
@@ -165,7 +168,7 @@ impl<'a> SecurityTestPlanQueries<'a> {
         
         let mut plans = Vec::new();
         let rows = stmt.query_map(params![poam_id, system_id], |row| {
-            let test_cases_json: String = row.get(8)?;
+            let test_cases_json: String = row.get(9)?;
             let test_cases = serde_json::from_str(&test_cases_json).unwrap();
             
             Ok(SecurityTestPlan {
@@ -175,10 +178,11 @@ impl<'a> SecurityTestPlanQueries<'a> {
                 created_date: row.get(3)?,
                 updated_date: row.get(4)?,
                 status: row.get(5)?,
-                poam_id: row.get(6)?,
-                stig_mapping_id: row.get(7)?,
+                source_type: row.get(6)?,
+                poam_id: row.get(7)?,
+                stig_mapping_id: row.get(8)?,
                 test_cases,
-                overall_score: row.get(9)?,
+                overall_score: row.get(10)?,
             })
         })?;
         

@@ -453,6 +453,7 @@ impl<'a> DatabaseSetup<'a> {
         self.migrate_groups_schema()?;
         self.migrate_nessus_prep_lists_schema()?;
         self.create_cci_mappings_table()?;
+        self.migrate_security_test_plans_source_type()?;
         
         Ok(())
     }
@@ -725,6 +726,30 @@ impl<'a> DatabaseSetup<'a> {
             params![],
         )?;
 
+        Ok(())
+    }
+
+    fn migrate_security_test_plans_source_type(&mut self) -> Result<(), DatabaseError> {
+        // Check if source_type column already exists
+        let mut stmt = self.conn.prepare("PRAGMA table_info(security_test_plans)")?;
+        let column_exists = stmt.query_map(params![], |row| {
+            Ok(row.get::<_, String>(1)?) // Column name is at index 1
+        })?.any(|name| name.map(|n| n == "source_type").unwrap_or(false));
+
+        if column_exists {
+            println!("security_test_plans source_type column already exists, skipping migration");
+            return Ok(());
+        }
+
+        println!("Adding source_type column to security_test_plans table");
+        
+        // Add the source_type column with default value 'stig' for existing records
+        self.conn.execute(
+            "ALTER TABLE security_test_plans ADD COLUMN source_type TEXT DEFAULT 'stig'",
+            params![],
+        )?;
+
+        println!("Successfully added source_type column to security_test_plans");
         Ok(())
     }
 }

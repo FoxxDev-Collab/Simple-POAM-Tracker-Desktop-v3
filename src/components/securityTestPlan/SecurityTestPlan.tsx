@@ -388,7 +388,7 @@ export default function SecurityTestPlan() {
             cve_id: isCVE ? idStr : undefined,
             plugin_id: firstFinding.plugin_id?.toString(),
             plugin_name: firstFinding.plugin_name,
-            cvss_score: firstFinding.cvss_score || firstFinding.cvss_base_score,
+            cvss_score: (firstFinding.cvss_score || firstFinding.cvss_base_score)?.toString(),
             severity: severity,
             affected_hosts: affectedHosts,
             nessus_compliance_status: 'Open',

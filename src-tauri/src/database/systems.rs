@@ -301,6 +301,7 @@ impl<'r> TryFrom<&'r Row<'r>> for SecurityTestPlan {
             created_date: row.get("created_date")?,
             updated_date: row.get("updated_date")?,
             status: row.get("status")?,
+            source_type: row.get("source_type").unwrap_or_else(|_| "stig".to_string()),
             poam_id: row.get("poam_id")?,
             stig_mapping_id: row.get("stig_mapping_id")?,
             test_cases: serde_json::from_str(&row.get::<_, String>("test_cases")?).unwrap_or_default(),

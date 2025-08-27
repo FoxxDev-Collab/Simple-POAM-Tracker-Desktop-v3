@@ -181,6 +181,7 @@ pub struct SecurityTestPlan {
     pub created_date: String,
     pub updated_date: String,
     pub status: String,
+    pub source_type: String, // stig, nessus, mixed
     pub poam_id: Option<i64>,
     pub stig_mapping_id: Option<String>,
     pub test_cases: Vec<TestCase>,
@@ -190,9 +191,6 @@ pub struct SecurityTestPlan {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TestCase {
     pub id: String,
-    pub nist_control: String,
-    pub cci_ref: String,
-    pub stig_vuln_id: String,
     pub test_description: String,
     pub test_procedure: String,
     pub expected_result: String,
@@ -203,6 +201,24 @@ pub struct TestCase {
     pub tested_by: Option<String>,
     pub tested_date: Option<String>,
     pub risk_rating: String,
+    
+    // Type indicator
+    pub source_type: String, // stig, nessus
+    
+    // STIG-specific fields
+    pub nist_control: Option<String>,
+    pub cci_ref: Option<String>,
+    pub stig_vuln_id: Option<String>,
+    pub stig_compliance_status: Option<String>, // Open, NotAFinding, Not_Applicable, Not_Reviewed
+    
+    // Nessus-specific fields
+    pub cve_id: Option<String>,
+    pub plugin_id: Option<String>,
+    pub plugin_name: Option<String>,
+    pub cvss_score: Option<String>,
+    pub severity: Option<String>,
+    pub affected_hosts: Option<Vec<String>>,
+    pub nessus_compliance_status: Option<String>, // Open, Fixed, Exception, Not_Applicable
 }
 
 // STP Prep List Data Structures

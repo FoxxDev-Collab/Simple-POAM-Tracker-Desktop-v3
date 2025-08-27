@@ -124,7 +124,7 @@ pub async fn export_evidence_package(
     for test_case in &test_plan.test_cases {
         manifest.push(format!(
             "\n### {} - {}",
-            test_case.nist_control, test_case.test_description
+            test_case.nist_control.as_deref().unwrap_or("N/A"), test_case.test_description
         ));
         manifest.push(format!("Status: {}", test_case.status));
 
@@ -141,7 +141,7 @@ pub async fn export_evidence_package(
                         // Add file to zip
                         let zip_path = format!(
                             "evidence/{}/{}",
-                            test_case.nist_control,
+                            test_case.nist_control.as_deref().unwrap_or("N/A"),
                             source_path
                                 .file_name()
                                 .unwrap()
