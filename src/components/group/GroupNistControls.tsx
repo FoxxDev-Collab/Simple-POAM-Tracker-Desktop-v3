@@ -13,6 +13,7 @@ import GroupBaselineControls from './GroupBaselineControls';
 import GroupControlAssociations from './GroupControlAssociations';
 import { NistControl } from './types';
 import catalogData from './catalog.json';
+import { compareNistControlIdStrings } from '../../lib/utils';
 
 interface GroupBaselineControl {
   id: string;
@@ -102,13 +103,17 @@ export default function GroupNistControls({ groupId, systems }: GroupNistControl
   const loadControlImplementationStatus = async () => {
     try {
       const analysis = await invoke<ControlComplianceAnalysis>('analyze_control_compliance', { groupId });
+      console.log('Control compliance analysis result:', analysis);
       setControlStatuses(analysis.control_statuses);
       setComplianceAnalysis(analysis);
-      setHasCciMappings(analysis.controls_with_mappings > 0);
+      const hasMappings = analysis.controls_with_mappings > 0;
+      console.log('Controls with mappings:', analysis.controls_with_mappings, 'Has mappings:', hasMappings);
+      setHasCciMappings(hasMappings);
     } catch (error) {
       console.log('No CCI mappings found for this group - upload U_CCI_List.xml to enable implementation status detection');
       setHasCciMappings(false);
       setComplianceAnalysis(null);
+      setControlStatuses([]);
     }
   };
 
@@ -117,28 +122,43 @@ export default function GroupNistControls({ groupId, systems }: GroupNistControl
       const selected = await open({
         multiple: false,
         filters: [{
-          name: 'CCI List',
+          name: 'CCI List XML',
           extensions: ['xml']
         }]
       });
 
       if (selected) {
         setIsUploadingCci(true);
+        console.log('Selected CCI file:', selected);
+        console.log('Group ID:', groupId);
+        
         const result = await invoke<string>('upload_cci_list', { 
           filePath: selected, 
           groupId 
         });
         
+        console.log('Upload result:', result);
         showToast('success', result);
         
-        // Reload control implementation status
-        await loadControlImplementationStatus();
+        // Reload all NIST controls data to refresh the UI
+        await loadNistControlsData();
         
         setIsUploadingCci(false);
       }
     } catch (error) {
       console.error('Failed to upload CCI list:', error);
-      showToast('error', 'Failed to upload CCI list. Please ensure the file is a valid U_CCI_List.xml file.');
+      
+      // Provide more detailed error information
+      let errorMessage = 'Failed to upload CCI list. ';
+      if (error instanceof Error) {
+        errorMessage += `Error: ${error.message}`;
+      } else if (typeof error === 'string') {
+        errorMessage += error;
+      } else {
+        errorMessage += 'Please ensure the file is a valid U_CCI_List.xml file.';
+      }
+      
+      showToast('error', errorMessage);
       setIsUploadingCci(false);
     }
   };
@@ -186,7 +206,10 @@ export default function GroupNistControls({ groupId, systems }: GroupNistControl
         controls.push(control);
       });
       
-      // Sorting will be handled where displayed using a shared comparator
+      // Sort controls using the proper NIST control ID comparator
+      controls.sort((a, b) => {
+        return compareNistControlIdStrings(a.id, b.id);
+      });
       
       return controls;
     } catch (error) {

@@ -2,6 +2,10 @@ use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 
+fn default_source_type() -> String {
+    "mixed".to_string()
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct POAMData {
     pub poams: Vec<POAM>,
@@ -181,6 +185,7 @@ pub struct SecurityTestPlan {
     pub created_date: String,
     pub updated_date: String,
     pub status: String,
+    #[serde(default = "default_source_type")]
     pub source_type: String, // stig, nessus, mixed
     pub poam_id: Option<i64>,
     pub stig_mapping_id: Option<String>,

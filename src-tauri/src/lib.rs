@@ -1,7 +1,6 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use std::fs;
 use tauri::{AppHandle, Manager};
-use serde::{Serialize, Deserialize};
 use uuid;
 use chrono;
 
@@ -32,8 +31,12 @@ enum Error {
 
     #[error(transparent)]
     Zip(#[from] zip::result::ZipError),
+    
     #[error("Nessus parsing error: {0}")]
     Nessus(String),
+    
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 }
 
 impl serde::Serialize for Error {
@@ -197,24 +200,61 @@ async fn upload_cci_list_file(_app_handle: AppHandle, file_path: String) -> Resu
 async fn upload_cci_list(app_handle: AppHandle, file_path: String, group_id: String) -> Result<String, Error> {
     println!("Uploading CCI list file for group {}: {}", group_id, file_path);
     
+    // Validate inputs
+    if group_id.is_empty() {
+        return Err(Error::InvalidInput("Group ID cannot be empty".to_string()));
+    }
+    
+    if file_path.is_empty() {
+        return Err(Error::InvalidInput("File path cannot be empty".to_string()));
+    }
+    
+    // Check if file exists
+    if !std::path::Path::new(&file_path).exists() {
+        return Err(Error::InvalidInput(format!("File does not exist: {}", file_path)));
+    }
+    
     // Parse the CCI list XML file
-    let mappings = stig::parse_cci_list(file_path)?;
-    println!("Successfully parsed {} CCI mappings", mappings.len());
+    let mappings = match stig::parse_cci_list(file_path.clone()) {
+        Ok(mappings) => {
+            println!("Successfully parsed {} CCI mappings", mappings.len());
+            if mappings.is_empty() {
+                return Err(Error::InvalidInput("No CCI mappings found in the file. Please ensure this is a valid U_CCI_List.xml file.".to_string()));
+            }
+            mappings
+        },
+        Err(e) => {
+            println!("Failed to parse CCI list: {:?}", e);
+            return Err(Error::InvalidInput(format!("Failed to parse CCI list file: {}. Please ensure this is a valid U_CCI_List.xml file.", e)));
+        }
+    };
     
     // Get database connection
-    let mut db = database::get_database(&app_handle)?;
+    let mut db = match database::get_database(&app_handle) {
+        Ok(db) => db,
+        Err(e) => {
+            println!("Failed to get database connection: {:?}", e);
+            return Err(Error::Database(e));
+        }
+    };
     
     // Clear existing CCI mappings for this group
-    db.conn.execute(
+    match db.conn.execute(
         "DELETE FROM group_cci_mappings WHERE group_id = ?1",
         rusqlite::params![group_id],
-    ).map_err(database::DatabaseError::Sqlite)?;
+    ) {
+        Ok(deleted_count) => println!("Cleared {} existing CCI mappings for group {}", deleted_count, group_id),
+        Err(e) => {
+            println!("Failed to clear existing CCI mappings: {:?}", e);
+            return Err(Error::Database(database::DatabaseError::Sqlite(e)));
+        }
+    }
     
     // Save new CCI mappings to the database
     let mut saved_count = 0;
     for mapping in &mappings {
         for nist_control in &mapping.nist_controls {
-            db.conn.execute(
+            match db.conn.execute(
                 "INSERT INTO group_cci_mappings (group_id, cci_id, nist_control, definition, status) 
                  VALUES (?1, ?2, ?3, ?4, ?5)",
                 rusqlite::params![
@@ -224,20 +264,41 @@ async fn upload_cci_list(app_handle: AppHandle, file_path: String, group_id: Str
                     mapping.definition,
                     mapping.status
                 ],
-            ).map_err(database::DatabaseError::Sqlite)?;
-            saved_count += 1;
+            ) {
+                Ok(_) => saved_count += 1,
+                Err(e) => {
+                    println!("Failed to insert CCI mapping {}: {:?}", mapping.id, e);
+                    return Err(Error::Database(database::DatabaseError::Sqlite(e)));
+                }
+            }
         }
     }
     
+    println!("Successfully saved {} CCI-to-NIST control associations", saved_count);
+    
     // Update implementation status for group baseline controls based on CCI mappings
-    let baseline_controls = db.get_group_baseline_controls(&group_id)?;
+    let baseline_controls = match db.get_group_baseline_controls(&group_id) {
+        Ok(controls) => controls,
+        Err(e) => {
+            println!("Warning: Failed to get group baseline controls: {:?}", e);
+            Vec::new() // Continue without updating baseline controls
+        }
+    };
+    
+    let mut updated_controls = 0;
     for control in baseline_controls {
         // Check if this control has CCI mappings
-        let has_mappings = db.conn.query_row(
+        let has_mappings = match db.conn.query_row(
             "SELECT COUNT(*) FROM group_cci_mappings WHERE group_id = ?1 AND nist_control = ?2",
             rusqlite::params![group_id, control.id],
             |row| row.get::<_, i64>(0)
-        ).unwrap_or(0) > 0;
+        ) {
+            Ok(count) => count > 0,
+            Err(e) => {
+                println!("Warning: Failed to check CCI mappings for control {}: {:?}", control.id, e);
+                false
+            }
+        };
         
         if has_mappings {
             // Update the control's implementation status to indicate it has CCI mappings
@@ -245,7 +306,11 @@ async fn upload_cci_list(app_handle: AppHandle, file_path: String, group_id: Str
             if updated_control.implementation_status == "Not Assessed" {
                 updated_control.implementation_status = "Not Implemented".to_string();
             }
-            db.update_group_baseline_control(&updated_control)?;
+            
+            match db.update_group_baseline_control(&updated_control) {
+                Ok(_) => updated_controls += 1,
+                Err(e) => println!("Warning: Failed to update baseline control {}: {:?}", updated_control.id, e)
+            }
         }
     }
     
@@ -260,14 +325,14 @@ async fn upload_cci_list(app_handle: AppHandle, file_path: String, group_id: Str
 }
 
 #[derive(serde::Serialize)]
-struct ControlImplementationStatus {
+struct ControlStatus {
     control_id: String,
     implementation_status: String,
     compliance_percentage: f64,
-    total_findings: usize,
-    open_findings: usize,
-    not_applicable_findings: usize,
-    compliant_findings: usize,
+    total_findings: u32,
+    open_findings: u32,
+    not_applicable_findings: u32,
+    compliant_findings: u32,
     mapped_ccis: Vec<String>,
     affected_systems: Vec<String>,
     last_assessed: Option<String>,
@@ -282,7 +347,7 @@ struct ControlComplianceAnalysis {
     partially_compliant: usize,
     non_compliant: usize,
     not_assessed: usize,
-    control_statuses: Vec<ControlImplementationStatus>,
+    control_statuses: Vec<ControlStatus>,
 }
 
 #[tauri::command]
@@ -353,6 +418,7 @@ async fn analyze_control_compliance(app_handle: AppHandle, group_id: String) -> 
     let mut non_compliant = 0;
     let mut not_assessed = 0;
     
+    // First, process controls that have STIG findings
     for (control_id, findings) in &control_findings {
         controls_with_mappings += 1;
         
@@ -396,7 +462,7 @@ async fn analyze_control_compliance(app_handle: AppHandle, group_id: String) -> 
         
         let mapped_ccis = nist_to_ccis.get(control_id).cloned().unwrap_or_default();
         
-        control_statuses.push(ControlImplementationStatus {
+        control_statuses.push(ControlStatus {
             control_id: control_id.clone(),
             implementation_status,
             compliance_percentage,
@@ -408,6 +474,27 @@ async fn analyze_control_compliance(app_handle: AppHandle, group_id: String) -> 
             affected_systems,
             last_assessed: Some(chrono::Utc::now().to_rfc3339()),
         });
+    }
+    
+    // Add controls that have CCI mappings but no STIG findings yet
+    for (nist_control, ccis) in &nist_to_ccis {
+        if !control_findings.contains_key(nist_control) {
+            controls_with_mappings += 1;
+            not_assessed += 1;
+            
+            control_statuses.push(ControlStatus {
+                control_id: nist_control.clone(),
+                implementation_status: "Not Assessed".to_string(),
+                compliance_percentage: 0.0,
+                total_findings: 0,
+                open_findings: 0,
+                not_applicable_findings: 0,
+                compliant_findings: 0,
+                mapped_ccis: ccis.clone(),
+                affected_systems: vec![],
+                last_assessed: Some(chrono::Utc::now().to_rfc3339()),
+            });
+        }
     }
     
     // Sort by control ID
@@ -991,6 +1078,15 @@ pub fn run() {
             commands::groups::create_group_poam,
             commands::groups::update_group_poam,
             commands::groups::delete_group_poam,
+            // Group NIST Controls commands
+            commands::groups::get_group_baseline_controls,
+            commands::groups::add_group_baseline_control,
+            commands::groups::update_group_baseline_control,
+            commands::groups::remove_group_baseline_control,
+            commands::groups::associate_group_poam_with_control,
+            commands::groups::remove_group_poam_control_association,
+            commands::groups::get_group_poam_associations_by_control,
+            commands::groups::get_group_control_associations_by_poam,
             // POAMs and Milestones module commands
             commands::poams_milestones::get_all_poams,
             commands::poams_milestones::get_poams,

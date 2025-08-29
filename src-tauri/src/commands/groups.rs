@@ -131,3 +131,103 @@ pub async fn delete_group_poam(app_handle: AppHandle, id: i64) -> Result<(), Err
     println!("Successfully deleted group POAM");
     Ok(())
 }
+
+
+// Group NIST Controls API Commands
+
+#[tauri::command]
+pub async fn get_group_baseline_controls(app_handle: AppHandle, group_id: String) -> Result<Vec<database::GroupBaselineControl>, Error> {
+    println!("Getting group baseline controls for group: {}", group_id);
+    let db = database::get_database(&app_handle)?;
+    let controls = db.get_group_baseline_controls(&group_id)?;
+    println!("Retrieved {} group baseline controls for group {}", controls.len(), group_id);
+    Ok(controls)
+}
+
+#[tauri::command]
+pub async fn add_group_baseline_control(app_handle: AppHandle, control: database::GroupBaselineControl) -> Result<(), Error> {
+    println!("Adding group baseline control: {} to group {}", control.id, control.group_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.add_group_baseline_control(&control)?;
+    println!("Successfully added group baseline control: {}", control.id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_group_baseline_control(app_handle: AppHandle, control: database::GroupBaselineControl) -> Result<(), Error> {
+    println!("Updating group baseline control: {} in group {}", control.id, control.group_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.update_group_baseline_control(&control)?;
+    println!("Successfully updated group baseline control: {}", control.id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn remove_group_baseline_control(app_handle: AppHandle, control_id: String, group_id: String) -> Result<(), Error> {
+    println!("Removing group baseline control: {} from group {}", control_id, group_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.remove_group_baseline_control(&control_id, &group_id)?;
+    println!("Successfully removed group baseline control: {}", control_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn associate_group_poam_with_control(
+    app_handle: AppHandle,
+    control_id: String,
+    group_poam_id: i64,
+    group_id: String,
+    created_by: Option<String>,
+    notes: Option<String>
+) -> Result<String, Error> {
+    println!("Associating group POAM {} with control {} in group {}", group_poam_id, control_id, group_id);
+    let mut db = database::get_database(&app_handle)?;
+    let association_id = db.create_group_control_poam_association(
+        &control_id,
+        group_poam_id,
+        &group_id,
+        created_by.as_deref(),
+        notes.as_deref()
+    )?;
+    println!("Successfully created group control-POAM association: {}", association_id);
+    Ok(association_id)
+}
+
+#[tauri::command]
+pub async fn remove_group_poam_control_association(
+    app_handle: AppHandle,
+    association_id: String,
+    group_id: String
+) -> Result<(), Error> {
+    println!("Removing group control-POAM association: {} from group {}", association_id, group_id);
+    let mut db = database::get_database(&app_handle)?;
+    db.delete_group_control_poam_association(&association_id, &group_id)?;
+    println!("Successfully removed group control-POAM association: {}", association_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_group_poam_associations_by_control(
+    app_handle: AppHandle,
+    control_id: String,
+    group_id: String
+) -> Result<Vec<database::GroupControlPOAMAssociation>, Error> {
+    println!("Getting group POAM associations for control {} in group {}", control_id, group_id);
+    let db = database::get_database(&app_handle)?;
+    let associations = db.get_group_control_poam_associations_by_control(&control_id, &group_id)?;
+    println!("Retrieved {} group POAM associations for control {}", associations.len(), control_id);
+    Ok(associations)
+}
+
+#[tauri::command]
+pub async fn get_group_control_associations_by_poam(
+    app_handle: AppHandle,
+    group_poam_id: i64,
+    group_id: String
+) -> Result<Vec<database::GroupControlPOAMAssociation>, Error> {
+    println!("Getting group control associations for POAM {} in group {}", group_poam_id, group_id);
+    let db = database::get_database(&app_handle)?;
+    let associations = db.get_group_control_poam_associations_by_poam(group_poam_id, &group_id)?;
+    println!("Retrieved {} group control associations for POAM {}", associations.len(), group_poam_id);
+    Ok(associations)
+}

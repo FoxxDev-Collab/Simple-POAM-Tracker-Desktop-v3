@@ -102,7 +102,8 @@ impl<'a> SecurityTestPlanQueries<'a> {
         let mut plans = Vec::new();
         let rows = stmt.query_map(params![system_id], |row| {
             let test_cases_json: String = row.get(9)?;
-            let test_cases = serde_json::from_str(&test_cases_json).unwrap();
+            let test_cases = serde_json::from_str(&test_cases_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(9, "test_cases".to_string(), rusqlite::types::Type::Text))?;
             
             Ok(SecurityTestPlan {
                 id: row.get(0)?,
@@ -134,7 +135,8 @@ impl<'a> SecurityTestPlanQueries<'a> {
         
         let plan = stmt.query_row(params![id, system_id], |row| {
             let test_cases_json: String = row.get(9)?;
-            let test_cases = serde_json::from_str(&test_cases_json).unwrap();
+            let test_cases = serde_json::from_str(&test_cases_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(9, "test_cases".to_string(), rusqlite::types::Type::Text))?;
             
             Ok(SecurityTestPlan {
                 id: row.get(0)?,
@@ -169,7 +171,8 @@ impl<'a> SecurityTestPlanQueries<'a> {
         let mut plans = Vec::new();
         let rows = stmt.query_map(params![poam_id, system_id], |row| {
             let test_cases_json: String = row.get(9)?;
-            let test_cases = serde_json::from_str(&test_cases_json).unwrap();
+            let test_cases = serde_json::from_str(&test_cases_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(9, "test_cases".to_string(), rusqlite::types::Type::Text))?;
             
             Ok(SecurityTestPlan {
                 id: row.get(0)?,
@@ -206,9 +209,12 @@ impl<'a> SecurityTestPlanQueries<'a> {
             let asset_info_json: String = row.get(7)?;
             let selected_controls_json: String = row.get(9)?;
             
-            let stig_info = serde_json::from_str(&stig_info_json).unwrap();
-            let asset_info = serde_json::from_str(&asset_info_json).unwrap();
-            let selected_controls = serde_json::from_str(&selected_controls_json).unwrap();
+            let stig_info = serde_json::from_str(&stig_info_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(6, "stig_info".to_string(), rusqlite::types::Type::Text))?;
+            let asset_info = serde_json::from_str(&asset_info_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(7, "asset_info".to_string(), rusqlite::types::Type::Text))?;
+            let selected_controls = serde_json::from_str(&selected_controls_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(9, "selected_controls".to_string(), rusqlite::types::Type::Text))?;
             
             Ok(StpPrepList {
                 id: row.get(0)?,
@@ -243,9 +249,12 @@ impl<'a> SecurityTestPlanQueries<'a> {
             let asset_info_json: String = row.get(7)?;
             let selected_controls_json: String = row.get(9)?;
             
-            let stig_info = serde_json::from_str(&stig_info_json).unwrap();
-            let asset_info = serde_json::from_str(&asset_info_json).unwrap();
-            let selected_controls = serde_json::from_str(&selected_controls_json).unwrap();
+            let stig_info = serde_json::from_str(&stig_info_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(6, "stig_info".to_string(), rusqlite::types::Type::Text))?;
+            let asset_info = serde_json::from_str(&asset_info_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(7, "asset_info".to_string(), rusqlite::types::Type::Text))?;
+            let selected_controls = serde_json::from_str(&selected_controls_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(9, "selected_controls".to_string(), rusqlite::types::Type::Text))?;
             
             Ok(StpPrepList {
                 id: row.get(0)?,
@@ -283,9 +292,12 @@ impl<'a> SecurityTestPlanQueries<'a> {
             let asset_info_json: String = row.get(7)?;
             let selected_controls_json: String = row.get(9)?;
             
-            let stig_info = serde_json::from_str(&stig_info_json).unwrap();
-            let asset_info = serde_json::from_str(&asset_info_json).unwrap();
-            let selected_controls = serde_json::from_str(&selected_controls_json).unwrap();
+            let stig_info = serde_json::from_str(&stig_info_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(6, "stig_info".to_string(), rusqlite::types::Type::Text))?;
+            let asset_info = serde_json::from_str(&asset_info_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(7, "asset_info".to_string(), rusqlite::types::Type::Text))?;
+            let selected_controls = serde_json::from_str(&selected_controls_json)
+                .map_err(|e| rusqlite::Error::InvalidColumnType(9, "selected_controls".to_string(), rusqlite::types::Type::Text))?;
             
             Ok(StpPrepList {
                 id: row.get(0)?,

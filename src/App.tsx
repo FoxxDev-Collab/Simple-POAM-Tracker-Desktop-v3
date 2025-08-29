@@ -42,7 +42,7 @@ export const useEditPOAM = () => useContext(EditPOAMContext);
 // App content component that uses the AppLock and System contexts
 function AppContent() {
   const { isLocked, unlockApp } = useAppLock();
-  const { currentSystem, isSystemsLoaded, isLoading } = useSystem();
+  const { currentSystem, isSystemsLoaded, isLoading, systems, setCurrentSystem } = useSystem();
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [activeTabId, setActiveTabId] = useState<string>("dashboard");
   const [editingPOAM, setEditingPOAM] = useState<number | null>(null);
@@ -182,13 +182,21 @@ function AppContent() {
                   setActiveGroupId(null);
                   setShowSystemSelector(true);
                 }}
-                onSwitchToSystem={(_systemId: string, targetTab?: string) => {
-                  // Exit group view and optionally switch to specific tab
-                  // System switching is handled within the component
+                onSwitchToSystem={async (systemId: string, targetTab?: string) => {
+                  // Find the target system
+                  const targetSystem = systems.find(s => s.id === systemId);
+                  if (targetSystem) {
+                    // Switch to the target system first
+                    await setCurrentSystem(targetSystem);
+                    console.log('Switched to system:', targetSystem.name, 'ID:', systemId);
+                  }
+                  
+                  // Exit group view and switch to specific tab
                   setActiveGroupId(null);
                   if (targetTab) {
                     setActiveTabId(targetTab);
                   }
+                  setShowSystemSelector(false);
                 }}
               />
             </main>

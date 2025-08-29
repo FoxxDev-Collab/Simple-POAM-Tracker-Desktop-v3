@@ -45,6 +45,13 @@ export async function saveStigMapping(mapping: any, systemId: string): Promise<v
 }
 
 /**
+ * POAM Functions - System-aware
+ */
+export async function getAllPoams(systemId: string): Promise<any[]> {
+  return await invoke('get_all_poams', { systemId });
+}
+
+/**
  * Security Test Plan Functions - System-aware
  */
 export async function getAllSecurityTestPlans(systemId: string): Promise<any[]> {

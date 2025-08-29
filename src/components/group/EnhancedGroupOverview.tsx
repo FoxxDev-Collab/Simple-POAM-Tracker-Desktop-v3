@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { useToast } from '../../context/ToastContext';
+import { 
+  getAllPoams,
+  getAllSecurityTestPlans,
+  getAllStigMappings,
+  getNessusScans,
+  getNessusFindingsByScan
+} from '../../utils/tauriApi';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -69,6 +75,7 @@ interface NessusFinding {
   id: string;
   scan_id: string;
   risk_factor?: string; // Critical/High/Medium/Low
+  severity?: string; // '4'=Critical, '3'=High, '2'=Medium, '1'=Low
 }
 
 type RiskLevel = 'Low' | 'Medium' | 'High' | 'Critical';
@@ -131,7 +138,7 @@ export default function EnhancedGroupOverview({
     return 'text-red-600';
   };
 
-  // Scoring logic aligned with GroupMetrics.tsx
+  // Security score calculation - aligned with MetricsDashboard.tsx
   const calculateSecurityScore = (
     poams: POAM[],
     stigs: STIGMapping[],
@@ -140,11 +147,13 @@ export default function EnhancedGroupOverview({
   ): number => {
     let score = 100;
 
+    // POAM impact on security score
     const openPoams = poams.filter(p => p.status !== 'Completed' && p.status !== 'Closed');
     const criticalPoams = openPoams.filter(p => p.priority === 'Critical').length;
     const highPoams = openPoams.filter(p => p.priority === 'High').length;
     score -= (criticalPoams * 15) + (highPoams * 10) + (openPoams.length * 2);
 
+    // STIG compliance impact - use summary data directly like MetricsDashboard
     stigs.forEach(stig => {
       if (stig.mapping_result?.summary) {
         const total = stig.mapping_result.summary.total_controls || 0;
@@ -154,22 +163,30 @@ export default function EnhancedGroupOverview({
       }
     });
 
+    // Test plan failures impact
     testPlans.forEach(plan => {
       const failedTests = plan.test_cases?.filter(tc => tc.status === 'Failed').length || 0;
       score -= failedTests * 3;
     });
 
-    const criticalFindings = findings.filter(f => f.risk_factor === 'Critical').length;
-    const highFindings = findings.filter(f => f.risk_factor === 'High').length;
+    // Vulnerability findings impact - match MetricsDashboard logic
+    const criticalFindings = findings.filter(f => 
+      f.risk_factor?.toLowerCase() === 'critical' || f.severity === '4'
+    ).length;
+    const highFindings = findings.filter(f => 
+      f.risk_factor?.toLowerCase() === 'high' || f.severity === '3'
+    ).length;
     score -= (criticalFindings * 10) + (highFindings * 5);
 
     return Math.max(0, Math.min(100, Math.round(score)));
   };
 
+  // Compliance score calculation - aligned with MetricsDashboard.tsx
   const calculateComplianceScore = (
     stigs: STIGMapping[],
     testPlans: SecurityTestPlan[]
   ): number => {
+    // STIG compliance calculation - use summary data directly
     let totalControls = 0;
     let compliantControls = 0;
 
@@ -181,30 +198,42 @@ export default function EnhancedGroupOverview({
     });
     const stigCompliance = totalControls > 0 ? (compliantControls / totalControls) * 100 : 0;
 
+    // Test plan compliance calculation
     let totalTests = 0;
     let passedTests = 0;
     testPlans.forEach(plan => {
-      const tests = plan.test_cases || [];
-      totalTests += tests.length;
-      passedTests += tests.filter(tc => tc.status === 'Passed').length;
+      if (plan.test_cases) {
+        totalTests += plan.test_cases.length;
+        passedTests += plan.test_cases.filter(tc => tc.status === 'Passed').length;
+      }
     });
     const testCompliance = totalTests > 0 ? (passedTests / totalTests) * 100 : 0;
 
-    // 70% STIG compliance, 30% test compliance
+    // Weighted average: 70% STIG compliance, 30% test compliance
     return Math.round((stigCompliance * 0.7) + (testCompliance * 0.3));
   };
 
+  // Risk level calculation - aligned with MetricsDashboard.tsx logic
   const calculateRiskLevel = (
     poams: POAM[],
     findings: NessusFinding[],
     securityScore: number
   ): RiskLevel => {
-    const criticalPoams = poams.filter(p => p.priority === 'Critical' && p.status !== 'Completed').length;
-    const criticalFindings = findings.filter(f => f.risk_factor === 'Critical').length;
+    const criticalPoams = poams.filter(p => p.priority === 'Critical' && p.status !== 'Completed' && p.status !== 'Closed').length;
+    const highPoams = poams.filter(p => p.priority === 'High' && p.status !== 'Completed' && p.status !== 'Closed').length;
+    
+    // Match MetricsDashboard vulnerability severity detection
+    const criticalFindings = findings.filter(f => 
+      f.risk_factor?.toLowerCase() === 'critical' || f.severity === '4'
+    ).length;
+    const highFindings = findings.filter(f => 
+      f.risk_factor?.toLowerCase() === 'high' || f.severity === '3'
+    ).length;
 
+    // Risk level determination logic
     if (criticalPoams > 0 || criticalFindings > 5 || securityScore < 30) return 'Critical';
-    if (securityScore < 50 || criticalFindings > 0) return 'High';
-    if (securityScore < 70) return 'Medium';
+    if (highPoams > 0 || criticalFindings > 0 || securityScore < 50) return 'High';
+    if (securityScore < 70 || highFindings > 10) return 'Medium';
     return 'Low';
   };
 
@@ -229,38 +258,61 @@ export default function EnhancedGroupOverview({
               testPlans,
               nessusScans
             ] = await Promise.all([
-              invoke<POAM[]>('get_all_poams', { systemId: system.id }).catch(() => []),
-              invoke<STIGMapping[]>('get_all_stig_mappings', { systemId: system.id }).catch(() => []),
-              invoke<SecurityTestPlan[]>('get_all_security_test_plans', { systemId: system.id }).catch(() => []),
-              invoke<NessusScan[]>('get_nessus_scans', { systemId: system.id }).catch(() => []),
+              getAllPoams(system.id).catch((err) => {
+                console.warn(`Failed to load POAMs for system ${system.id}:`, err);
+                return [];
+              }),
+              getAllStigMappings(system.id).catch((err) => {
+                console.warn(`Failed to load STIG mappings for system ${system.id}:`, err);
+                return [];
+              }),
+              getAllSecurityTestPlans(system.id).catch((err) => {
+                console.warn(`Failed to load security test plans for system ${system.id}:`, err);
+                return [];
+              }),
+              getNessusScans(system.id).catch((err) => {
+                console.warn(`Failed to load Nessus scans for system ${system.id}:`, err);
+                return [];
+              }),
             ]);
 
             let allFindings: NessusFinding[] = [];
-            if (nessusScans && nessusScans.length > 0) {
-              const findingBatches = await Promise.all(
-                nessusScans.map(scan =>
-                  invoke<NessusFinding[]>('get_nessus_findings_by_scan', {
-                    scanId: scan.id,
-                    systemId: system.id
-                  }).catch(() => [])
-                )
-              );
-              allFindings = findingBatches.flat();
+            if (Array.isArray(nessusScans) && nessusScans.length > 0) {
+              try {
+                const findingBatches = await Promise.all(
+                  nessusScans.map(scan =>
+                    getNessusFindingsByScan(scan.id, system.id).catch((err) => {
+                      console.warn(`Failed to load findings for scan ${scan.id}:`, err);
+                      return [];
+                    })
+                  )
+                );
+                allFindings = findingBatches.filter(Array.isArray).flat();
+              } catch (err) {
+                console.warn(`Failed to load Nessus findings for system ${system.id}:`, err);
+                allFindings = [];
+              }
             }
 
-            const securityScore = calculateSecurityScore(poams || [], stigs || [], testPlans || [], allFindings || []);
-            const complianceScore = calculateComplianceScore(stigs || [], testPlans || []);
-            const riskLevel = calculateRiskLevel(poams || [], allFindings || [], securityScore);
+            // Ensure all data is arrays before processing
+            const safePoams = Array.isArray(poams) ? poams : [];
+            const safeStigs = Array.isArray(stigs) ? stigs : [];
+            const safeTestPlans = Array.isArray(testPlans) ? testPlans : [];
+            const safeFindings = Array.isArray(allFindings) ? allFindings : [];
+
+            const securityScore = calculateSecurityScore(safePoams, safeStigs, safeTestPlans, safeFindings);
+            const complianceScore = calculateComplianceScore(safeStigs, safeTestPlans);
+            const riskLevel = calculateRiskLevel(safePoams, safeFindings, securityScore);
 
             const item: SystemStats = {
               systemId: system.id,
               systemName: system.name,
               owner: system.owner,
               classification: system.classification,
-              poamCount: (poams || []).length,
-              stigCount: (stigs || []).length,
-              testPlanCount: (testPlans || []).length,
-              vulnCount: (allFindings || []).length,
+              poamCount: safePoams.length,
+              stigCount: safeStigs.length,
+              testPlanCount: safeTestPlans.length,
+              vulnCount: safeFindings.length,
               securityScore,
               complianceScore,
               riskLevel
@@ -583,49 +635,18 @@ export default function EnhancedGroupOverview({
                     </div>
 
                     {/* Actions */}
-                    <div className="flex flex-col gap-2 lg:min-w-[140px]">
+                    <div className="flex lg:min-w-[140px]">
                       <Button
                         size="sm"
-                        onClick={() => onSwitchToSystem?.(row.systemId, 'metrics')}
+                        onClick={() => {
+                          console.log('Navigating to system:', row.systemId);
+                          onSwitchToSystem?.(row.systemId, 'metrics');
+                        }}
                         className="w-full justify-start bg-primary hover:bg-primary/90"
                       >
                         <ExternalLink className="h-4 w-4 mr-2" />
-                        View Details
+                        View System
                       </Button>
-                      <div className="grid grid-cols-2 gap-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onSwitchToSystem?.(row.systemId, 'poams')}
-                          className="text-xs"
-                        >
-                          POAMs
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onSwitchToSystem?.(row.systemId, 'stig')}
-                          className="text-xs"
-                        >
-                          STIG
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onSwitchToSystem?.(row.systemId, 'testing')}
-                          className="text-xs"
-                        >
-                          Testing
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onSwitchToSystem?.(row.systemId, 'vulnerabilities')}
-                          className="text-xs"
-                        >
-                          Vulns
-                        </Button>
-                      </div>
                     </div>
                   </div>
                 </CardContent>

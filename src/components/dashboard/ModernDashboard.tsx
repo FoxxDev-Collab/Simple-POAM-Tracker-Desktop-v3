@@ -174,30 +174,40 @@ export default function ModernDashboard() {
         setUpcomingMilestones(upcoming)
       }
 
-      // Calculate STIG Mapping stats
+      // Calculate STIG Mapping stats - using vulnerability data like STIG Center
       if (stigMappings) {
         const totalMappings = stigMappings.length
-        let totalControls = 0
-        let compliantControls = 0
-        let nonCompliantControls = 0
-        let highRiskFindings = 0
+        let totalVulnerabilities = 0
+        let openFindings = 0
+        let compliantFindings = 0
+        let notReviewedFindings = 0
 
-        stigMappings.forEach(mapping => {
-          // Use the summary data directly from the mapping result (same as STIG Mapper component)
-          if (mapping.mapping_result?.summary) {
-            totalControls += mapping.mapping_result.summary.total_controls || 0
-            compliantControls += mapping.mapping_result.summary.compliant_controls || 0
-            nonCompliantControls += mapping.mapping_result.summary.non_compliant_controls || 0
-            highRiskFindings += mapping.mapping_result.summary.high_risk_findings || 0
+        stigMappings.forEach((mapping: any) => {
+          // Extract vulnerabilities from mapped controls (same as STIG Center)
+          if (mapping.mapping_result?.mapped_controls) {
+            mapping.mapping_result.mapped_controls.forEach((control: any) => {
+              if (control.stigs) {
+                totalVulnerabilities += control.stigs.length
+                control.stigs.forEach((vuln: any) => {
+                  if (vuln.status === 'Open') {
+                    openFindings++
+                  } else if (vuln.status === 'NotAFinding' || vuln.status === 'Not_Applicable') {
+                    compliantFindings++
+                  } else if (vuln.status === 'Not_Reviewed' || !vuln.status) {
+                    notReviewedFindings++
+                  }
+                })
+              }
+            })
           }
         })
 
         setSTIGStats({
           totalMappings,
-          totalControls,
-          compliantControls,
-          nonCompliantControls,
-          notReviewedControls: totalControls - compliantControls - nonCompliantControls
+          totalControls: totalVulnerabilities, // Rename for clarity
+          compliantControls: compliantFindings,
+          nonCompliantControls: openFindings,
+          notReviewedControls: notReviewedFindings
         })
       }
 
@@ -402,16 +412,16 @@ export default function ModernDashboard() {
       {/* STIG and Security Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="STIG Controls"
+          title="Total Vulnerabilities"
           value={stigStats.totalControls}
-          description="Security controls mapped"
+          description="STIG vulnerabilities found"
           icon={Shield}
         />
         <StatCard
-          title="Compliant Controls"
-          value={stigStats.compliantControls}
-          description="Meeting requirements"
-          icon={CheckCircle}
+          title="Open Findings"
+          value={stigStats.nonCompliantControls}
+          description="Require remediation"
+          icon={AlertTriangle}
         />
         <StatCard
           title="Test Plans"
@@ -509,35 +519,117 @@ export default function ModernDashboard() {
         </Card>
       </div>
 
-      {/* STIG Compliance Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>STIG Compliance Overview</CardTitle>
-          <CardDescription>Security Technical Implementation Guide compliance status</CardDescription>
-        </CardHeader>
-        <CardContent>
+    {/* STIG Compliance Overview */}
+    <Card>
+      <CardHeader>
+        <CardTitle>STIG Compliance Overview</CardTitle>
+        <CardDescription>Security Technical Implementation Guide compliance status from latest scans</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          {/* Compliance Statistics */}
           <div className="grid-responsive grid-responsive-4 gap-4">
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">{stigStats.compliantControls}</div>
-              <div className="text-sm text-green-600">Compliant</div>
+            <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="text-2xl font-bold text-blue-600">{stigStats.totalControls}</div>
+              <div className="text-sm text-blue-600 font-medium">Total Vulnerabilities</div>
+              <div className="text-xs text-blue-500 mt-1">
+                From {stigStats.totalMappings} STIG mapping{stigStats.totalMappings !== 1 ? 's' : ''}
+              </div>
             </div>
-            <div className="text-center p-4 bg-red-50 rounded-lg">
+            <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
               <div className="text-2xl font-bold text-red-600">{stigStats.nonCompliantControls}</div>
-              <div className="text-sm text-red-600">Non-Compliant</div>
+              <div className="text-sm text-red-600 font-medium">Open Findings</div>
+              <div className="text-xs text-red-500 mt-1">
+                {stigStats.totalControls > 0 ? 
+                  `${Math.round((stigStats.nonCompliantControls / stigStats.totalControls) * 100)}%` : 
+                  '0%'
+                }
+              </div>
             </div>
-            <div className="text-center p-4 bg-yellow-50 rounded-lg">
+            <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="text-2xl font-bold text-green-600">
+                {stigStats.totalControls > 0 ? 
+                  `${Math.round((stigStats.compliantControls / stigStats.totalControls) * 100)}%` : 
+                  '0%'
+                }
+              </div>
+              <div className="text-sm text-green-600 font-medium">Compliance Rate</div>
+              <div className="text-xs text-green-500 mt-1">
+                {stigStats.compliantControls} compliant findings
+              </div>
+            </div>
+            <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
               <div className="text-2xl font-bold text-yellow-600">{stigStats.notReviewedControls}</div>
-              <div className="text-sm text-yellow-600">Not Reviewed</div>
-            </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{stigStats.totalMappings}</div>
-              <div className="text-sm text-blue-600">STIG Mappings</div>
+              <div className="text-sm text-yellow-600 font-medium">Not Reviewed</div>
+              <div className="text-xs text-yellow-500 mt-1">
+                {stigStats.totalControls > 0 ? 
+                  `${Math.round((stigStats.notReviewedControls / stigStats.totalControls) * 100)}%` : 
+                  '0%'
+                }
+              </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
+          {/* Compliance Progress Bar */}
+          {stigStats.totalControls > 0 && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm font-medium">
+                <span>Overall Compliance Progress</span>
+                <span>{Math.round((stigStats.compliantControls / stigStats.totalControls) * 100)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="flex h-3 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-green-500 transition-all duration-500"
+                    style={{ width: `${(stigStats.compliantControls / stigStats.totalControls) * 100}%` }}
+                  ></div>
+                  <div 
+                    className="bg-red-500 transition-all duration-500"
+                    style={{ width: `${(stigStats.nonCompliantControls / stigStats.totalControls) * 100}%` }}
+                  ></div>
+                  <div 
+                    className="bg-yellow-500 transition-all duration-500"
+                    style={{ width: `${(stigStats.notReviewedControls / stigStats.totalControls) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div className="flex justify-between text-xs text-gray-600">
+                <span className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  Compliant ({stigStats.compliantControls})
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                  Non-Compliant ({stigStats.nonCompliantControls})
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                  Not Reviewed ({stigStats.notReviewedControls})
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* No Data Message */}
+          {stigStats.totalControls === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <Shield className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p className="text-sm font-medium">No STIG mappings found</p>
+              <p className="text-xs">Import STIG checklists to see compliance data</p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-3"
+                onClick={() => setActiveTab('stig-center')}
+              >
+                Go to STIG Center
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
 
     </div>
   )
-} 
+}
