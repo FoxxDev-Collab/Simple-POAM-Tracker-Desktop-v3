@@ -66,11 +66,6 @@ interface SecurityTestPlan {
   }>;
 }
 
-interface NessusScan {
-  id: string;
-  system_id: string;
-}
-
 interface NessusFinding {
   id: string;
   scan_id: string;
